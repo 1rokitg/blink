@@ -4,147 +4,90 @@
 
 @layer base {
   :root {
-    --background: #fcfcfc;
-    --foreground: #171717;
-    --card: #fcfcfc;
-    --card-foreground: #171717;
-    --popover: #fcfcfc;
-    --popover-foreground: #525252;
-    --primary: #72e3ad;
-    --primary-foreground: #1e2723;
-    --secondary: #fdfdfd;
-    --secondary-foreground: #171717;
-    --muted: #ededed;
-    --muted-foreground: #202020;
-    --accent: #ededed;
-    --accent-foreground: #202020;
-    --destructive: #ca3214;
-    --destructive-foreground: #fffcfc;
-    --border: #dfdfdf;
-    --input: #f6f6f6;
-    --ring: #72e3ad;
-    --chart-1: #72e3ad;
-    --chart-2: #3b82f6;
-    --chart-3: #8b5cf6;
-    --chart-4: #f59e0b;
-    --chart-5: #10b981;
-    --sidebar: #fcfcfc;
-    --sidebar-foreground: #707070;
-    --sidebar-primary: #72e3ad;
-    --sidebar-primary-foreground: #1e2723;
-    --sidebar-accent: #ededed;
-    --sidebar-accent-foreground: #202020;
-    --sidebar-border: #dfdfdf;
-    --sidebar-ring: #72e3ad;
-    --font-sans: Outfit, sans-serif;
+    --background: #060810;
+    --foreground: #f5f7fb;
+    --card: rgba(18, 22, 34, 0.82);
+    --card-foreground: #f5f7fb;
+    --popover: rgba(11, 14, 24, 0.92);
+    --popover-foreground: #eef2ff;
+    --primary: #f4f6fb;
+    --primary-foreground: #0b0e17;
+    --secondary: rgba(255, 255, 255, 0.06);
+    --secondary-foreground: #edf1fa;
+    --muted: rgba(255, 255, 255, 0.05);
+    --muted-foreground: rgba(228, 234, 246, 0.58);
+    --accent: rgba(255, 255, 255, 0.08);
+    --accent-foreground: #f9fbff;
+    --destructive: #f26b6b;
+    --destructive-foreground: #0d1118;
+    --border: rgba(255, 255, 255, 0.08);
+    --input: rgba(255, 255, 255, 0.06);
+    --ring: rgba(255, 255, 255, 0.35);
+    --chart-1: #f7f9ff;
+    --chart-2: #98a2ff;
+    --chart-3: #6ee7c9;
+    --chart-4: #feb95f;
+    --chart-5: #ff8ea1;
+    --sidebar: rgba(11, 14, 24, 0.88);
+    --sidebar-foreground: rgba(233, 238, 249, 0.78);
+    --sidebar-primary: #ffffff;
+    --sidebar-primary-foreground: #080b12;
+    --sidebar-accent: rgba(255, 255, 255, 0.08);
+    --sidebar-accent-foreground: #f4f7ff;
+    --sidebar-border: rgba(255, 255, 255, 0.08);
+    --sidebar-ring: rgba(255, 255, 255, 0.28);
+    --font-sans: "Open Runde", sans-serif;
     --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-    --font-mono: monospace;
-    --radius: 0.5rem;
-    --shadow-2xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.09);
-    --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.09);
-    --shadow-sm: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 1px 2px -1px
-      hsl(0 0% 0% / 0.17);
-    --shadow: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 1px 2px -1px
-      hsl(0 0% 0% / 0.17);
-    --shadow-md: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 2px 4px -1px
-      hsl(0 0% 0% / 0.17);
-    --shadow-lg: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 4px 6px -1px
-      hsl(0 0% 0% / 0.17);
-    --shadow-xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 8px 10px -1px
-      hsl(0 0% 0% / 0.17);
-    --shadow-2xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.43);
-    --tracking-normal: 0.025em;
-    --spacing: 0.25rem;
+    --font-mono: "Geist Mono", monospace;
+    --radius: 1.2rem;
   }
 
   .dark {
-    --background: #121212;
-    --foreground: #e2e8f0;
-    --card: #171717;
-    --card-foreground: #e2e8f0;
-    --popover: #242424;
-    --popover-foreground: #a9a9a9;
-    --primary: #006239;
-    --primary-foreground: #dde8e3;
-    --secondary: #242424;
-    --secondary-foreground: #fafafa;
-    --muted: #1f1f1f;
-    --muted-foreground: #a2a2a2;
-    --accent: #313131;
-    --accent-foreground: #fafafa;
-    --destructive: #541c15;
-    --destructive-foreground: #ede9e8;
-    --border: #292929;
-    --input: #242424;
-    --ring: #4ade80;
-    --chart-1: #4ade80;
-    --chart-2: #60a5fa;
-    --chart-3: #a78bfa;
-    --chart-4: #fbbf24;
-    --chart-5: #2dd4bf;
-    --sidebar: #121212;
-    --sidebar-foreground: #898989;
-    --sidebar-primary: #006239;
-    --sidebar-primary-foreground: #dde8e3;
-    --sidebar-accent: #313131;
-    --sidebar-accent-foreground: #fafafa;
-    --sidebar-border: #292929;
-    --sidebar-ring: #4ade80;
-    --font-sans: Outfit, sans-serif;
-    --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-    --font-mono: monospace;
-    --radius: 0.5rem;
-    --shadow-2xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.09);
-    --shadow-xs: 0px 1px 3px 0px hsl(0 0% 0% / 0.09);
-    --shadow-sm: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 1px 2px -1px
-      hsl(0 0% 0% / 0.17);
-    --shadow: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 1px 2px -1px
-      hsl(0 0% 0% / 0.17);
-    --shadow-md: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 2px 4px -1px
-      hsl(0 0% 0% / 0.17);
-    --shadow-lg: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 4px 6px -1px
-      hsl(0 0% 0% / 0.17);
-    --shadow-xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.17), 0px 8px 10px -1px
-      hsl(0 0% 0% / 0.17);
-    --shadow-2xl: 0px 1px 3px 0px hsl(0 0% 0% / 0.43);
+    --background: #060810;
+    --foreground: #f5f7fb;
   }
-}
 
-@layer base {
   * {
     @apply border-border;
   }
+
+  html {
+    color-scheme: dark;
+  }
+
   body {
     @apply bg-background text-foreground;
+    background-image:
+      radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 30%),
+      radial-gradient(circle at top right, rgba(125, 142, 255, 0.08), transparent 22%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0));
   }
-  body {
-    letter-spacing: var(--tracking-normal);
+}
+
+@layer components {
+  .glass-card {
+    @apply rounded-[28px] border border-white/[0.08] bg-white/[0.045] shadow-[0_24px_120px_rgba(2,6,18,0.45)] backdrop-blur-xl;
+  }
+
+  .glass-panel {
+    @apply rounded-[24px] border border-white/[0.08] bg-white/[0.04] shadow-[0_20px_80px_rgba(2,6,18,0.34)] backdrop-blur-xl;
+  }
+
+  .terminal-label {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(245, 247, 251, 0.42);
   }
 }
 
-#widget-container {
-  border: none !important;
-}
-
-/* Remove all borders from TradingView widget */
-#tradingview-chart,
-#tradingview-chart iframe,
-#tradingview-chart div[style*="position: relative"] {
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-/* Target the specific TradingView wrapper */
-#tradingview_c20ad-wrapper {
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
-}
-
-/* Target the iframe specifically */
-#tradingview_c20ad {
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
+@layer utilities {
+  .noise-mask {
+    background-image: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.02),
+      rgba(255, 255, 255, 0)
+    );
+  }
 }

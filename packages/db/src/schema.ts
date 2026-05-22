@@ -78,3 +78,26 @@ export const Session = pgTable("session", (t) => ({
 export const SessionRelations = relations(Session, ({ one }) => ({
   user: one(User, { fields: [Session.userId], references: [User.id] }),
 }));
+
+/**
+ * Tracks builder fee approvals per wallet.
+ * Written after a successful approveBuilderFee tx so we can skip the
+ * approval check on subsequent visits without hitting the chain.
+ */
+export const BuilderApproval = pgTable("builder_approval", (t) => ({
+  id: t.uuid().notNull().primaryKey().defaultRandom(),
+  /** The user's EVM wallet address (lower-cased). */
+  walletAddress: t.varchar({ length: 42 }).notNull(),
+  /** The builder address that was approved. */
+  builderAddress: t.varchar({ length: 42 }).notNull(),
+  /** Max fee rate approved, e.g. "0.01%". */
+  maxFeeRate: t.varchar({ length: 16 }).notNull(),
+  /** Hyperliquid response status from the approval tx. */
+  status: t.varchar({ length: 32 }).notNull().default("approved"),
+  approvedAt: t.timestamp().defaultNow().notNull(),
+}));
+
+export const CreateBuilderApprovalSchema = createInsertSchema(BuilderApproval).omit({
+  id: true,
+  approvedAt: true,
+});

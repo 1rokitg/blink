@@ -11,6 +11,7 @@ import {
 } from "@acme/ui/dropdown-menu";
 import { ChevronDownIcon, EllipsisIcon } from "lucide-react";
 import { motion } from "motion/react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@acme/ui/tabs";
 
 interface OrderBookProps {
   symbol: string;
@@ -89,7 +90,7 @@ export function OrderBook({ symbol }: OrderBookProps) {
     const rawAsks = orderbook.levels[1] || [];
 
     // Process asks
-    const asks = rawAsks.slice(0, 8).map((ask, index) => {
+    const asks = rawAsks.slice(0, 7).map((ask, index) => {
       const price = Number.parseFloat(ask.px);
       const size = Number.parseFloat(ask.sz);
 
@@ -184,191 +185,153 @@ export function OrderBook({ symbol }: OrderBookProps) {
   const maxBidTotal = Math.max(...book.bids.map((b) => b.rawTotal));
 
   return (
-    <div className="w-[20%] h-[520px] no-scrollbar">
-      <div className="h-full flex flex-col justify-end rounded-2xl overflow-hidden bg-muted">
-        {/* Column Headers */}
+    <div className="w-full h-full no-scrollbar">
+      <div className="h-full flex flex-col overflow-hidden bg-muted">
+        <Tabs defaultValue="orderbook" className="h-full flex flex-col">
+          {/* Tab Headers */}
 
-        <div className="flex justify-between items-center p-1">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="rounded-xl shadow-none"
-                aria-label="Open edit menu"
-              >
-                1
-                <ChevronDownIcon className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-8">
-              <DropdownMenuItem className="rounded-xl">1</DropdownMenuItem>
-              <DropdownMenuItem>10</DropdownMenuItem>
-              <DropdownMenuItem className="rounded-xl">20</DropdownMenuItem>
-              <DropdownMenuItem className="rounded-xl">50</DropdownMenuItem>
-              <DropdownMenuItem className="rounded-xl">100</DropdownMenuItem>
-              <DropdownMenuItem>1,000</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="rounded-xl shadow-none"
-                aria-label="Select unit"
-              >
-                {unit === "USD" ? "USD" : unit}
-                <ChevronDownIcon className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => setUnit("USD")}
-                className={unit === "USD" ? "bg-accent" : ""}
-              >
-                USD
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => setUnit(symbol)}
-                className={unit === symbol ? "bg-accent" : ""}
-              >
-                {symbol}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        <div className="flex-1 flex flex-col">
-          <div className="py-1 px-3 bg-[#0D0D0D] border-y border-[#1D1D1D]">
-            <div className="grid grid-cols-3 text-xs text-[#8C8C8C] my-1">
-              <span className="text-left">Price</span>
-              <span className="text-right">Size ({unit})</span>
-              <span className="text-right">Total ({unit})</span>
+          {/* Order Book Tab Content */}
+          <TabsContent value="orderbook" className="flex-1 flex flex-col mt-0">
+            <div className="py-1 px-3 bg-[#0D0D0D] border-y border-[#1D1D1D]">
+              <div className="grid grid-cols-3 text-xs text-[#8C8C8C] my-1">
+                <span className="text-left">Price</span>
+                <span className="text-right">Size ({unit})</span>
+                <span className="text-right">Total ({unit})</span>
+              </div>
             </div>
-          </div>
-          {/* Asks Section - Ladder Effect */}
-          <div className="flex-1 bg-background">
-            <div className="space-y-0.5">
-              {book.asks.map((ask, index) => {
-                const barWidth =
-                  maxAskTotal > 0 ? (ask.rawTotal / maxAskTotal) * 100 : 0;
-                const barKey = `ask-${ask.price}`;
-                const previousWidth =
-                  previousBarWidths.current.get(barKey) || 0;
 
-                // Update the previous width for next render
-                previousBarWidths.current.set(barKey, barWidth);
+            {/* Asks Section - Ladder Effect */}
+            <div className="flex-1 bg-background">
+              <div className="space-y-0.5">
+                {book.asks.map((ask, index) => {
+                  const barWidth =
+                    maxAskTotal > 0 ? (ask.rawTotal / maxAskTotal) * 100 : 0;
+                  const barKey = `ask-${ask.price}`;
+                  const previousWidth =
+                    previousBarWidths.current.get(barKey) || 0;
 
-                return (
-                  <div
-                    key={barKey}
-                    className="grid grid-cols-3 items-center px-3 text-xs relative h-6"
-                  >
-                    <motion.div
-                      className="absolute left-0 top-0 h-full bg-rose-500 opacity-10"
-                      initial={{ width: `${previousWidth}%` }}
-                      animate={{ width: `${barWidth}%` }}
-                      transition={{
-                        duration: 0.3,
-                        ease: "easeOut",
-                        type: "spring",
-                        stiffness: 120,
-                        damping: 25,
-                      }}
-                    />
-                    <span className="text-red-500 font-medium leading-tight z-10 text-left">
-                      {ask.price.toLocaleString()}
-                    </span>
-                    <span className="text-white z-10 text-right">
-                      {unit === "USD"
-                        ? `${ask.size.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                        : ask.size.toLocaleString(undefined, {
-                            maximumFractionDigits: 4,
-                          })}
-                    </span>
-                    <span className="text-white z-10 text-right">
-                      {unit === "USD"
-                        ? `${ask.rawTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                        : ask.rawTotal.toLocaleString(undefined, {
-                            maximumFractionDigits: 4,
-                          })}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                  // Update the previous width for next render
+                  previousBarWidths.current.set(barKey, barWidth);
 
-          {/* Spread Section */}
-          <div className="py-1 px-3 bg-[#0D0D0D] border-y border-[#1D1D1D] flex-shrink-0">
-            <div className="grid grid-cols-3 items-center text-xs relative h-6">
-              <span className="text-white z-10 text-left">Spread</span>
-              <span className="text-white z-10 text-right">
-                {book.spread.toFixed()}
-              </span>
-              <span className="text-white z-10 text-right">
-                {book.spreadPercentage.toFixed(3)}%
-              </span>
-            </div>
-          </div>
-
-          {/* Bids Section - Ladder Effect */}
-          <div className="flex-1 bg-background">
-            <div className="space-y-0.5">
-              {book.bids.map((bid, index) => {
-                const barWidth =
-                  maxBidTotal > 0 ? (bid.rawTotal / maxBidTotal) * 100 : 0;
-                const barKey = `bid-${bid.price}`;
-                const previousWidth =
-                  previousBarWidths.current.get(barKey) || 0;
-
-                // Update the previous width for next render
-                previousBarWidths.current.set(barKey, barWidth);
-
-                return (
-                  <div
-                    key={barKey}
-                    className="grid grid-cols-3 items-center px-3 text-xs relative h-6"
-                  >
-                    <motion.div
-                      className="absolute left-0 top-0 h-full bg-emerald-500 opacity-10"
-                      initial={{ width: `${previousWidth}%` }}
-                      animate={{ width: `${barWidth}%` }}
-                      transition={{
-                        duration: 0.3,
-                        ease: "easeOut",
-                        type: "spring",
-                        stiffness: 150,
-                        damping: 25,
-                      }}
-                    />
-                    <button
-                      type="button"
-                      className="text-green-500 hover:text-green-500 hover:font-semibold font-medium leading-tight z-10 text-left"
+                  return (
+                    <div
+                      key={barKey}
+                      className="grid grid-cols-3 items-center px-3 text-xs relative h-6"
                     >
-                      {bid.price.toLocaleString()}
-                    </button>
-                    <span className="text-white z-10 text-right">
-                      {unit === "USD"
-                        ? `${bid.size.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                        : bid.size.toLocaleString(undefined, {
-                            maximumFractionDigits: 4,
-                          })}
-                    </span>
-                    <span className="text-white z-10 text-right">
-                      {unit === "USD"
-                        ? `${bid.rawTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                        : bid.rawTotal.toLocaleString(undefined, {
-                            maximumFractionDigits: 4,
-                          })}
-                    </span>
-                  </div>
-                );
-              })}
+                      <motion.div
+                        className="absolute left-0 top-0 h-full bg-rose-500 opacity-10"
+                        initial={{ width: `${previousWidth}%` }}
+                        animate={{ width: `${barWidth}%` }}
+                        transition={{
+                          duration: 0.3,
+                          ease: "easeOut",
+                          type: "spring",
+                          stiffness: 120,
+                          damping: 25,
+                        }}
+                      />
+                      <span className="text-red-500 font-medium leading-tight z-10 text-left">
+                        {ask.price.toLocaleString()}
+                      </span>
+                      <span className="text-white z-10 text-right">
+                        {unit === "USD"
+                          ? `${ask.size.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                          : ask.size.toLocaleString(undefined, {
+                              maximumFractionDigits: 4,
+                            })}
+                      </span>
+                      <span className="text-white z-10 text-right">
+                        {unit === "USD"
+                          ? `${ask.rawTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                          : ask.rawTotal.toLocaleString(undefined, {
+                              maximumFractionDigits: 4,
+                            })}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </div>
+
+            {/* Spread Section */}
+            <div className="py-1 px-3 bg-[#0D0D0D] border-y border-[#1D1D1D] flex-shrink-0">
+              <div className="grid grid-cols-3 items-center text-xs relative h-6">
+                <span className="text-white z-10 text-left">Spread</span>
+                <span className="text-white z-10 text-right">
+                  {book.spread.toFixed()}
+                </span>
+                <span className="text-white z-10 text-right">
+                  {book.spreadPercentage.toFixed(3)}%
+                </span>
+              </div>
+            </div>
+
+            {/* Bids Section - Ladder Effect */}
+            <div className="flex-1 bg-background">
+              <div className="space-y-0.5">
+                {book.bids.map((bid, index) => {
+                  const barWidth =
+                    maxBidTotal > 0 ? (bid.rawTotal / maxBidTotal) * 100 : 0;
+                  const barKey = `bid-${bid.price}`;
+                  const previousWidth =
+                    previousBarWidths.current.get(barKey) || 0;
+
+                  // Update the previous width for next render
+                  previousBarWidths.current.set(barKey, barWidth);
+
+                  return (
+                    <div
+                      key={barKey}
+                      className="grid grid-cols-3 items-center px-3 text-xs relative h-6"
+                    >
+                      <motion.div
+                        className="absolute left-0 top-0 h-full bg-emerald-500 opacity-10"
+                        initial={{ width: `${previousWidth}%` }}
+                        animate={{ width: `${barWidth}%` }}
+                        transition={{
+                          duration: 0.3,
+                          ease: "easeOut",
+                          type: "spring",
+                          stiffness: 150,
+                          damping: 25,
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="text-green-500 hover:text-green-500 hover:font-semibold font-medium leading-tight z-10 text-left"
+                      >
+                        {bid.price.toLocaleString()}
+                      </button>
+                      <span className="text-white z-10 text-right">
+                        {unit === "USD"
+                          ? `${bid.size.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                          : bid.size.toLocaleString(undefined, {
+                              maximumFractionDigits: 4,
+                            })}
+                      </span>
+                      <span className="text-white z-10 text-right">
+                        {unit === "USD"
+                          ? `${bid.rawTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                          : bid.rawTotal.toLocaleString(undefined, {
+                              maximumFractionDigits: 4,
+                            })}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Trades Tab Content */}
+          <TabsContent value="trades" className="flex-1 flex flex-col mt-0">
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center text-muted-foreground text-sm">
+                No recent trades
+              </div>
+            </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </div>
   );
@@ -376,7 +339,7 @@ export function OrderBook({ symbol }: OrderBookProps) {
 
 export const OrderBookSkeleton = () => {
   return (
-    <div className="w-[20%] h-[520px] bg-muted rounded-2xl">
+    <div className="w-full h-full bg-muted rounded-2xl">
       <div className="flex flex-col items-center justify-center h-full gap-2">
         <div className="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full" />
         <span className="text-sm text-muted-foreground">

@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 declare global {
   interface Window {
     // biome-ignore lint/suspicious/noExplicitAny: tradingview
-    TradingView: any;
+    TradingView?: any;
   }
 }
 

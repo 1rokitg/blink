@@ -3,6 +3,7 @@ import { Button } from "@acme/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@acme/ui/avatar";
 import { HeaderNav } from "./header-nav";
 import { HeaderSearch } from "./header-search";
+import { Connect } from "../connect";
 
 export function Header() {
   return (
@@ -63,9 +64,7 @@ export function Header() {
 
               {/* Get Pro button - hidden on mobile */}
               <div className="hidden items-center justify-center lg:flex">
-                <Button className="relative rounded-full h-9 text-sm font-semibold px-3 bg-white text-black hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 transition-colors">
-                  Get Pro
-                </Button>
+                <Connect />
               </div>
 
               {/* User Avatar */}

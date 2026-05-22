@@ -99,7 +99,7 @@ importers:
         version: 3.2.0(@planetscale/database@1.19.0)(@types/react@19.0.12)(bufferutil@4.0.8)(permissionless@0.2.57(viem@2.38.0(bufferutil@4.0.8)(typescript@5.8.2)(zod@3.24.2)))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(typescript@5.8.2)(use-sync-external-store@1.6.0(react@19.0.0))(zod@3.24.2)
       '@statelyai/inspect':
         specifier: ^0.4.0
-        version: 0.4.0(ws@8.18.0(bufferutil@4.0.8))(xstate@5.22.1)
+        version: 0.4.0(ws@8.18.2(bufferutil@4.0.8))(xstate@5.22.1)
       '@t3-oss/env-nextjs':
         specifier: ^0.12.0
         version: 0.12.0(typescript@5.8.2)(zod@3.24.2)
@@ -115,6 +115,9 @@ importers:
       '@trpc/tanstack-react-query':
         specifier: 'catalog:'
         version: 11.0.0(@tanstack/react-query@5.69.0(react@19.0.0))(@trpc/client@11.0.0(@trpc/server@11.0.0(typescript@5.8.2))(typescript@5.8.2))(@trpc/server@11.0.0(typescript@5.8.2))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(typescript@5.8.2)
+      '@vercel/speed-insights':
+        specifier: ^2.0.0
+        version: 2.0.0(next@15.5.18(@opentelemetry/api@1.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
       '@xstate/react':
         specifier: ^6.0.0
         version: 6.0.0(@types/react@19.0.12)(react@19.0.0)(xstate@5.22.1)
@@ -2868,6 +2871,32 @@ packages:
     resolution: {integrity: sha512-fSD23DxGND40IzSkXjcFcxr53t3Tiym59Is0jSYIFpG4/0f0KO9SGtcp1sXiebvPaGe7N/tU05cH4yt2S6/IPg==}
     engines: {node: '>=18.14'}
     deprecated: '@vercel/postgres is deprecated. If you are setting up a new database, you can choose an alternate storage solution from the Vercel Marketplace. If you had an existing Vercel Postgres database, it should have been migrated to Neon as a native Vercel integration. You can find more details and the guide to migrate to Neon''s SDKs here: https://neon.com/docs/guides/vercel-postgres-transition-guide'
+
+  '@vercel/speed-insights@2.0.0':
+    resolution: {integrity: sha512-jwkNcrTeafWxjmWq4AHBaptSqZiJkYU5adLC9QBSqeim0GcqDMgN5Ievh8OG1rJ6W3A4l1oiP7qr9CWxGuzu3w==}
+    peerDependencies:
+      '@sveltejs/kit': ^1 || ^2
+      next: '>= 13'
+      nuxt: '>= 3'
+      react: ^18 || ^19 || ^19.0.0-rc
+      svelte: '>= 4'
+      vue: ^3
+      vue-router: ^4
+    peerDependenciesMeta:
+      '@sveltejs/kit':
+        optional: true
+      next:
+        optional: true
+      nuxt:
+        optional: true
+      react:
+        optional: true
+      svelte:
+        optional: true
+      vue:
+        optional: true
+      vue-router:
+        optional: true
 
   '@wallet-standard/app@1.1.0':
     resolution: {integrity: sha512-3CijvrO9utx598kjr45hTbbeeykQrQfKmSnxeWOgU25TOEpvcipD/bYDQWIqUv1Oc6KK4YStokSMu/FBNecGUQ==}
@@ -8034,10 +8063,10 @@ snapshots:
 
   '@standard-schema/utils@0.3.0': {}
 
-  '@statelyai/inspect@0.4.0(ws@8.18.0(bufferutil@4.0.8))(xstate@5.22.1)':
+  '@statelyai/inspect@0.4.0(ws@8.18.2(bufferutil@4.0.8))(xstate@5.22.1)':
     dependencies:
       fast-safe-stringify: 2.1.1
-      isomorphic-ws: 5.0.0(ws@8.18.0(bufferutil@4.0.8))
+      isomorphic-ws: 5.0.0(ws@8.18.2(bufferutil@4.0.8))
       partysocket: 0.0.25
       safe-stable-stringify: 2.5.0
       superjson: 1.13.3
@@ -8221,6 +8250,11 @@ snapshots:
       ws: 8.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.4)
     transitivePeerDependencies:
       - utf-8-validate
+
+  '@vercel/speed-insights@2.0.0(next@15.5.18(@opentelemetry/api@1.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)':
+    optionalDependencies:
+      next: 15.5.18(@opentelemetry/api@1.9.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      react: 19.0.0
 
   '@wallet-standard/app@1.1.0':
     dependencies:
@@ -9755,9 +9789,9 @@ snapshots:
 
   isexe@3.1.1: {}
 
-  isomorphic-ws@5.0.0(ws@8.18.0(bufferutil@4.0.8)):
+  isomorphic-ws@5.0.0(ws@8.18.2(bufferutil@4.0.8)):
     dependencies:
-      ws: 8.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.4)
+      ws: 8.18.2(bufferutil@4.0.8)
 
   isows@1.0.6(ws@8.18.0(bufferutil@4.0.8)):
     dependencies:

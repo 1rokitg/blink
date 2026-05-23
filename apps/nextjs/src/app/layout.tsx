@@ -67,6 +67,9 @@ const openrunde = localFont({
 export default function RootLayout(props: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script src="/wallet-error-guard.js" />
+      </head>
       <body
         suppressHydrationWarning
         className={cn(

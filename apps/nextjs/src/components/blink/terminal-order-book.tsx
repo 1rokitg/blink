@@ -78,15 +78,15 @@ export function TerminalOrderBook(props: { market: string }) {
   );
 
   return (
-    <section className="glass-panel min-h-[620px] overflow-hidden p-5">
-      <div className="mb-4">
+    <section className="glass-panel min-h-[640px] overflow-hidden p-3">
+      <div className="mb-2">
         <p className="terminal-label">Order book</p>
         <h2 className="mt-2 text-xl font-semibold text-white">
           {props.market} live depth
         </h2>
       </div>
 
-      <div className="rounded-[24px] border border-white/8 bg-[#0b1018]">
+      <div className="rounded-[12px] border border-[#88b3ff2e] bg-[#060c18]">
         <div className="grid grid-cols-3 px-4 py-3 text-[11px] uppercase tracking-[0.14em] text-foreground/35">
           <span>Price</span>
           <span className="text-right">Size</span>

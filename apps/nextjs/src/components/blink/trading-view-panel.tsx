@@ -39,10 +39,13 @@ export function TradingViewPanel(props: { market: string }) {
         | undefined;
 
       if (widgetRef.current?.remove) {
-        widgetRef.current.remove();
+        try {
+          widgetRef.current.remove();
+        } catch {
+          // TradingView can throw during rapid remount/unmount transitions.
+        }
       }
-
-      containerRef.current.innerHTML = "";
+      if (!containerRef.current.parentNode) return;
 
       widgetRef.current = tradingView
         ? new tradingView.widget({
@@ -67,27 +70,22 @@ export function TradingViewPanel(props: { market: string }) {
     return () => {
       cancelled = true;
       if (widgetRef.current?.remove) {
-        widgetRef.current.remove();
+        try {
+          widgetRef.current.remove();
+        } catch {
+          // Ignore cleanup errors from third-party widget internals.
+        }
         widgetRef.current = null;
       }
     };
   }, [props.market]);
 
   return (
-    <section className="glass-panel flex min-h-[620px] flex-col overflow-hidden p-5">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <p className="terminal-label">Chart</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">
-            {props.market} market structure
-          </h2>
-        </div>
-      </div>
-
+    <section className="glass-panel flex min-h-[640px] flex-col overflow-hidden p-2">
       <div
         ref={containerRef}
         id={`tradingview-${props.market.toLowerCase()}`}
-        className="min-h-[540px] flex-1 overflow-hidden rounded-[24px] border border-white/6 bg-[#0b1018]"
+        className="h-full min-h-[620px] flex-1 overflow-hidden rounded-[12px] border border-[#88b3ff2e] bg-[#060c18]"
       />
     </section>
   );

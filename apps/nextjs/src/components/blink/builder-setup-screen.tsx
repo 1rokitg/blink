@@ -59,7 +59,9 @@ export function BuilderSetupScreen(props: { market: string | null }) {
     setApproval({ status: "checking" });
     isBuilderApproved(walletAddress)
       .then((already) =>
-        setApproval(already ? { status: "already_approved" } : { status: "idle" }),
+        setApproval(
+          already ? { status: "already_approved" } : { status: "idle" },
+        ),
       )
       .catch(() => setApproval({ status: "idle" }));
   }, [walletAddress]);
@@ -99,17 +101,16 @@ export function BuilderSetupScreen(props: { market: string | null }) {
 
         <section className="glass-card noise-mask mt-4 p-8 md:p-10">
           <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
-            Builder setup
+            Enable Trading
           </Badge>
 
           <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">
             Approve Blink to route your trades.
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-foreground/58">
-            Blink uses a Hyperliquid builder code to route volume. This
-            one-time on-chain approval authorises a maximum fee of{" "}
-            <span className="font-medium text-white">{feeRate}</span> per
-            trade. You can revoke or update it at any time.
+            Builder routing uses a dynamic, volume-tiered fee that’s prorated
+            per fill, so your effective rate trends lower as your executed
+            notional scales.
           </p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">

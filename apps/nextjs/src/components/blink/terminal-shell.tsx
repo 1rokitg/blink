@@ -1,20 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import {
-  useLogout,
-  usePrivy,
-  useWallets,
-} from "@privy-io/react-auth";
+import { useLogout, usePrivy, useWallets } from "@privy-io/react-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "motion/react";
 import {
   ArrowDown,
+  ArrowRight,
+  ArrowUpRight,
   ArrowUp,
+  Check,
+  CircleDot,
+  Disc,
   LayoutDashboard,
   Loader2,
   LogOut,
+  PlayCircle,
   Search,
   Settings2,
   ShieldCheck,
@@ -26,12 +29,14 @@ import { toast } from "sonner";
 
 import { Badge } from "@acme/ui/badge";
 import { Button } from "@acme/ui/button";
+import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
 import { Input } from "@acme/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@acme/ui/tabs";
 
 import {
   BUILDER_ADDRESS,
   BUILDER_FEE_UNITS,
+  builderMaxFeeRate,
   isBuilderApproved,
 } from "~/lib/blink/builder";
 import {
@@ -66,6 +71,300 @@ function asHexAddress(address: string) {
   return address as `0x${string}`;
 }
 
+function BuilderSetupModal(props: {
+  open: boolean;
+  walletAddress: string;
+  market: string;
+  onClose: () => void;
+  onApproved: () => void;
+}) {
+  const { wallets } = useWallets();
+  const [pending, setPending] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const [successState, setSuccessState] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!props.open) return null;
+
+  const handleApprove = async () => {
+    const wallet = wallets[0];
+    if (!wallet) return;
+    setPending(true);
+    setError(null);
+    try {
+      const exchClient = await createExchangeClient(wallet);
+      await exchClient.approveBuilderFee({
+        builder: BUILDER_ADDRESS,
+        maxFeeRate: builderMaxFeeRate(),
+      });
+      setSuccessState(true);
+      setTimeout(() => {
+        props.onApproved();
+        props.onClose();
+        setSuccessState(false);
+        toast.success("Builder approval confirmed.");
+      }, 1200);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Approval failed");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const handleRecheck = async () => {
+    setChecking(true);
+    setError(null);
+    try {
+      const approved = await isBuilderApproved(
+        asHexAddress(props.walletAddress),
+      );
+      if (approved) {
+        setSuccessState(true);
+        setTimeout(() => {
+          props.onApproved();
+          props.onClose();
+          setSuccessState(false);
+          toast.success("Builder approval detected. Trading enabled.");
+        }, 900);
+      } else {
+        setError(
+          "Approval not detected yet. Wait a few seconds and try again.",
+        );
+      }
+    } catch {
+      setError("Could not verify approval right now. Please retry.");
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return (
+    <Dialog open={props.open} onOpenChange={(open) => !open && props.onClose()}>
+      <AnimatePresence>
+        {props.open ? (
+          <DialogContent
+            forceMount
+            className="border-none bg-transparent p-0 shadow-none sm:max-w-[560px]"
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 16, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="relative w-full overflow-hidden rounded-[16px] bg-[#0f131bcc] shadow-[0_28px_90px_rgba(0,0,0,0.62)] backdrop-blur-[26px]"
+            >
+              <div className="onboarding-hero h-52 border-b border-white/10">
+                <div className="relative z-10 flex h-full flex-col justify-between p-5">
+                  <p className="text-sm font-medium text-[#d7f0ff]">
+                    Hyperliquid Docs
+                  </p>
+                  <p className="text-6xl font-semibold tracking-[-0.04em] text-[#8af2df]">
+                    Enable Trading
+                  </p>
+                  <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                    {[...Array(7)].map((_, i) => (
+                      <motion.div
+                        // biome-ignore lint/suspicious/noArrayIndexKey: purely decorative animation
+                        key={i}
+                        initial={{ x: -40, y: 170 - i * 12, opacity: 0 }}
+                        animate={{
+                          x: [0, 70 + i * 10, 140 + i * 16],
+                          y: [170 - i * 10, 150 - i * 16, 128 - i * 8],
+                          opacity: [0, 0.55, 0],
+                        }}
+                        transition={{
+                          duration: 2.6,
+                          delay: i * 0.14,
+                          repeat: Number.POSITIVE_INFINITY,
+                          ease: "easeInOut",
+                        }}
+                        className="absolute h-[2px] w-16 rounded-full bg-[#84efd9]"
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="p-6">
+                <AnimatePresence mode="wait">
+                  {successState ? (
+                    <motion.div
+                      key="success"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.24 }}
+                      className="flex min-h-[220px] flex-col items-center justify-center text-center"
+                    >
+                      <motion.div
+                        initial={{ scale: 0.75, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ type: "spring", stiffness: 280, damping: 20 }}
+                        className="relative mb-5 flex size-20 items-center justify-center rounded-full bg-[#1b3d32]"
+                      >
+                        <motion.div
+                          initial={{ scale: 0.9, opacity: 0.65 }}
+                          animate={{ scale: 1.35, opacity: 0 }}
+                          transition={{ duration: 1.1, repeat: Number.POSITIVE_INFINITY }}
+                          className="absolute inset-0 rounded-full border border-[#6be5c4]"
+                        />
+                        <Check className="size-9 text-[#9df2d9]" />
+                      </motion.div>
+                      <DialogTitle className="text-3xl font-semibold tracking-[-0.03em] text-white">
+                        Trading Enabled
+                      </DialogTitle>
+                      <p className="mt-2 text-sm text-foreground/65">
+                        Builder approval detected. Routing is now active.
+                      </p>
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="setup"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <DialogTitle className="text-4xl font-semibold tracking-[-0.03em] text-white">
+                        Builder Fee
+                      </DialogTitle>
+                      <p className="mt-3 text-base text-foreground/72">
+                        We provide a dynamic, volume-tiered fee that’s prorated per
+                        fill, so your effective rate trends lower as your executed
+                        notional scales.
+                      </p>
+
+                      <p className="mt-3 text-xs text-foreground/45">
+                        Wallet: {truncateAddress(props.walletAddress)} · Market: {props.market}
+                      </p>
+                      {error ? (
+                        <p className="mt-3 text-sm text-rose-300">{error}</p>
+                      ) : null}
+                      <div className="mt-6 flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="whop-blue-btn"
+                          onClick={() => void handleApprove()}
+                          disabled={pending || checking}
+                        >
+                          {pending ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : null}
+                          Enable
+                        </button>
+                        <button
+                          type="button"
+                          className="whop-secondary-btn border-[#39d6a57a] bg-[#173d2f] text-[#9ef0d2] hover:bg-[#1f4b3a]"
+                          onClick={() => void handleRecheck()}
+                          disabled={pending || checking}
+                        >
+                          {!checking ? <Check className="size-3.5" /> : null}
+                          {checking ? (
+                            <Loader2 className="mr-1 size-3.5 animate-spin" />
+                          ) : null}
+                          Check Approval
+                        </button>
+                        <button
+                          type="button"
+                          className="whop-secondary-btn ml-auto"
+                          onClick={props.onClose}
+                        >
+                          Not now
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </motion.div>
+          </DialogContent>
+        ) : null}
+      </AnimatePresence>
+    </Dialog>
+  );
+}
+
+function AccountManagementModal(props: {
+  open: boolean;
+  onClose: () => void;
+  walletAddress: string;
+}) {
+  const short = truncateAddress(props.walletAddress);
+  const avatarUrl = `https://avatar.vercel.sh/${props.walletAddress}.png?size=96`;
+
+  return (
+    <Dialog open={props.open} onOpenChange={(open) => !open && props.onClose()}>
+      <DialogContent className="max-h-[86vh] overflow-hidden border-[#8fc4ff54] bg-[#0c1119f2] p-0 sm:max-w-[980px]">
+        <div className="grid h-full grid-cols-[220px_1fr]">
+          <aside className="border-r border-white/10 p-4">
+            <p className="mb-4 text-lg font-semibold text-white">Account</p>
+            <div className="space-y-1 text-sm">
+              {["Account", "Connections", "Security", "Preferences", "Settings"].map((item) => (
+                <button
+                  type="button"
+                  key={item}
+                  className={`w-full rounded-[10px] px-3 py-2 text-left transition ${item === "Account" ? "bg-white/10 text-white" : "text-foreground/60 hover:bg-white/5 hover:text-white"}`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </aside>
+          <section className="overflow-y-auto p-6">
+            <DialogTitle className="text-2xl font-semibold text-white">
+              Account
+            </DialogTitle>
+            <div className="mt-5 flex items-center gap-4 border-b border-white/10 pb-5">
+              <img
+                src={avatarUrl}
+                alt="User avatar"
+                className="size-16 rounded-full border border-white/20"
+              />
+              <div>
+                <p className="text-2xl font-semibold text-white">Trader</p>
+                <p className="text-sm text-foreground/55">Wallet {short}</p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-2">
+              <div>
+                <p className="mb-2 text-xs uppercase tracking-[0.14em] text-foreground/45">
+                  Username
+                </p>
+                <Input defaultValue="rokitg" className="h-10 border-white/15 bg-white/[0.04]" />
+              </div>
+              <div>
+                <p className="mb-2 text-xs uppercase tracking-[0.14em] text-foreground/45">
+                  Public profile
+                </p>
+                <Input defaultValue={`blink.lat/u/${short}`} className="h-10 border-white/15 bg-white/[0.04]" />
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-[12px] border border-white/10 bg-white/[0.03] p-4">
+              <p className="font-medium text-white">Portfolio Visibility</p>
+              <p className="mt-1 text-sm text-foreground/58">
+                Share your read-only stats with a public profile link.
+              </p>
+              <div className="mt-3 inline-flex items-center gap-2 rounded-[10px] border border-[#38d7a46a] bg-[#18392e] px-3 py-2 text-sm text-[#98f0d2]">
+                Enabled
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
+              <button type="button" className="whop-secondary-btn text-rose-200">
+                Delete account
+              </button>
+              <button type="button" className="whop-blue-btn" onClick={props.onClose}>
+                Save
+              </button>
+            </div>
+          </section>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function ConnectGate() {
   const { login } = usePrivy();
 
@@ -80,8 +379,8 @@ function ConnectGate() {
           Sign in to trade.
         </h1>
         <p className="mt-4 text-base leading-7 text-foreground/55">
-          Blink creates a non-custodial wallet for you automatically. No seed
-          phrase, no extension — just Google.
+          Blink creates a non-custodial wallet for you automatically. Continue
+          with Google, or use wallet login if OAuth is unavailable.
         </p>
 
         <Button
@@ -107,16 +406,19 @@ function ConnectGate() {
               fill="#EA4335"
             />
           </svg>
-          Continue with Google
+          Continue
         </Button>
 
         <div className="mt-6 grid grid-cols-3 gap-3">
           {[
             "Non-custodial embedded wallet",
-            "No seed phrase needed",
+            "Google or wallet fallback",
             "Builder approval on first trade",
           ].map((item) => (
-            <div key={item} className="rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-3">
+            <div
+              key={item}
+              className="rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-3"
+            >
               <p className="text-[11px] leading-5 text-foreground/52">{item}</p>
             </div>
           ))}
@@ -133,7 +435,7 @@ function ConnectGate() {
   );
 }
 
-function Watchlist(props: {
+function LeftRail(props: {
   market: string;
 }) {
   const marketsQuery = useQuery({
@@ -143,58 +445,66 @@ function Watchlist(props: {
     refetchInterval: 86_400_000,
   });
 
+  const marketRows = marketsQuery.data ?? [];
+  const walletRows = marketRows.slice(0, 8);
   return (
-    <aside className="glass-panel flex min-h-[calc(100vh-10rem)] w-[280px] flex-col p-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="terminal-label">Markets</p>
-          <h2 className="mt-2 text-lg font-semibold text-white">Top 25</h2>
+    <aside className="flex min-h-[calc(100vh-7rem)] w-[366px] flex-col gap-2.5">
+      <div className="px-1 py-1">
+        <h1 className="text-5xl font-bold tracking-[-0.04em] text-white">
+          blink
+        </h1>
+      </div>
+
+      <section className="glass-panel flex min-h-[392px] flex-col overflow-hidden p-0">
+        <div className="border-b border-white/10 px-2.5 pb-1.5 pt-1.5">
+          <div className="mb-1.5 flex items-center gap-1 text-sm text-foreground/60">
+            <span className="rounded-md px-2 py-1">Alerts</span>
+            <span className="rounded-md border border-[#41ddb670] bg-[#41ddb626] px-2 py-1 text-white">
+              Watchlist
+            </span>
+            <span className="rounded-md px-2 py-1">Leaderboard</span>
+          </div>
+          <div className="flex items-center gap-2 rounded-[9px] border border-[#8fc2ff3d] bg-[#111d3cad] px-2.5 py-1.5">
+            <Search className="size-3.5 text-foreground/45" />
+            <span className="text-xs text-foreground/45">Search perps</span>
+          </div>
         </div>
-        <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] font-medium text-foreground/60">
-          Daily refresh
-        </Badge>
-      </div>
 
-      <div className="mt-4 flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.03] px-3 py-2">
-        <Search className="size-4 text-foreground/45" />
-        <span className="text-sm text-foreground/45">Search markets soon</span>
-      </div>
-
-      <div className="mt-4 space-y-2 overflow-y-auto pr-1">
-        {(marketsQuery.data ?? []).map((item) => {
-          const selected = item.coin === props.market;
-          const positive = item.changePct >= 0;
-
-          return (
-            <Link
-              key={item.coin}
-              href={`/app/${marketToSlug(item.coin)}`}
-              className={`block rounded-[20px] border px-3 py-3 transition ${
-                selected
-                  ? "border-white/14 bg-white/[0.08]"
-                  : "border-white/0 bg-transparent hover:border-white/8 hover:bg-white/[0.05]"
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-white">{item.coin}</p>
-                  <p className="mt-1 text-xs text-foreground/45">
-                    {formatUsd(item.markPx)}
-                  </p>
+        <div className="flex-1 space-y-1 overflow-y-auto p-1.5">
+          {marketRows.map((item) => {
+            const selected = item.coin === props.market;
+            const positive = item.changePct >= 0;
+            return (
+              <Link
+                key={item.coin}
+                href={`/app/${marketToSlug(item.coin)}`}
+                className={`block rounded-[10px] border px-2.5 py-2 transition ${
+                  selected
+                    ? "border-[#3be1ba9e] bg-[#2dc9ff2b]"
+                    : "border-white/0 bg-transparent hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-white">
+                      {item.coin}
+                    </p>
+                    <p className="mt-0.5 text-xs text-foreground/45">
+                      {formatUsd(item.markPx)}
+                    </p>
+                  </div>
+                  <span
+                    className={`text-xs ${positive ? "text-emerald-300" : "text-rose-300"}`}
+                  >
+                    {positive ? "+" : ""}
+                    {item.changePct.toFixed(2)}%
+                  </span>
                 </div>
-                <span
-                  className={`text-xs ${
-                    positive ? "text-emerald-300" : "text-rose-300"
-                  }`}
-                >
-                  {positive ? "+" : ""}
-                  {item.changePct.toFixed(2)}%
-                </span>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
     </aside>
   );
 }
@@ -205,6 +515,7 @@ function OrderEntryPanel(props: {
   market: string;
   walletAddress: string;
   tradeEnabled: boolean;
+  onRequireBuilderSetup: () => void;
 }) {
   const { wallets } = useWallets();
   const queryClient = useQueryClient();
@@ -285,15 +596,21 @@ function OrderEntryPanel(props: {
     const wallet = wallets[0];
     if (!wallet) return;
     if (!props.tradeEnabled) {
-      window.location.href = `/app/setup/builder?market=${marketToSlug(props.market)}`;
+      props.onRequireBuilderSetup();
       return;
     }
 
     const sz = Number.parseFloat(size);
     const px = orderType === "limit" ? Number.parseFloat(price) : 0;
 
-    if (!sz || sz <= 0) { toast.error("Enter a valid size"); return; }
-    if (orderType === "limit" && (!px || px <= 0)) { toast.error("Enter a valid limit price"); return; }
+    if (!sz || sz <= 0) {
+      toast.error("Enter a valid size");
+      return;
+    }
+    if (orderType === "limit" && (!px || px <= 0)) {
+      toast.error("Enter a valid limit price");
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -304,40 +621,82 @@ function OrderEntryPanel(props: {
 
       if (orderType === "limit") {
         await exchClient.order({
-          orders: [{ a: assetIdx, b: side === "buy", p: px.toString(), s: sz.toString(), r: false, t: { limit: { tif: "Gtc" } } }],
+          orders: [
+            {
+              a: assetIdx,
+              b: side === "buy",
+              p: px.toString(),
+              s: sz.toString(),
+              r: false,
+              t: { limit: { tif: "Gtc" } },
+            },
+          ],
           grouping: "na",
           builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_UNITS },
         });
-        toast.success(`${side === "buy" ? "Buy" : "Sell"} limit: ${sz} ${props.market} @ ${px}`);
+        toast.success(
+          `${side === "buy" ? "Buy" : "Sell"} limit: ${sz} ${props.market} @ ${px}`,
+        );
       } else {
-        const mid = markPrice || (await infoClient.allMids().then((m) => Number(m[props.market] ?? 0)));
+        const mid =
+          markPrice ||
+          (await infoClient
+            .allMids()
+            .then((m) => Number(m[props.market] ?? 0)));
         if (!mid) throw new Error("Could not fetch mark price");
         const slippage = side === "buy" ? mid * 1.05 : mid * 0.95;
         await exchClient.order({
-          orders: [{ a: assetIdx, b: side === "buy", p: slippage.toFixed(2), s: sz.toString(), r: false, t: { limit: { tif: "Ioc" } } }],
+          orders: [
+            {
+              a: assetIdx,
+              b: side === "buy",
+              p: slippage.toFixed(2),
+              s: sz.toString(),
+              r: false,
+              t: { limit: { tif: "Ioc" } },
+            },
+          ],
           grouping: "na",
           builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_UNITS },
         });
-        toast.success(`${side === "buy" ? "Buy" : "Sell"} market: ${sz} ${props.market}`);
+        toast.success(
+          `${side === "buy" ? "Buy" : "Sell"} market: ${sz} ${props.market}`,
+        );
       }
 
       setSize("");
       setPrice("");
       // Refresh account state immediately
-      void queryClient.invalidateQueries({ queryKey: ["blink", "account", props.walletAddress] });
+      void queryClient.invalidateQueries({
+        queryKey: ["blink", "account", props.walletAddress],
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Order failed");
     } finally {
       setSubmitting(false);
     }
-  }, [wallets, side, orderType, price, size, markPrice, props.market, props.tradeEnabled, props.walletAddress, queryClient]);
+  }, [
+    wallets,
+    side,
+    orderType,
+    price,
+    size,
+    markPrice,
+    props.market,
+    props.tradeEnabled,
+    props.onRequireBuilderSetup,
+    props.walletAddress,
+    queryClient,
+  ]);
 
   return (
     <section className="glass-panel flex h-full flex-col p-5">
       <div className="flex items-center justify-between">
         <div>
           <p className="terminal-label">Order entry</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">{props.market}</h2>
+          <h2 className="mt-2 text-xl font-semibold text-white">
+            {props.market}
+          </h2>
         </div>
         <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] font-medium text-foreground/60">
           Live routing
@@ -347,13 +706,17 @@ function OrderEntryPanel(props: {
       {/* Available margin */}
       <div className="mt-4 grid grid-cols-2 gap-2">
         <div className="rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-2">
-          <p className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">Available</p>
+          <p className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">
+            Available
+          </p>
           <p className="mt-0.5 font-mono text-sm font-medium text-white">
             {accountValue > 0 ? formatUsd(availableMargin) : "—"}
           </p>
         </div>
         <div className="rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-2">
-          <p className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">Mark price</p>
+          <p className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">
+            Mark price
+          </p>
           <p className="mt-0.5 font-mono text-sm font-medium text-white">
             {markPrice > 0 ? formatUsd(markPrice) : "—"}
           </p>
@@ -380,29 +743,63 @@ function OrderEntryPanel(props: {
         </button>
       </div>
 
-      <Tabs value={orderType} onValueChange={(v) => setOrderType(v as "limit" | "market")} className="mt-3 flex flex-1 flex-col">
+      <Tabs
+        value={orderType}
+        onValueChange={(v) => setOrderType(v as "limit" | "market")}
+        className="mt-3 flex flex-1 flex-col"
+      >
         <TabsList className="grid h-auto grid-cols-2 rounded-full border border-white/8 bg-white/[0.04] p-1">
-          <TabsTrigger value="limit" className="rounded-full">Limit</TabsTrigger>
-          <TabsTrigger value="market" className="rounded-full">Market</TabsTrigger>
+          <TabsTrigger value="limit" className="rounded-full">
+            Limit
+          </TabsTrigger>
+          <TabsTrigger value="market" className="rounded-full">
+            Market
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="limit" className="mt-3 space-y-3">
           <div className="space-y-1.5">
             <p className="terminal-label">Price (USD)</p>
-            <Input type="number" min="0" step="any" placeholder={markPrice > 0 ? markPrice.toFixed(2) : "0.00"} value={price} onChange={(e) => setPrice(e.target.value)} className="h-11 rounded-2xl border-white/8 bg-white/[0.04]" />
+            <Input
+              type="number"
+              min="0"
+              step="any"
+              placeholder={markPrice > 0 ? markPrice.toFixed(2) : "0.00"}
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className="h-11 rounded-2xl border-white/8 bg-white/[0.04]"
+            />
           </div>
           <div className="space-y-1.5">
             <p className="terminal-label">Size ({props.market})</p>
-            <Input type="number" min="0" step="any" placeholder="0.0000" value={size} onChange={(e) => setSize(e.target.value)} className="h-11 rounded-2xl border-white/8 bg-white/[0.04]" />
+            <Input
+              type="number"
+              min="0"
+              step="any"
+              placeholder="0.0000"
+              value={size}
+              onChange={(e) => setSize(e.target.value)}
+              className="h-11 rounded-2xl border-white/8 bg-white/[0.04]"
+            />
           </div>
         </TabsContent>
 
         <TabsContent value="market" className="mt-3 space-y-3">
           <div className="space-y-1.5">
             <p className="terminal-label">Size ({props.market})</p>
-            <Input type="number" min="0" step="any" placeholder="0.0000" value={size} onChange={(e) => setSize(e.target.value)} className="h-11 rounded-2xl border-white/8 bg-white/[0.04]" />
+            <Input
+              type="number"
+              min="0"
+              step="any"
+              placeholder="0.0000"
+              value={size}
+              onChange={(e) => setSize(e.target.value)}
+              className="h-11 rounded-2xl border-white/8 bg-white/[0.04]"
+            />
           </div>
-          <p className="text-xs text-foreground/40">IOC limit at 5% slippage from mark.</p>
+          <p className="text-xs text-foreground/40">
+            IOC limit at 5% slippage from mark.
+          </p>
         </TabsContent>
       </Tabs>
 
@@ -410,7 +807,9 @@ function OrderEntryPanel(props: {
       <div className="mt-3 space-y-2">
         <div className="flex items-center justify-between">
           <p className="terminal-label">Leverage</p>
-          <span className="font-mono text-xs text-white">{leverage}×{updatingLeverage ? " …" : ""}</span>
+          <span className="font-mono text-xs text-white">
+            {leverage}×{updatingLeverage ? " …" : ""}
+          </span>
         </div>
         <div className="flex gap-1.5">
           {LEVERAGE_PRESETS.map((lv) => (
@@ -430,7 +829,9 @@ function OrderEntryPanel(props: {
       {notional > 0 && (
         <div className="mt-2 flex items-center justify-between rounded-[14px] border border-white/6 bg-white/[0.02] px-3 py-2">
           <span className="text-xs text-foreground/40">Notional</span>
-          <span className="font-mono text-xs text-foreground/72">{formatUsd(notional)}</span>
+          <span className="font-mono text-xs text-foreground/72">
+            {formatUsd(notional)}
+          </span>
         </div>
       )}
 
@@ -439,13 +840,21 @@ function OrderEntryPanel(props: {
         disabled={submitting}
         className={`mt-4 h-12 w-full rounded-full text-sm font-semibold disabled:opacity-50 ${side === "buy" ? "bg-emerald-400 text-black hover:bg-emerald-300" : "bg-rose-400 text-white hover:bg-rose-300"}`}
       >
-        {submitting ? <Loader2 className="size-4 animate-spin" /> : `${side === "buy" ? "Buy / Long" : "Sell / Short"} ${props.market}`}
+        {submitting ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          `${side === "buy" ? "Buy / Long" : "Sell / Short"} ${props.market}`
+        )}
       </Button>
 
-      <Link href={`/app/setup/builder?market=${marketToSlug(props.market)}`} className="mt-3 block text-center text-xs text-foreground/35 transition hover:text-foreground/60">
+      <button
+        type="button"
+        onClick={props.onRequireBuilderSetup}
+        className="mt-3 block w-full text-center text-xs text-foreground/35 transition hover:text-foreground/60"
+      >
         <ShieldCheck className="mr-1 inline size-3" />
         Manage builder approval
-      </Link>
+      </button>
     </section>
   );
 }
@@ -459,8 +868,12 @@ function AccountPanel(props: { walletAddress: string }) {
     queryKey: ["blink", "account", props.walletAddress],
     queryFn: async () => {
       const [state, openOrders, fills] = await Promise.all([
-        infoClient.clearinghouseState({ user: asHexAddress(props.walletAddress) }),
-        infoClient.frontendOpenOrders({ user: asHexAddress(props.walletAddress) }),
+        infoClient.clearinghouseState({
+          user: asHexAddress(props.walletAddress),
+        }),
+        infoClient.frontendOpenOrders({
+          user: asHexAddress(props.walletAddress),
+        }),
         infoClient.userFills({ user: asHexAddress(props.walletAddress) }),
       ]);
       return { state, openOrders, fills: fills.slice(0, 20) };
@@ -468,30 +881,35 @@ function AccountPanel(props: { walletAddress: string }) {
     refetchInterval: 15_000,
   });
 
-  const handleCancel = useCallback(async (coin: string, oid: number) => {
-    const wallet = wallets[0];
-    if (!wallet) return;
-    setCancellingOid(oid);
-    try {
-      const [exchClient, assetIdx] = await Promise.all([
-        createExchangeClient(wallet),
-        getAssetIndex(coin),
-      ]);
-      await exchClient.cancel({ cancels: [{ a: assetIdx, o: oid }] });
-      toast.success(`Order #${oid} cancelled`);
-      void queryClient.invalidateQueries({ queryKey: ["blink", "account", props.walletAddress] });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Cancel failed");
-    } finally {
-      setCancellingOid(null);
-    }
-  }, [wallets, props.walletAddress, queryClient]);
+  const handleCancel = useCallback(
+    async (coin: string, oid: number) => {
+      const wallet = wallets[0];
+      if (!wallet) return;
+      setCancellingOid(oid);
+      try {
+        const [exchClient, assetIdx] = await Promise.all([
+          createExchangeClient(wallet),
+          getAssetIndex(coin),
+        ]);
+        await exchClient.cancel({ cancels: [{ a: assetIdx, o: oid }] });
+        toast.success(`Order #${oid} cancelled`);
+        void queryClient.invalidateQueries({
+          queryKey: ["blink", "account", props.walletAddress],
+        });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Cancel failed");
+      } finally {
+        setCancellingOid(null);
+      }
+    },
+    [wallets, props.walletAddress, queryClient],
+  );
 
-  const positions = accountQuery.data?.state.assetPositions ?? [];
+  const positions = accountQuery.data?.state?.assetPositions ?? [];
   const openOrders = accountQuery.data?.openOrders ?? [];
   const recentFills = accountQuery.data?.fills ?? [];
   const accountValue = Number(
-    accountQuery.data?.state.marginSummary.accountValue ?? 0,
+    accountQuery.data?.state?.marginSummary?.accountValue ?? 0,
   );
 
   return (
@@ -563,7 +981,9 @@ function AccountPanel(props: { walletAddress: string }) {
                   key={`${position.coin}-${position.entryPx}`}
                   className="grid grid-cols-5 gap-3 rounded-[18px] border border-white/8 bg-white/[0.03] px-3 py-3 text-sm text-foreground/72"
                 >
-                  <span className="font-medium text-white">{position.coin}</span>
+                  <span className="font-medium text-white">
+                    {position.coin}
+                  </span>
                   <span className="text-right">{position.szi}</span>
                   <span className="text-right">{position.entryPx}</span>
                   <span className="text-right">
@@ -602,12 +1022,20 @@ function AccountPanel(props: { walletAddress: string }) {
                     className="grid grid-cols-[1fr_60px_80px_80px_80px_44px] gap-3 items-center rounded-[18px] border border-white/8 bg-white/[0.03] px-3 py-3 text-sm text-foreground/72"
                   >
                     <span className="font-medium text-white">{order.coin}</span>
-                    <span className={`text-right text-xs font-medium ${isBuy ? "text-emerald-300" : "text-rose-300"}`}>
+                    <span
+                      className={`text-right text-xs font-medium ${isBuy ? "text-emerald-300" : "text-rose-300"}`}
+                    >
                       {isBuy ? "Buy" : "Sell"}
                     </span>
-                    <span className="text-right font-mono text-xs">{Number(order.limitPx).toLocaleString()}</span>
-                    <span className="text-right font-mono text-xs">{order.sz}</span>
-                    <span className="text-right text-xs text-foreground/45">{order.orderType}</span>
+                    <span className="text-right font-mono text-xs">
+                      {Number(order.limitPx).toLocaleString()}
+                    </span>
+                    <span className="text-right font-mono text-xs">
+                      {order.sz}
+                    </span>
+                    <span className="text-right text-xs text-foreground/45">
+                      {order.orderType}
+                    </span>
                     <button
                       type="button"
                       onClick={() => void handleCancel(order.coin, order.oid)}
@@ -615,7 +1043,11 @@ function AccountPanel(props: { walletAddress: string }) {
                       className="flex items-center justify-center rounded-full border border-white/8 bg-white/[0.03] p-1.5 text-foreground/40 transition hover:border-rose-400/30 hover:bg-rose-400/10 hover:text-rose-300 disabled:opacity-40"
                       title="Cancel order"
                     >
-                      {isCancelling ? <Loader2 className="size-3 animate-spin" /> : <X className="size-3" />}
+                      {isCancelling ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <X className="size-3" />
+                      )}
                     </button>
                   </div>
                 );
@@ -687,6 +1119,23 @@ export function TerminalShell(props: { market: string }) {
     refetchInterval: 30_000,
   });
   const tradeEnabled = approvalQuery.data === true;
+  const [builderModalOpen, setBuilderModalOpen] = useState(false);
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [autoPromptDismissed, setAutoPromptDismissed] = useState(false);
+  const accountAvatar = `https://avatar.vercel.sh/${walletAddress || "blink-user"}.png?size=56`;
+
+  useEffect(() => {
+    if (!walletAddress) return;
+    if (approvalQuery.isLoading) return;
+    if (tradeEnabled) return;
+    if (autoPromptDismissed) return;
+    setBuilderModalOpen(true);
+  }, [
+    walletAddress,
+    approvalQuery.isLoading,
+    tradeEnabled,
+    autoPromptDismissed,
+  ]);
 
   if (!ready) {
     return (
@@ -703,12 +1152,12 @@ export function TerminalShell(props: { market: string }) {
   }
 
   return (
-    <main className="min-h-screen bg-background px-5 pb-5 pt-5 text-foreground">
-      <div className="mx-auto flex w-full max-w-[1720px] gap-5">
-        <Watchlist market={props.market} />
+    <main className="min-h-screen bg-background px-3 pb-14 pt-3 text-foreground">
+      <div className="mx-auto flex w-full max-w-[1900px] gap-3">
+        <LeftRail market={props.market} />
 
         <div className="min-w-0 flex-1">
-          <header className="glass-panel flex items-center justify-between px-5 py-4">
+          <header className="glass-panel flex items-center justify-between px-4 py-3">
             <div className="flex items-center gap-4">
               <div className="flex size-11 items-center justify-center rounded-full bg-white/[0.08] text-sm font-semibold text-white">
                 B
@@ -716,7 +1165,7 @@ export function TerminalShell(props: { market: string }) {
               <div>
                 <p className="terminal-label">Blink / {props.market}</p>
                 <h1 className="mt-1 text-xl font-semibold text-white">
-                  Calm-pro Hyperliquid workspace
+                  Hyperliquid Perps Terminal
                 </h1>
               </div>
             </div>
@@ -725,23 +1174,51 @@ export function TerminalShell(props: { market: string }) {
               <div className="hidden items-center gap-2 rounded-full border border-white/8 bg-white/[0.04] px-3 py-2 lg:flex">
                 <Search className="size-4 text-foreground/45" />
                 <span className="text-sm text-foreground/45">
-                  Search in terminal soon
+                  Search markets, wallets, setups
                 </span>
               </div>
 
-              <Link
-                href="/app/setup/builder"
-                className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-foreground/72 transition hover:bg-white/[0.06]"
-              >
-                <ShieldCheck className="size-4" />
-                Builder Setup
-              </Link>
+              <AnimatePresence mode="wait" initial={false}>
+                {tradeEnabled ? (
+                  <motion.button
+                    key="account-cta"
+                    type="button"
+                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                    transition={{ duration: 0.2 }}
+                    className="inline-flex items-center gap-2 rounded-[12px] border border-[#8fbfff55] bg-[#1a243f] px-2 py-1.5 text-sm text-white"
+                    onClick={() => setAccountModalOpen(true)}
+                  >
+                    <img src={accountAvatar} alt="User avatar" className="size-6 rounded-full border border-white/20" />
+                    Account
+                    <ArrowRight className="size-3.5 text-foreground/60" />
+                  </motion.button>
+                ) : (
+                  <motion.div
+                    key="enable-cta"
+                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Link
+                      href="#"
+                      className="whop-blue-btn"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        setBuilderModalOpen(true);
+                      }}
+                    >
+                      <PlayCircle className="size-4" />
+                      Enable Trading
+                    </Link>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
               {isAdmin ? (
-                <Link
-                  href="/app/admin"
-                  className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-foreground/72 transition hover:bg-white/[0.06]"
-                >
+                <Link href="/app/admin" className="whop-blue-btn">
                   <LayoutDashboard className="size-4" />
                   Admin
                 </Link>
@@ -764,44 +1241,49 @@ export function TerminalShell(props: { market: string }) {
 
           <MarketInfoBar market={props.market} />
           {!tradeEnabled ? (
-            <div className="mt-4 rounded-[20px] border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+            <div className="whop-yellow-banner mt-3">
               One-time setup required to route trades on Hyperliquid.
             </div>
           ) : null}
 
-          <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px_360px]">
+          <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px_340px]">
             <TradingViewPanel market={props.market} />
             <TerminalOrderBook market={props.market} />
             <OrderEntryPanel
               market={props.market}
               walletAddress={walletAddress}
               tradeEnabled={tradeEnabled}
+              onRequireBuilderSetup={() => setBuilderModalOpen(true)}
             />
           </div>
 
           <AccountPanel walletAddress={walletAddress} />
 
-          <footer className="mt-4 flex items-center justify-between px-2 text-xs text-foreground/38">
+          <footer className="mt-3 flex items-center justify-between px-2 text-xs text-foreground/38">
             <div className="flex items-center gap-4">
-              <span>{user?.wallet?.address ? "Wallet connected" : "Connected"}</span>
-              <span>{formatCompactNumber(wallets.length)} linked wallet session</span>
+              <span>
+                {user?.wallet?.address ? "Wallet connected" : "Connected"}
+              </span>
+              <span>
+                {formatCompactNumber(wallets.length)} linked wallet session
+              </span>
             </div>
             <div className="flex items-center gap-4">
               <span>Desktop-first v1</span>
               <span>Google + embedded wallet</span>
-              <span>Market + limit orders first</span>
+              <span>Perps execution first</span>
             </div>
           </footer>
         </div>
 
-        <nav className="glass-panel hidden w-[92px] flex-col items-center gap-3 p-3 xl:flex">
+        <nav className="glass-panel hidden w-[82px] flex-col items-center gap-2 p-2 xl:flex">
           {[
             { icon: Star, label: "Core" },
             { icon: Settings2, label: "Setup" },
           ].map((item) => (
             <div
               key={item.label}
-              className="flex w-full flex-col items-center rounded-[22px] border border-white/8 bg-white/[0.04] px-2 py-3 text-center"
+              className="flex w-full flex-col items-center rounded-[14px] border border-white/8 bg-white/[0.04] px-2 py-3 text-center"
             >
               <item.icon className="size-4 text-white" />
               <span className="mt-2 text-[11px] text-foreground/48">
@@ -811,6 +1293,73 @@ export function TerminalShell(props: { market: string }) {
           ))}
         </nav>
       </div>
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-[#7fb0ff45] bg-[#060e24d6] backdrop-blur-xl">
+        <div className="mx-auto flex h-10 w-full max-w-[1900px] items-center justify-between px-3 text-xs">
+          <div className="flex items-center gap-4 text-foreground/70">
+            <Link
+              href="#"
+              className="inline-flex items-center gap-1.5 text-foreground/72 transition hover:text-white"
+            >
+              <Disc className="size-3.5 text-[#6fb3ff]" />
+              Watchlist
+            </Link>
+            <Link
+              href="https://status.hyperliquid.xyz"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-foreground/72 transition hover:text-white"
+            >
+              <CircleDot className="size-3.5 text-[#31de9e]" />
+              Status
+              <ArrowUpRight className="size-3" />
+            </Link>
+          </div>
+          <div className="flex items-center gap-3 text-foreground/55">
+            <a
+              href="https://x.com/rokitdotgg"
+              target="_blank"
+              rel="noreferrer"
+              className="transition hover:text-white"
+            >
+              X
+            </a>
+            <a
+              href="https://discord.gg"
+              target="_blank"
+              rel="noreferrer"
+              className="transition hover:text-white"
+            >
+              Discord
+            </a>
+            <a
+              href="https://t.me"
+              target="_blank"
+              rel="noreferrer"
+              className="transition hover:text-white"
+            >
+              Telegram
+            </a>
+          </div>
+        </div>
+      </div>
+      <BuilderSetupModal
+        open={builderModalOpen}
+        walletAddress={walletAddress}
+        market={props.market}
+        onClose={() => {
+          setBuilderModalOpen(false);
+          setAutoPromptDismissed(true);
+        }}
+        onApproved={() => {
+          setAutoPromptDismissed(false);
+          void approvalQuery.refetch();
+        }}
+      />
+      <AccountManagementModal
+        open={accountModalOpen}
+        walletAddress={walletAddress}
+        onClose={() => setAccountModalOpen(false)}
+      />
     </main>
   );
 }

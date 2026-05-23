@@ -14,9 +14,13 @@ import {
   Check,
   CircleDot,
   Disc,
+  EyeOff,
+  Gift,
   LayoutDashboard,
   Loader2,
   LogOut,
+  User,
+  UserCog,
   PlayCircle,
   Search,
   Settings2,
@@ -29,7 +33,21 @@ import { toast } from "sonner";
 
 import { Badge } from "@acme/ui/badge";
 import { Button } from "@acme/ui/button";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@acme/ui/command";
 import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@acme/ui/dropdown-menu";
 import { Input } from "@acme/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@acme/ui/tabs";
 
@@ -51,7 +69,10 @@ import {
   marketToSlug,
 } from "~/lib/blink/markets";
 
+import { AccountManagementModal } from "./account-management-modal";
+import { BuilderSetupModal } from "./builder-setup-modal";
 import { MarketInfoBar } from "./market-info-bar";
+import { ReferralsModal } from "./referrals-modal";
 import { TerminalOrderBook } from "./terminal-order-book";
 import { TradingViewPanel } from "./trading-view-panel";
 
@@ -69,300 +90,6 @@ function readAdminAllowlist() {
 
 function asHexAddress(address: string) {
   return address as `0x${string}`;
-}
-
-function BuilderSetupModal(props: {
-  open: boolean;
-  walletAddress: string;
-  market: string;
-  onClose: () => void;
-  onApproved: () => void;
-}) {
-  const { wallets } = useWallets();
-  const [pending, setPending] = useState(false);
-  const [checking, setChecking] = useState(false);
-  const [successState, setSuccessState] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  if (!props.open) return null;
-
-  const handleApprove = async () => {
-    const wallet = wallets[0];
-    if (!wallet) return;
-    setPending(true);
-    setError(null);
-    try {
-      const exchClient = await createExchangeClient(wallet);
-      await exchClient.approveBuilderFee({
-        builder: BUILDER_ADDRESS,
-        maxFeeRate: builderMaxFeeRate(),
-      });
-      setSuccessState(true);
-      setTimeout(() => {
-        props.onApproved();
-        props.onClose();
-        setSuccessState(false);
-        toast.success("Builder approval confirmed.");
-      }, 1200);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Approval failed");
-    } finally {
-      setPending(false);
-    }
-  };
-
-  const handleRecheck = async () => {
-    setChecking(true);
-    setError(null);
-    try {
-      const approved = await isBuilderApproved(
-        asHexAddress(props.walletAddress),
-      );
-      if (approved) {
-        setSuccessState(true);
-        setTimeout(() => {
-          props.onApproved();
-          props.onClose();
-          setSuccessState(false);
-          toast.success("Builder approval detected. Trading enabled.");
-        }, 900);
-      } else {
-        setError(
-          "Approval not detected yet. Wait a few seconds and try again.",
-        );
-      }
-    } catch {
-      setError("Could not verify approval right now. Please retry.");
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  return (
-    <Dialog open={props.open} onOpenChange={(open) => !open && props.onClose()}>
-      <AnimatePresence>
-        {props.open ? (
-          <DialogContent
-            forceMount
-            className="border-none bg-transparent p-0 shadow-none sm:max-w-[560px]"
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.98 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="relative w-full overflow-hidden rounded-[16px] bg-[#0f131bcc] shadow-[0_28px_90px_rgba(0,0,0,0.62)] backdrop-blur-[26px]"
-            >
-              <div className="onboarding-hero h-52 border-b border-white/10">
-                <div className="relative z-10 flex h-full flex-col justify-between p-5">
-                  <p className="text-sm font-medium text-[#d7f0ff]">
-                    Hyperliquid Docs
-                  </p>
-                  <p className="text-6xl font-semibold tracking-[-0.04em] text-[#8af2df]">
-                    Enable Trading
-                  </p>
-                  <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                    {[...Array(7)].map((_, i) => (
-                      <motion.div
-                        // biome-ignore lint/suspicious/noArrayIndexKey: purely decorative animation
-                        key={i}
-                        initial={{ x: -40, y: 170 - i * 12, opacity: 0 }}
-                        animate={{
-                          x: [0, 70 + i * 10, 140 + i * 16],
-                          y: [170 - i * 10, 150 - i * 16, 128 - i * 8],
-                          opacity: [0, 0.55, 0],
-                        }}
-                        transition={{
-                          duration: 2.6,
-                          delay: i * 0.14,
-                          repeat: Number.POSITIVE_INFINITY,
-                          ease: "easeInOut",
-                        }}
-                        className="absolute h-[2px] w-16 rounded-full bg-[#84efd9]"
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="p-6">
-                <AnimatePresence mode="wait">
-                  {successState ? (
-                    <motion.div
-                      key="success"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.24 }}
-                      className="flex min-h-[220px] flex-col items-center justify-center text-center"
-                    >
-                      <motion.div
-                        initial={{ scale: 0.75, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ type: "spring", stiffness: 280, damping: 20 }}
-                        className="relative mb-5 flex size-20 items-center justify-center rounded-full bg-[#1b3d32]"
-                      >
-                        <motion.div
-                          initial={{ scale: 0.9, opacity: 0.65 }}
-                          animate={{ scale: 1.35, opacity: 0 }}
-                          transition={{ duration: 1.1, repeat: Number.POSITIVE_INFINITY }}
-                          className="absolute inset-0 rounded-full border border-[#6be5c4]"
-                        />
-                        <Check className="size-9 text-[#9df2d9]" />
-                      </motion.div>
-                      <DialogTitle className="text-3xl font-semibold tracking-[-0.03em] text-white">
-                        Trading Enabled
-                      </DialogTitle>
-                      <p className="mt-2 text-sm text-foreground/65">
-                        Builder approval detected. Routing is now active.
-                      </p>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="setup"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <DialogTitle className="text-4xl font-semibold tracking-[-0.03em] text-white">
-                        Builder Fee
-                      </DialogTitle>
-                      <p className="mt-3 text-base text-foreground/72">
-                        We provide a dynamic, volume-tiered fee that’s prorated per
-                        fill, so your effective rate trends lower as your executed
-                        notional scales.
-                      </p>
-
-                      <p className="mt-3 text-xs text-foreground/45">
-                        Wallet: {truncateAddress(props.walletAddress)} · Market: {props.market}
-                      </p>
-                      {error ? (
-                        <p className="mt-3 text-sm text-rose-300">{error}</p>
-                      ) : null}
-                      <div className="mt-6 flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="whop-blue-btn"
-                          onClick={() => void handleApprove()}
-                          disabled={pending || checking}
-                        >
-                          {pending ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : null}
-                          Enable
-                        </button>
-                        <button
-                          type="button"
-                          className="whop-secondary-btn border-[#39d6a57a] bg-[#173d2f] text-[#9ef0d2] hover:bg-[#1f4b3a]"
-                          onClick={() => void handleRecheck()}
-                          disabled={pending || checking}
-                        >
-                          {!checking ? <Check className="size-3.5" /> : null}
-                          {checking ? (
-                            <Loader2 className="mr-1 size-3.5 animate-spin" />
-                          ) : null}
-                          Check Approval
-                        </button>
-                        <button
-                          type="button"
-                          className="whop-secondary-btn ml-auto"
-                          onClick={props.onClose}
-                        >
-                          Not now
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-          </DialogContent>
-        ) : null}
-      </AnimatePresence>
-    </Dialog>
-  );
-}
-
-function AccountManagementModal(props: {
-  open: boolean;
-  onClose: () => void;
-  walletAddress: string;
-}) {
-  const short = truncateAddress(props.walletAddress);
-  const avatarUrl = `https://avatar.vercel.sh/${props.walletAddress}.png?size=96`;
-
-  return (
-    <Dialog open={props.open} onOpenChange={(open) => !open && props.onClose()}>
-      <DialogContent className="max-h-[86vh] overflow-hidden border-[#8fc4ff54] bg-[#0c1119f2] p-0 sm:max-w-[980px]">
-        <div className="grid h-full grid-cols-[220px_1fr]">
-          <aside className="border-r border-white/10 p-4">
-            <p className="mb-4 text-lg font-semibold text-white">Account</p>
-            <div className="space-y-1 text-sm">
-              {["Account", "Connections", "Security", "Preferences", "Settings"].map((item) => (
-                <button
-                  type="button"
-                  key={item}
-                  className={`w-full rounded-[10px] px-3 py-2 text-left transition ${item === "Account" ? "bg-white/10 text-white" : "text-foreground/60 hover:bg-white/5 hover:text-white"}`}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </aside>
-          <section className="overflow-y-auto p-6">
-            <DialogTitle className="text-2xl font-semibold text-white">
-              Account
-            </DialogTitle>
-            <div className="mt-5 flex items-center gap-4 border-b border-white/10 pb-5">
-              <img
-                src={avatarUrl}
-                alt="User avatar"
-                className="size-16 rounded-full border border-white/20"
-              />
-              <div>
-                <p className="text-2xl font-semibold text-white">Trader</p>
-                <p className="text-sm text-foreground/55">Wallet {short}</p>
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <div>
-                <p className="mb-2 text-xs uppercase tracking-[0.14em] text-foreground/45">
-                  Username
-                </p>
-                <Input defaultValue="rokitg" className="h-10 border-white/15 bg-white/[0.04]" />
-              </div>
-              <div>
-                <p className="mb-2 text-xs uppercase tracking-[0.14em] text-foreground/45">
-                  Public profile
-                </p>
-                <Input defaultValue={`blink.lat/u/${short}`} className="h-10 border-white/15 bg-white/[0.04]" />
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-[12px] border border-white/10 bg-white/[0.03] p-4">
-              <p className="font-medium text-white">Portfolio Visibility</p>
-              <p className="mt-1 text-sm text-foreground/58">
-                Share your read-only stats with a public profile link.
-              </p>
-              <div className="mt-3 inline-flex items-center gap-2 rounded-[10px] border border-[#38d7a46a] bg-[#18392e] px-3 py-2 text-sm text-[#98f0d2]">
-                Enabled
-              </div>
-            </div>
-
-            <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
-              <button type="button" className="whop-secondary-btn text-rose-200">
-                Delete account
-              </button>
-              <button type="button" className="whop-blue-btn" onClick={props.onClose}>
-                Save
-              </button>
-            </div>
-          </section>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 function ConnectGate() {
@@ -449,11 +176,12 @@ function LeftRail(props: {
   const walletRows = marketRows.slice(0, 8);
   return (
     <aside className="flex min-h-[calc(100vh-7rem)] w-[366px] flex-col gap-2.5">
-      <div className="px-1 py-1">
+      <div className="flex h-[68px] items-end px-1 py-1">
         <h1 className="text-5xl font-bold tracking-[-0.04em] text-white">
           blink
         </h1>
       </div>
+      <div className="mb-3 h-[68px]" />
 
       <section className="glass-panel flex min-h-[392px] flex-col overflow-hidden p-0">
         <div className="border-b border-white/10 px-2.5 pb-1.5 pt-1.5">
@@ -477,7 +205,7 @@ function LeftRail(props: {
             return (
               <Link
                 key={item.coin}
-                href={`/app/${marketToSlug(item.coin)}`}
+                href={`/trade/${marketToSlug(item.coin)}`}
                 className={`block rounded-[10px] border px-2.5 py-2 transition ${
                   selected
                     ? "border-[#3be1ba9e] bg-[#2dc9ff2b]"
@@ -1101,6 +829,32 @@ function AccountPanel(props: { walletAddress: string }) {
   );
 }
 
+function TerminalLoader() {
+  return (
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(38,92,255,0.22),transparent_48%),radial-gradient(circle_at_70%_75%,rgba(26,204,188,0.16),transparent_42%)] blur-2xl" />
+      <div className="relative z-10 flex flex-col items-center text-center">
+        <motion.div
+          aria-hidden="true"
+          className="text-8xl md:text-9xl"
+          animate={{
+            scale: [1, 1.1, 0.96, 1],
+            y: [0, -3, 2, 0],
+            opacity: [0.72, 1, 0.82, 1],
+          }}
+          transition={{
+            duration: 1.35,
+            repeat: Number.POSITIVE_INFINITY,
+            ease: "easeInOut",
+          }}
+        >
+          👀
+        </motion.div>
+      </div>
+    </main>
+  );
+}
+
 export function TerminalShell(props: { market: string }) {
   const { ready, authenticated, user } = usePrivy();
   const { wallets } = useWallets();
@@ -1121,8 +875,29 @@ export function TerminalShell(props: { market: string }) {
   const tradeEnabled = approvalQuery.data === true;
   const [builderModalOpen, setBuilderModalOpen] = useState(false);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [referralsModalOpen, setReferralsModalOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [blurBalances, setBlurBalances] = useState(false);
   const [autoPromptDismissed, setAutoPromptDismissed] = useState(false);
   const accountAvatar = `https://avatar.vercel.sh/${walletAddress || "blink-user"}.png?size=56`;
+
+  useEffect(() => {
+    if (accountModalOpen || referralsModalOpen || builderModalOpen) {
+      setProfileMenuOpen(false);
+    }
+  }, [accountModalOpen, referralsModalOpen, builderModalOpen]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setGlobalSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     if (!walletAddress) return;
@@ -1138,13 +913,7 @@ export function TerminalShell(props: { market: string }) {
   ]);
 
   if (!ready) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-background text-foreground">
-        <div className="glass-card px-6 py-5 text-sm text-foreground/65">
-          Preparing Blink terminal...
-        </div>
-      </main>
-    );
+    return <TerminalLoader />;
   }
 
   if (!authenticated || wallets.length === 0) {
@@ -1157,89 +926,102 @@ export function TerminalShell(props: { market: string }) {
         <LeftRail market={props.market} />
 
         <div className="min-w-0 flex-1">
-          <header className="glass-panel flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-4">
-              <div className="flex size-11 items-center justify-center rounded-full bg-white/[0.08] text-sm font-semibold text-white">
-                B
-              </div>
-              <div>
-                <p className="terminal-label">Blink / {props.market}</p>
-                <h1 className="mt-1 text-xl font-semibold text-white">
-                  Hyperliquid Perps Terminal
-                </h1>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="hidden items-center gap-2 rounded-full border border-white/8 bg-white/[0.04] px-3 py-2 lg:flex">
-                <Search className="size-4 text-foreground/45" />
-                <span className="text-sm text-foreground/45">
-                  Search markets, wallets, setups
+          <div className="mb-3 flex h-[68px] items-center justify-center">
+            <button
+              type="button"
+              onClick={() => setGlobalSearchOpen(true)}
+              className="inline-flex h-12 w-full max-w-[740px] items-center justify-between rounded-[14px] border border-white/10 bg-[#0c101c] px-4 text-sm text-foreground/60 transition hover:border-white/20 hover:text-foreground/80"
+            >
+              <span className="inline-flex items-center gap-2">
+                <Search className="size-4" />
+                Search for tokens or traders...
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] text-foreground/50">
+                  Paste
                 </span>
-              </div>
+                <span className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] text-foreground/50">
+                  ESC
+                </span>
+              </span>
+            </button>
+          </div>
 
+          <MarketInfoBar
+            market={props.market}
+            rightSlot={
               <AnimatePresence mode="wait" initial={false}>
                 {tradeEnabled ? (
-                  <motion.button
-                    key="account-cta"
-                    type="button"
-                    initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                    transition={{ duration: 0.2 }}
-                    className="inline-flex items-center gap-2 rounded-[12px] border border-[#8fbfff55] bg-[#1a243f] px-2 py-1.5 text-sm text-white"
-                    onClick={() => setAccountModalOpen(true)}
-                  >
-                    <img src={accountAvatar} alt="User avatar" className="size-6 rounded-full border border-white/20" />
-                    Account
-                    <ArrowRight className="size-3.5 text-foreground/60" />
-                  </motion.button>
-                ) : (
                   <motion.div
-                    key="enable-cta"
+                    key="account-cta"
                     initial={{ opacity: 0, y: -6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
                     transition={{ duration: 0.2 }}
+                    className="relative"
                   >
-                    <Link
-                      href="#"
-                      className="whop-blue-btn"
-                      onClick={(event) => {
-                        event.preventDefault();
-                        setBuilderModalOpen(true);
-                      }}
+                    <DropdownMenu
+                      open={profileMenuOpen}
+                      onOpenChange={setProfileMenuOpen}
                     >
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex h-[52px] items-center overflow-hidden rounded-[15px] border border-[#7ea9ff45] bg-[#0f1528f2] text-white shadow-[0_8px_28px_rgba(6,14,35,0.45)] transition hover:border-[#91b8ff73] hover:bg-[#151f38]"
+                        >
+                          <span className="flex h-full flex-col justify-center border-r border-white/10 px-3.5 py-1.5 text-left leading-tight">
+                            <span className="text-[14px] font-medium text-foreground/70">100 USDC</span>
+                            <span className="text-[14px] font-semibold text-[#7fa8ff]">Deposit more</span>
+                          </span>
+                          <span className="flex h-full items-center gap-2.5 px-3 py-1.5">
+                            <span className="flex flex-col text-left leading-tight">
+                              <span className="text-[15px] font-semibold text-white">$1.61</span>
+                              <span className="text-[13px] font-medium text-rose-300">-$0.67 24h</span>
+                            </span>
+                            <img src={accountAvatar} alt="User avatar" className="size-9 rounded-full border border-white/20" />
+                          </span>
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" sideOffset={10} className="z-[120] w-[240px] rounded-[14px] border border-white/10 bg-[#0f141fd9] p-1.5 shadow-[0_24px_65px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+                        <DropdownMenuItem asChild className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white">
+                          <Link href={`/profile/${walletAddress}`}>
+                            <User className="size-4" />
+                            Your profile
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white" onClick={() => { setProfileMenuOpen(false); setAccountModalOpen(true); }}>
+                          <UserCog className="size-4" />
+                          Manage account
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white" onClick={() => setBlurBalances((prev) => !prev)}>
+                          <EyeOff className="size-4" />
+                          Blur balances
+                          <span className="ml-auto">
+                            <span className={`block h-2.5 w-2.5 rounded-full ${blurBalances ? "bg-emerald-300" : "bg-white/30"}`} />
+                          </span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white" onClick={() => { setProfileMenuOpen(false); setReferralsModalOpen(true); }}>
+                          <Gift className="size-4" />
+                          Referrals
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="rounded-[10px] px-3 py-2 text-sm text-rose-200 focus:bg-rose-400/10 focus:text-rose-100" onClick={() => logout()}>
+                          <LogOut className="size-4" />
+                          Log out
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </motion.div>
+                ) : (
+                  <motion.div key="enable-cta" initial={{ opacity: 0, y: -6, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 6, scale: 0.97 }} transition={{ duration: 0.2 }}>
+                    <Link href="#" className="whop-blue-btn" onClick={(event) => { event.preventDefault(); setBuilderModalOpen(true); }}>
                       <PlayCircle className="size-4" />
                       Enable Trading
                     </Link>
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              {isAdmin ? (
-                <Link href="/app/admin" className="whop-blue-btn">
-                  <LayoutDashboard className="size-4" />
-                  Admin
-                </Link>
-              ) : null}
-
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-foreground/72">
-                <Wallet className="size-4" />
-                {truncateAddress(walletAddress)}
-              </div>
-
-              <Button
-                variant="ghost"
-                className="rounded-full text-foreground/55 hover:bg-white/[0.05] hover:text-white"
-                onClick={() => void logout()}
-              >
-                <LogOut className="size-4" />
-              </Button>
-            </div>
-          </header>
-
-          <MarketInfoBar market={props.market} />
+            }
+          />
           {!tradeEnabled ? (
             <div className="whop-yellow-banner mt-3">
               One-time setup required to route trades on Hyperliquid.
@@ -1358,8 +1140,46 @@ export function TerminalShell(props: { market: string }) {
       <AccountManagementModal
         open={accountModalOpen}
         walletAddress={walletAddress}
-        onClose={() => setAccountModalOpen(false)}
+        onClose={() => {
+          setAccountModalOpen(false);
+          setProfileMenuOpen(false);
+        }}
       />
+      <ReferralsModal
+        open={referralsModalOpen}
+        walletAddress={walletAddress}
+        alias="rokitg"
+        onClose={() => {
+          setReferralsModalOpen(false);
+          setProfileMenuOpen(false);
+        }}
+      />
+      <CommandDialog open={globalSearchOpen} onOpenChange={setGlobalSearchOpen}>
+        <CommandInput placeholder="Search markets, traders, wallets..." />
+        <CommandList>
+          <CommandEmpty>No results found.</CommandEmpty>
+          <CommandGroup heading="Markets">
+            {["BTC", "ETH", "SOL", "HYPE", "NEAR", "DOGE"].map((coin) => (
+              <CommandItem
+                key={coin}
+                onSelect={() => {
+                  window.location.href = `/trade/${coin}`;
+                }}
+              >
+                {coin} Perps
+              </CommandItem>
+            ))}
+          </CommandGroup>
+          <CommandGroup heading="Actions">
+            <CommandItem onSelect={() => setBuilderModalOpen(true)}>
+              Open Builder Setup
+            </CommandItem>
+            <CommandItem onSelect={() => setAccountModalOpen(true)}>
+              Open Account Settings
+            </CommandItem>
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
     </main>
   );
 }

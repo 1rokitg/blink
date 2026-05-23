@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 
@@ -27,7 +27,7 @@ function formatHourlyFunding(hourly: number) {
   return `${sign}${(hourly * 100).toFixed(4)}%/hr`;
 }
 
-export function MarketInfoBar(props: { market: string }) {
+export function MarketInfoBar(props: { market: string; rightSlot?: ReactNode }) {
   // Polling context: 24h data, OI, funding — refresh every 30s
   const ctxQuery = useQuery({
     queryKey: ["blink", "market-ctx", props.market],
@@ -102,9 +102,7 @@ export function MarketInfoBar(props: { market: string }) {
   const stats = [
     {
       label: "24h Change",
-      value: ctx
-        ? `${positive ? "+" : ""}${changePct.toFixed(2)}%`
-        : "—",
+      value: ctx ? `${positive ? "+" : ""}${changePct.toFixed(2)}%` : "—",
       color: ctx
         ? positive
           ? "text-emerald-300"
@@ -126,9 +124,7 @@ export function MarketInfoBar(props: { market: string }) {
       value: ctx ? formatHourlyFunding(ctx.funding) : "—",
       title: ctx ? formatFunding(ctx.funding) : undefined,
       color:
-        ctx && ctx.funding >= 0
-          ? "text-emerald-300/80"
-          : "text-rose-300/80",
+        ctx && ctx.funding >= 0 ? "text-emerald-300/80" : "text-rose-300/80",
     },
     {
       label: "Oracle",
@@ -161,12 +157,18 @@ export function MarketInfoBar(props: { market: string }) {
             <p className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">
               {stat.label}
             </p>
-            <p className={`mt-0.5 font-mono text-sm tabular-nums ${stat.color}`}>
+            <p
+              className={`mt-0.5 font-mono text-sm tabular-nums ${stat.color}`}
+            >
               {stat.value}
             </p>
           </div>
         ))}
       </div>
+
+      {props.rightSlot ? (
+        <div className="ml-auto shrink-0">{props.rightSlot}</div>
+      ) : null}
     </div>
   );
 }

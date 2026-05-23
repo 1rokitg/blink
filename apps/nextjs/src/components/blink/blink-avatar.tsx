@@ -1,24 +1,29 @@
 "use client";
 
+import { useUser } from "@privy-io/react-auth";
 import { motion } from "motion/react";
 
-function avatarUrl(id: string, size = 80) {
+function toAvatar(id: string, size = 80) {
   return `https://avatar.vercel.sh/${encodeURIComponent(id)}.png?size=${size}`;
 }
 
-export function BlinkAvatar({ username }: { username: string }) {
+export function BlinkAvatar() {
+  const { user, refreshUser: refetchUser } = useUser();
+
+  const id = user?.id;
+
   return (
     <div className="relative size-28 shrink-0">
       {/* Avatar image */}
       <img
-        src={avatarUrl(username, 140)}
-        alt={`${username} avatar`}
+        src={toAvatar(id ?? "fallback", 140)}
+        alt={`${user?.id} avatar`}
         className="size-28 rounded-full border-4 border-[#08101f]"
       />
       {/* Blinking 👀 overlay */}
       <motion.div
         aria-hidden="true"
-        className="absolute inset-0 flex items-center justify-center text-4xl"
+        className="absolute inset-0 flex items-center justify-center text-5xl"
         initial={{ opacity: 1 }}
         animate={{
           opacity: [1, 1, 0.3, 0, 0.3, 1, 1],

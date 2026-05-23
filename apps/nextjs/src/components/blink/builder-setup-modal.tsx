@@ -5,6 +5,8 @@ import { useState } from "react";
 import { useWallets } from "@privy-io/react-auth";
 import { AnimatePresence, motion } from "motion/react";
 import { Check, ExternalLink, Loader2 } from "lucide-react";
+
+import { ConnectTwitterButton, VerifiedTweetCard } from "./connect-twitter-button";
 import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
@@ -126,29 +128,38 @@ export function BuilderSetupModal(props: {
                       <p className="mt-2 text-sm text-foreground/65">
                         You can trade now. Share your setup and bring your desk in.
                       </p>
-                      <motion.a
-                        href={shareUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        whileHover={{ rotateX: 6, rotateY: -6, y: -3 }}
-                        transition={{ type: "spring", stiffness: 280, damping: 20 }}
-                        className="group mt-5 block w-full max-w-[420px] [transform-style:preserve-3d]"
-                      >
-                        <div className="rounded-2xl border border-[#79a7ff57] bg-[linear-gradient(145deg,#0f1b35,#111728)] p-4 text-left shadow-[0_16px_40px_rgba(0,0,0,0.45)]">
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs uppercase tracking-[0.16em] text-[#7fa8ff]">
-                              Share setup
+
+                      {/* ── Share cards ── */}
+                      <div className="mt-5 w-full max-w-[420px] space-y-3">
+                        {/* Card 1 — builder routing */}
+                        <motion.a
+                          href={shareUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          whileHover={{ rotateX: 6, rotateY: -6, y: -3 }}
+                          transition={{ type: "spring", stiffness: 280, damping: 20 }}
+                          className="group block w-full [transform-style:preserve-3d]"
+                        >
+                          <div className="rounded-2xl border border-[#79a7ff57] bg-[linear-gradient(145deg,#0f1b35,#111728)] p-4 text-left shadow-[0_16px_40px_rgba(0,0,0,0.45)]">
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs uppercase tracking-[0.16em] text-[#7fa8ff]">
+                                Share setup
+                              </p>
+                              <ExternalLink className="size-4 text-foreground/60 transition group-hover:text-white" />
+                            </div>
+                            <p className="mt-2 text-sm font-medium text-white">
+                              DO NOT BLINK! Builder routing is enabled.
                             </p>
-                            <ExternalLink className="size-4 text-foreground/60 transition group-hover:text-white" />
+                            <p className="mt-1 text-xs text-foreground/55">
+                              Post to X and invite your crew to trade perps with your link.
+                            </p>
                           </div>
-                          <p className="mt-2 text-sm font-medium text-white">
-                            DO NOT BLINK! Builder routing is enabled.
-                          </p>
-                          <p className="mt-1 text-xs text-foreground/55">
-                            Post to X and invite your crew to trade perps with your link.
-                          </p>
-                        </div>
-                      </motion.a>
+                        </motion.a>
+
+                        {/* Card 2 — verification (shown once twitter is connected) */}
+                        <ConnectTwitterButton showSuccessCard={false} className="w-full justify-center" />
+                      </div>
+
                       <button
                         type="button"
                         className="whop-blue-btn mt-4"

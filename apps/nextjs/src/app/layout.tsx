@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 
 import { cn } from "@acme/ui";
 import { ThemeProvider } from "@acme/ui/theme";
@@ -83,6 +84,7 @@ export default function RootLayout(props: { children: React.ReactNode }) {
           <Toaster />
         </ThemeProvider>
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );

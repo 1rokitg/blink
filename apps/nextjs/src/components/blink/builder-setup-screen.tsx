@@ -13,6 +13,7 @@ import {
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 
+import { recordBuilderApproval } from "~/app/actions/record-builder-approval";
 import { Badge } from "@acme/ui/badge";
 import { Button } from "@acme/ui/button";
 
@@ -75,12 +76,20 @@ export function BuilderSetupScreen(props: { market: string | null }) {
         builder: BUILDER_ADDRESS,
         maxFeeRate: builderMaxFeeRate(),
       });
+      // Persist approval to DB for admin visibility (fire-and-forget, non-critical)
+      if (walletAddress) {
+        void recordBuilderApproval(
+          walletAddress,
+          BUILDER_ADDRESS,
+          builderMaxFeeRate(),
+        );
+      }
       setApproval({ status: "approved" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Approval failed";
       setApproval({ status: "error", message: msg });
     }
-  }, [wallet]);
+  }, [wallet, walletAddress]);
 
   const isPending = approval.status === "pending";
   const isChecking = approval.status === "checking";

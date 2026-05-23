@@ -80,6 +80,23 @@ export const SessionRelations = relations(Session, ({ one }) => ({
 }));
 
 /**
+ * Tracks verified Twitter connections per wallet.
+ * Written after a successful OAuth 2.0 PKCE flow.
+ */
+export const TwitterConnection = pgTable("twitter_connection", (t) => ({
+  id: t.uuid().notNull().primaryKey().defaultRandom(),
+  /** The user's EVM wallet address (lower-cased). One connection per wallet. */
+  walletAddress: t.varchar({ length: 42 }).notNull().unique(),
+  /** Twitter user ID (numeric string). */
+  twitterId: t.varchar({ length: 64 }).notNull(),
+  /** Twitter @username (without the @). */
+  twitterUsername: t.varchar({ length: 64 }).notNull(),
+  /** Twitter display name. */
+  twitterName: t.varchar({ length: 255 }),
+  connectedAt: t.timestamp().defaultNow().notNull(),
+}));
+
+/**
  * Tracks builder fee approvals per wallet.
  * Written after a successful approveBuilderFee tx so we can skip the
  * approval check on subsequent visits without hitting the chain.

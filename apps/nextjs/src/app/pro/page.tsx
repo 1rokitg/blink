@@ -76,7 +76,8 @@ export default function BlinkProPage() {
   const [selectedTier, setSelectedTier] = useState<Tier>("basic");
 
   const selected = tierMeta[selectedTier];
-  const selectedPrice = billing === "yearly" ? selected.yearly : selected.monthly;
+  const selectedPrice =
+    billing === "yearly" ? selected.yearly : selected.monthly;
   const selectedPerMonth =
     billing === "yearly" ? selected.yearly / 12 : selected.monthly;
 
@@ -94,7 +95,10 @@ export default function BlinkProPage() {
       <div className="relative z-10 mx-auto w-full max-w-[1320px]">
         <header className="flex items-center justify-between border-b border-white/10 pb-4">
           <div className="flex items-center gap-3">
-            <Link href="/" className="text-5xl font-bold tracking-[-0.04em] text-white">
+            <Link
+              href="/"
+              className="text-5xl font-bold tracking-[-0.04em] text-white"
+            >
               blink
             </Link>
             <p className="text-xl font-semibold text-white/90">Pro</p>
@@ -106,7 +110,7 @@ export default function BlinkProPage() {
               rel="noreferrer"
               className="rounded-lg border border-[#7ea9ff66] bg-[#2b60db2b] px-3 py-2 text-sm text-[#b7d1ff] transition hover:bg-[#2b60db42]"
             >
-              RokitG Funnel
+              rokitg.fun
             </a>
             <Link
               href="/trade/BTC"
@@ -130,7 +134,11 @@ export default function BlinkProPage() {
             <p className="mt-4 text-xl text-white/90">
               Start from{" "}
               <span className="font-semibold text-[#8fb9ff]">
-                ${billing === "yearly" ? (tierMeta.basic.yearly / 12).toFixed(2) : tierMeta.basic.monthly}/mo
+                $
+                {billing === "yearly"
+                  ? (tierMeta.basic.yearly / 12).toFixed(2)
+                  : tierMeta.basic.monthly}
+                /mo
               </span>
             </p>
 
@@ -157,10 +165,16 @@ export default function BlinkProPage() {
                 onClick={() => setBilling("monthly")}
                 className="flex w-full items-start gap-2 text-left"
               >
-                <span className={`mt-1 size-4 rounded-full border ${billing === "monthly" ? "border-[#6fa8ff] bg-[#2c6bff]" : "border-white/40"}`} />
+                <span
+                  className={`mt-1 size-4 rounded-full border ${billing === "monthly" ? "border-[#6fa8ff] bg-[#2c6bff]" : "border-white/40"}`}
+                />
                 <span>
-                  <span className="block text-sm font-medium text-white">Monthly</span>
-                  <span className="block text-sm text-white/65">${selected.monthly}/month</span>
+                  <span className="block text-sm font-medium text-white">
+                    Monthly
+                  </span>
+                  <span className="block text-sm text-white/65">
+                    ${selected.monthly}/month
+                  </span>
                 </span>
               </button>
               <button
@@ -168,7 +182,9 @@ export default function BlinkProPage() {
                 onClick={() => setBilling("yearly")}
                 className="flex w-full items-start gap-2 text-left"
               >
-                <span className={`mt-1 size-4 rounded-full border ${billing === "yearly" ? "border-[#6fa8ff] bg-[#2c6bff]" : "border-white/40"}`} />
+                <span
+                  className={`mt-1 size-4 rounded-full border ${billing === "yearly" ? "border-[#6fa8ff] bg-[#2c6bff]" : "border-white/40"}`}
+                />
                 <span>
                   <span className="inline-flex items-center gap-2 text-sm font-medium text-white">
                     Yearly
@@ -184,11 +200,13 @@ export default function BlinkProPage() {
             </div>
 
             <div className="mt-6 rounded-xl border border-[#7ea9ff40] bg-[#2c6bff1f] p-4 text-sm text-[#b7d1ff]">
-              Bonus: Pro members get a 3% rebate pool on eligible routed volume campaigns.
+              Bonus: Pro members get a 3% rebate pool on eligible routed volume
+              campaigns.
             </div>
 
             <p className="mt-5 text-sm text-white/55">
-              By clicking Join now, you accept terms and authorize recurring charges.
+              By clicking Join now, you accept terms and authorize recurring
+              charges.
             </p>
 
             <div className="mt-6 flex items-center gap-3">
@@ -264,7 +282,9 @@ export default function BlinkProPage() {
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="text-4xl font-semibold text-white">{meta.name}</p>
+                      <p className="text-4xl font-semibold text-white">
+                        {meta.name}
+                      </p>
                       <p className="mt-1 text-2xl text-white/80">
                         ${price}
                         <span className="text-lg text-white/55">{unit}</span>
@@ -287,7 +307,10 @@ export default function BlinkProPage() {
 
                   <div className="mt-5 space-y-3 border-t border-white/10 pt-5">
                     {tierBenefits[tier].map((benefit) => (
-                      <div key={benefit} className="flex items-start gap-2 text-sm text-white/82">
+                      <div
+                        key={benefit}
+                        className="flex items-start gap-2 text-sm text-white/82"
+                      >
                         <Check className="mt-0.5 size-4 shrink-0 text-emerald-300" />
                         <span>{benefit}</span>
                       </div>
@@ -301,7 +324,8 @@ export default function BlinkProPage() {
 
         <footer className="mt-8 border-t border-white/10 pt-5 text-sm text-white/45">
           <p>
-            Reduced fees apply to eligible routed perps volume. Platform spread and external protocol costs may still apply.
+            Reduced fees apply to eligible routed perps volume. Platform spread
+            and external protocol costs may still apply.
           </p>
           <div className="mt-3 flex items-center gap-4 text-white/40">
             <span className="inline-flex items-center gap-1">
@@ -318,4 +342,3 @@ export default function BlinkProPage() {
     </main>
   );
 }
-

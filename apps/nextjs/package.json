@@ -30,6 +30,7 @@
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
     "@trpc/tanstack-react-query": "catalog:",
+    "@vercel/speed-insights": "^2.0.0",
     "@xstate/react": "^6.0.0",
     "geist": "^1.3.1",
     "motion": "^12.23.12",

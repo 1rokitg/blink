@@ -11,7 +11,7 @@ export type MarketSummary = {
 export const DEFAULT_MARKET = "BTC";
 
 export function marketToSlug(coin: string) {
-  return coin.toLowerCase();
+  return coin.toUpperCase();
 }
 
 export function slugToMarketSymbol(slug: string) {

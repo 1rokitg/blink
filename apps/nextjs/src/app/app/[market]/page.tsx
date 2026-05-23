@@ -1,10 +1,8 @@
-import { TerminalShell } from "~/components/blink/terminal-shell";
-import { slugToMarketSymbol } from "~/lib/blink/markets";
+import { redirect } from "next/navigation";
 
-export default async function MarketTerminalPage(props: {
+export default async function LegacyMarketPage(props: {
   params: Promise<{ market: string }>;
 }) {
   const params = await props.params;
-
-  return <TerminalShell market={slugToMarketSymbol(params.market)} />;
+  redirect(`/trade/${encodeURIComponent(params.market.toUpperCase())}`);
 }

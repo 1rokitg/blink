@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 
 import { cn } from "@acme/ui";
 import { ThemeProvider } from "@acme/ui/theme";
@@ -18,7 +19,8 @@ export const metadata: Metadata = {
       : "http://localhost:3000",
   ),
   title: "Blink — Hyperliquid Terminal",
-  description: "All-in-one Hyperliquid terminal for serious traders. Live order book, real execution, routed through Blink.",
+  description:
+    "All-in-one Hyperliquid terminal for serious traders. Live order book, real execution, routed through Blink.",
   openGraph: {
     title: "Blink — Hyperliquid Terminal",
     description: "All-in-one Hyperliquid terminal for serious traders.",
@@ -82,6 +84,7 @@ export default function RootLayout(props: { children: React.ReactNode }) {
           <Toaster />
         </ThemeProvider>
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );

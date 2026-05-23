@@ -43,7 +43,7 @@ export function LandingMarketTeaser() {
               return (
                 <Link
                   key={market.coin}
-                  href={`/app/${market.slug}`}
+                  href={`/trade/${market.slug}`}
                   className="rounded-[22px] border border-white/8 bg-white/[0.04] p-4 transition hover:bg-white/[0.07]"
                 >
                   <div className="flex items-center justify-between">

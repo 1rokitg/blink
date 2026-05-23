@@ -1,152 +1,74 @@
+"use client";
+
 import Link from "next/link";
 
-import { ArrowUpRight, Shield, Sparkles, TerminalSquare } from "lucide-react";
-
-import { Badge } from "@acme/ui/badge";
-import { Button } from "@acme/ui/button";
-
-import { LandingMarketTeaser } from "~/components/blink/landing-market-teaser";
-
-const valueProps = [
-  {
-    title: "Execution-first workspace",
-    copy:
-      "Clean chart, order book, order entry, and live position context built for Hyperliquid traders.",
-  },
-  {
-    title: "Builder-code routing",
-    copy:
-      "Blink is designed to monetize routed volume transparently through a dedicated first-trade setup flow.",
-  },
-  {
-    title: "Calm pro interface",
-    copy:
-      "Glassy, restrained, and modern enough for newer users without losing the density power users expect.",
-  },
-];
+import { motion } from "motion/react";
 
 export default function HomePage() {
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-[1600px] flex-col px-6 pb-12 pt-6 sm:px-10">
-        <header className="flex items-center justify-between rounded-full border border-white/10 bg-white/5 px-4 py-3 shadow-[0_24px_80px_rgba(4,8,20,0.32)] backdrop-blur-xl">
-          <div className="flex items-center gap-3">
-            <div className="flex size-10 items-center justify-center rounded-full bg-white/10 text-sm font-semibold text-white">
-              B
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-foreground/45">
-                Blink
-              </p>
-              <p className="text-sm text-foreground/80">
-                Hyperliquid terminal by Rokit
-              </p>
-            </div>
-          </div>
-
-          <div className="hidden items-center gap-3 md:flex">
-            <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium text-foreground/70">
-              Public app, wallet-gated terminal
-            </Badge>
-            <Button
-              asChild
-              className="rounded-full bg-white px-5 text-sm font-semibold text-black hover:bg-white/90"
-            >
-              <Link href="/app/btc">Enter Blink</Link>
-            </Button>
-          </div>
-        </header>
-
-        <section className="grid flex-1 items-center gap-10 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16">
-          <div className="max-w-3xl">
-            <Badge className="mb-6 rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/65">
-              All-in-one Hyperliquid terminal
-            </Badge>
-
-            <h1 className="max-w-4xl text-5xl font-semibold leading-[0.95] tracking-[-0.05em] text-white md:text-7xl">
-              Calm enough for beginners. Fast enough for power users.
-            </h1>
-
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-foreground/62">
-              Blink turns the Rokit funnel into a polished execution surface:
-              market context, live order flow, and builder-code-enabled trading
-              inside a cleaner Hyperliquid workspace.
-            </p>
-
-            <div className="mt-8 flex flex-wrap items-center gap-4">
-              <Button
-                asChild
-                size="lg"
-                className="rounded-full bg-white px-6 text-sm font-semibold text-black hover:bg-white/90"
-              >
-                <Link href="/app/btc">
-                  Launch Terminal
-                  <ArrowUpRight className="ml-2 size-4" />
-                </Link>
-              </Button>
-
-              <Button
-                asChild
-                size="lg"
-                variant="outline"
-                className="rounded-full border-white/12 bg-white/6 px-6 text-sm text-white hover:bg-white/10"
-              >
-                <a href="https://rokitg.fun" target="_blank" rel="noreferrer">
-                  View Funnel DNA
-                </a>
-              </Button>
-            </div>
-
-            <div className="mt-10 grid gap-4 md:grid-cols-3">
-              <div className="glass-card px-4 py-4">
-                <TerminalSquare className="size-5 text-foreground/85" />
-                <p className="mt-3 text-sm font-medium text-white">
-                  Fixed execution layout
-                </p>
-                <p className="mt-2 text-sm leading-6 text-foreground/55">
-                  Chart, book, order entry, watchlist, and active risk in one
-                  calm workspace.
-                </p>
-              </div>
-              <div className="glass-card px-4 py-4">
-                <Shield className="size-5 text-foreground/85" />
-                <p className="mt-3 text-sm font-medium text-white">
-                  Privy-powered wallet security
-                </p>
-                <p className="mt-2 text-sm leading-6 text-foreground/55">
-                  External EVM wallets first, with a cleaner connect gate and
-                  builder setup path.
-                </p>
-              </div>
-              <div className="glass-card px-4 py-4">
-                <Sparkles className="size-5 text-foreground/85" />
-                <p className="mt-3 text-sm font-medium text-white">
-                  Clean glassy product system
-                </p>
-                <p className="mt-2 text-sm leading-6 text-foreground/55">
-                  Inspired by Fomo polish and Propr clarity, adapted for
-                  Hyperliquid-native traders.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <LandingMarketTeaser />
-
-            <div className="grid gap-4 md:grid-cols-3">
-              {valueProps.map((item) => (
-                <div key={item.title} className="glass-card px-5 py-5">
-                  <p className="text-sm font-medium text-white">{item.title}</p>
-                  <p className="mt-3 text-sm leading-6 text-foreground/55">
-                    {item.copy}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-6 text-foreground">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(58,102,255,0.28),transparent_44%),radial-gradient(circle_at_78%_14%,rgba(39,198,181,0.23),transparent_42%),radial-gradient(circle_at_50%_78%,rgba(35,73,168,0.18),transparent_48%)] blur-3xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,8,24,0.12)_0%,rgba(2,8,24,0.42)_100%)]" />
       </div>
+
+      <section className="relative z-10 flex w-full max-w-xl flex-col items-center text-center">
+        <motion.div
+          aria-hidden="true"
+          className="text-7xl"
+          initial={{ opacity: 1 }}
+          animate={{ opacity: [1, 1, 0.3, 0, 0.3, 1, 1] }}
+          transition={{
+            duration: 1,
+            times: [0, 0.35, 0.45, 0.525, 0.61, 0.7, 1],
+            repeat: Number.POSITIVE_INFINITY,
+            ease: "easeInOut",
+          }}
+        >
+          👀
+        </motion.div>
+
+        <h1 className="mt-6 text-5xl font-semibold tracking-[-0.06em] text-white md:text-6xl">
+          DO NOT BLINK
+        </h1>
+        <p className="mt-4 max-w-md text-base leading-7 text-foreground/65">
+          Crypto moves can be missed in the blink of an eye. Meet your brand new
+          Hyperliquid terminal.
+        </p>
+
+        <Link
+          href="/pro"
+          className="mt-9 inline-flex h-14 w-full items-center justify-center rounded-2xl border border-[#8fbaff80] bg-[linear-gradient(180deg,#3c76ff,#2457db)] px-8 text-base font-semibold text-white shadow-[0_22px_70px_rgba(37,90,224,0.5)] transition hover:scale-[1.01] hover:brightness-110"
+        >
+          Unlock Access
+        </Link>
+        <Link
+          href="/trade/BTC"
+          className="mt-3 text-sm text-foreground/55 underline-offset-4 transition hover:text-foreground/85 hover:underline"
+        >
+          Continue with free terminal
+        </Link>
+        <a
+          href="https://rokitg.fun"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 text-sm text-[#8fb9ff] underline-offset-4 transition hover:text-[#b8d3ff] hover:underline"
+        >
+          rokitg.fun
+        </a>
+        <p className="mt-6 text-xs text-foreground/45">
+          Blink is not available to U.S. persons. U.S. users are redirected to{" "}
+          <a
+            href="https://blink.us"
+            target="_blank"
+            rel="noreferrer"
+            className="text-[#8fb9ff] underline-offset-4 hover:underline"
+          >
+            blink.us
+          </a>
+          .
+        </p>
+      </section>
     </main>
   );
 }

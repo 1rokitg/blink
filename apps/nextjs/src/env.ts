@@ -17,6 +17,10 @@ export const env = createEnv({
    */
   server: {
     POSTGRES_URL: z.string().url(),
+    /** Twitter API v2 OAuth 2.0 Client ID (Consumer Key). */
+    TWITTER_CLIENT_ID: z.string().default(""),
+    /** Twitter API v2 OAuth 2.0 Client Secret. */
+    TWITTER_CLIENT_SECRET: z.string().default(""),
   },
 
   /**
@@ -30,6 +34,8 @@ export const env = createEnv({
       .regex(/^0x[0-9a-fA-F]{40}$/, "Must be a valid EVM address"),
     /** Builder fee in 0.1bps units. 100 = 0.01%. */
     NEXT_PUBLIC_BUILDER_FEE_BPS: z.coerce.number().int().min(0).default(100),
+    /** Canonical app URL used to form OAuth redirect URIs. */
+    NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   },
   /**
    * Destructure all variables from `process.env` to make sure they aren't tree-shaken away.
@@ -38,6 +44,7 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     NEXT_PUBLIC_BUILDER_ADDRESS: process.env.NEXT_PUBLIC_BUILDER_ADDRESS,
     NEXT_PUBLIC_BUILDER_FEE_BPS: process.env.NEXT_PUBLIC_BUILDER_FEE_BPS,
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
   skipValidation:
     !!process.env.CI || process.env.npm_lifecycle_event === "lint",

@@ -49,7 +49,9 @@ export function ContextProviders({ children }: { children: React.ReactNode }) {
               showWalletUIs: false,
             },
             // Keep Google-first UX but allow wallet fallback when OAuth is restricted.
-            loginMethods: ["email", "sms"],
+            // Google-only: embedded wallet is auto-created on first sign-in.
+            // Keep email as a fallback for when OAuth is restricted (e.g. corp networks).
+            loginMethods: ["email", "github"],
           }}
         >
           {children}

@@ -13,6 +13,7 @@ import {
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 
+import { recordBuilderApproval } from "~/app/actions/record-builder-approval";
 import { Badge } from "@acme/ui/badge";
 import { Button } from "@acme/ui/button";
 
@@ -25,7 +26,7 @@ import { createExchangeClient } from "~/lib/blink/hyperliquid";
 import { DEFAULT_MARKET } from "~/lib/blink/markets";
 
 function fallbackMarket(value: string | null) {
-  return value ? value.toLowerCase() : DEFAULT_MARKET.toLowerCase();
+  return value ? value.toUpperCase() : DEFAULT_MARKET.toUpperCase();
 }
 
 type ApprovalState =
@@ -75,12 +76,20 @@ export function BuilderSetupScreen(props: { market: string | null }) {
         builder: BUILDER_ADDRESS,
         maxFeeRate: builderMaxFeeRate(),
       });
+      // Persist approval to DB for admin visibility (fire-and-forget, non-critical)
+      if (walletAddress) {
+        void recordBuilderApproval(
+          walletAddress,
+          BUILDER_ADDRESS,
+          builderMaxFeeRate(),
+        );
+      }
       setApproval({ status: "approved" });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Approval failed";
       setApproval({ status: "error", message: msg });
     }
-  }, [wallet]);
+  }, [wallet, walletAddress]);
 
   const isPending = approval.status === "pending";
   const isChecking = approval.status === "checking";
@@ -92,7 +101,7 @@ export function BuilderSetupScreen(props: { market: string | null }) {
     <main className="min-h-screen bg-background px-6 py-8 text-foreground">
       <div className="mx-auto max-w-4xl">
         <Link
-          href={`/app/${marketSlug}`}
+          href={`/trade/${marketSlug}`}
           className="inline-flex items-center gap-2 text-sm text-foreground/52 transition hover:text-foreground/82"
         >
           <ArrowLeft className="size-4" />
@@ -199,7 +208,7 @@ export function BuilderSetupScreen(props: { market: string | null }) {
                 asChild
                 className="rounded-full bg-white px-6 text-sm font-semibold text-black hover:bg-white/90"
               >
-                <Link href={`/app/${marketSlug}`}>Return to terminal</Link>
+                <Link href={`/trade/${marketSlug}`}>Return to terminal</Link>
               </Button>
             ) : (
               <Button
@@ -223,7 +232,7 @@ export function BuilderSetupScreen(props: { market: string | null }) {
               variant="outline"
               className="rounded-full border-white/8 bg-transparent px-6 text-sm text-foreground/72 hover:bg-white/[0.05]"
             >
-              <Link href={`/app/${marketSlug}`}>Return to terminal</Link>
+              <Link href={`/trade/${marketSlug}`}>Return to terminal</Link>
             </Button>
           </div>
         </section>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useLogout, usePrivy, useWallets } from "@privy-io/react-auth";
@@ -14,9 +15,14 @@ import {
   Check,
   CircleDot,
   Disc,
+  ExternalLink,
+  EyeOff,
+  Gift,
   LayoutDashboard,
   Loader2,
   LogOut,
+  User,
+  UserCog,
   PlayCircle,
   Search,
   Settings2,
@@ -24,12 +30,31 @@ import {
   Star,
   Wallet,
   X,
+  Banknote,
+  ArrowDownRight,
+  Share,
+  TicketPercent,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@acme/ui/badge";
 import { Button } from "@acme/ui/button";
+import {
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@acme/ui/command";
 import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@acme/ui/dropdown-menu";
 import { Input } from "@acme/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@acme/ui/tabs";
 
@@ -51,9 +76,13 @@ import {
   marketToSlug,
 } from "~/lib/blink/markets";
 
+import { AccountManagementModal } from "./account-management-modal";
+import { BuilderSetupModal } from "./builder-setup-modal";
 import { MarketInfoBar } from "./market-info-bar";
+import { ReferralsModal } from "./referrals-modal";
 import { TerminalOrderBook } from "./terminal-order-book";
 import { TradingViewPanel } from "./trading-view-panel";
+import { AssetIcon } from "./asset-icon";
 
 function truncateAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -69,300 +98,6 @@ function readAdminAllowlist() {
 
 function asHexAddress(address: string) {
   return address as `0x${string}`;
-}
-
-function BuilderSetupModal(props: {
-  open: boolean;
-  walletAddress: string;
-  market: string;
-  onClose: () => void;
-  onApproved: () => void;
-}) {
-  const { wallets } = useWallets();
-  const [pending, setPending] = useState(false);
-  const [checking, setChecking] = useState(false);
-  const [successState, setSuccessState] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  if (!props.open) return null;
-
-  const handleApprove = async () => {
-    const wallet = wallets[0];
-    if (!wallet) return;
-    setPending(true);
-    setError(null);
-    try {
-      const exchClient = await createExchangeClient(wallet);
-      await exchClient.approveBuilderFee({
-        builder: BUILDER_ADDRESS,
-        maxFeeRate: builderMaxFeeRate(),
-      });
-      setSuccessState(true);
-      setTimeout(() => {
-        props.onApproved();
-        props.onClose();
-        setSuccessState(false);
-        toast.success("Builder approval confirmed.");
-      }, 1200);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Approval failed");
-    } finally {
-      setPending(false);
-    }
-  };
-
-  const handleRecheck = async () => {
-    setChecking(true);
-    setError(null);
-    try {
-      const approved = await isBuilderApproved(
-        asHexAddress(props.walletAddress),
-      );
-      if (approved) {
-        setSuccessState(true);
-        setTimeout(() => {
-          props.onApproved();
-          props.onClose();
-          setSuccessState(false);
-          toast.success("Builder approval detected. Trading enabled.");
-        }, 900);
-      } else {
-        setError(
-          "Approval not detected yet. Wait a few seconds and try again.",
-        );
-      }
-    } catch {
-      setError("Could not verify approval right now. Please retry.");
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  return (
-    <Dialog open={props.open} onOpenChange={(open) => !open && props.onClose()}>
-      <AnimatePresence>
-        {props.open ? (
-          <DialogContent
-            forceMount
-            className="border-none bg-transparent p-0 shadow-none sm:max-w-[560px]"
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 16, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.98 }}
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="relative w-full overflow-hidden rounded-[16px] bg-[#0f131bcc] shadow-[0_28px_90px_rgba(0,0,0,0.62)] backdrop-blur-[26px]"
-            >
-              <div className="onboarding-hero h-52 border-b border-white/10">
-                <div className="relative z-10 flex h-full flex-col justify-between p-5">
-                  <p className="text-sm font-medium text-[#d7f0ff]">
-                    Hyperliquid Docs
-                  </p>
-                  <p className="text-6xl font-semibold tracking-[-0.04em] text-[#8af2df]">
-                    Enable Trading
-                  </p>
-                  <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                    {[...Array(7)].map((_, i) => (
-                      <motion.div
-                        // biome-ignore lint/suspicious/noArrayIndexKey: purely decorative animation
-                        key={i}
-                        initial={{ x: -40, y: 170 - i * 12, opacity: 0 }}
-                        animate={{
-                          x: [0, 70 + i * 10, 140 + i * 16],
-                          y: [170 - i * 10, 150 - i * 16, 128 - i * 8],
-                          opacity: [0, 0.55, 0],
-                        }}
-                        transition={{
-                          duration: 2.6,
-                          delay: i * 0.14,
-                          repeat: Number.POSITIVE_INFINITY,
-                          ease: "easeInOut",
-                        }}
-                        className="absolute h-[2px] w-16 rounded-full bg-[#84efd9]"
-                      />
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="p-6">
-                <AnimatePresence mode="wait">
-                  {successState ? (
-                    <motion.div
-                      key="success"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.24 }}
-                      className="flex min-h-[220px] flex-col items-center justify-center text-center"
-                    >
-                      <motion.div
-                        initial={{ scale: 0.75, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        transition={{ type: "spring", stiffness: 280, damping: 20 }}
-                        className="relative mb-5 flex size-20 items-center justify-center rounded-full bg-[#1b3d32]"
-                      >
-                        <motion.div
-                          initial={{ scale: 0.9, opacity: 0.65 }}
-                          animate={{ scale: 1.35, opacity: 0 }}
-                          transition={{ duration: 1.1, repeat: Number.POSITIVE_INFINITY }}
-                          className="absolute inset-0 rounded-full border border-[#6be5c4]"
-                        />
-                        <Check className="size-9 text-[#9df2d9]" />
-                      </motion.div>
-                      <DialogTitle className="text-3xl font-semibold tracking-[-0.03em] text-white">
-                        Trading Enabled
-                      </DialogTitle>
-                      <p className="mt-2 text-sm text-foreground/65">
-                        Builder approval detected. Routing is now active.
-                      </p>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="setup"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.2 }}
-                    >
-                      <DialogTitle className="text-4xl font-semibold tracking-[-0.03em] text-white">
-                        Builder Fee
-                      </DialogTitle>
-                      <p className="mt-3 text-base text-foreground/72">
-                        We provide a dynamic, volume-tiered fee that’s prorated per
-                        fill, so your effective rate trends lower as your executed
-                        notional scales.
-                      </p>
-
-                      <p className="mt-3 text-xs text-foreground/45">
-                        Wallet: {truncateAddress(props.walletAddress)} · Market: {props.market}
-                      </p>
-                      {error ? (
-                        <p className="mt-3 text-sm text-rose-300">{error}</p>
-                      ) : null}
-                      <div className="mt-6 flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="whop-blue-btn"
-                          onClick={() => void handleApprove()}
-                          disabled={pending || checking}
-                        >
-                          {pending ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : null}
-                          Enable
-                        </button>
-                        <button
-                          type="button"
-                          className="whop-secondary-btn border-[#39d6a57a] bg-[#173d2f] text-[#9ef0d2] hover:bg-[#1f4b3a]"
-                          onClick={() => void handleRecheck()}
-                          disabled={pending || checking}
-                        >
-                          {!checking ? <Check className="size-3.5" /> : null}
-                          {checking ? (
-                            <Loader2 className="mr-1 size-3.5 animate-spin" />
-                          ) : null}
-                          Check Approval
-                        </button>
-                        <button
-                          type="button"
-                          className="whop-secondary-btn ml-auto"
-                          onClick={props.onClose}
-                        >
-                          Not now
-                        </button>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-          </DialogContent>
-        ) : null}
-      </AnimatePresence>
-    </Dialog>
-  );
-}
-
-function AccountManagementModal(props: {
-  open: boolean;
-  onClose: () => void;
-  walletAddress: string;
-}) {
-  const short = truncateAddress(props.walletAddress);
-  const avatarUrl = `https://avatar.vercel.sh/${props.walletAddress}.png?size=96`;
-
-  return (
-    <Dialog open={props.open} onOpenChange={(open) => !open && props.onClose()}>
-      <DialogContent className="max-h-[86vh] overflow-hidden border-[#8fc4ff54] bg-[#0c1119f2] p-0 sm:max-w-[980px]">
-        <div className="grid h-full grid-cols-[220px_1fr]">
-          <aside className="border-r border-white/10 p-4">
-            <p className="mb-4 text-lg font-semibold text-white">Account</p>
-            <div className="space-y-1 text-sm">
-              {["Account", "Connections", "Security", "Preferences", "Settings"].map((item) => (
-                <button
-                  type="button"
-                  key={item}
-                  className={`w-full rounded-[10px] px-3 py-2 text-left transition ${item === "Account" ? "bg-white/10 text-white" : "text-foreground/60 hover:bg-white/5 hover:text-white"}`}
-                >
-                  {item}
-                </button>
-              ))}
-            </div>
-          </aside>
-          <section className="overflow-y-auto p-6">
-            <DialogTitle className="text-2xl font-semibold text-white">
-              Account
-            </DialogTitle>
-            <div className="mt-5 flex items-center gap-4 border-b border-white/10 pb-5">
-              <img
-                src={avatarUrl}
-                alt="User avatar"
-                className="size-16 rounded-full border border-white/20"
-              />
-              <div>
-                <p className="text-2xl font-semibold text-white">Trader</p>
-                <p className="text-sm text-foreground/55">Wallet {short}</p>
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <div>
-                <p className="mb-2 text-xs uppercase tracking-[0.14em] text-foreground/45">
-                  Username
-                </p>
-                <Input defaultValue="rokitg" className="h-10 border-white/15 bg-white/[0.04]" />
-              </div>
-              <div>
-                <p className="mb-2 text-xs uppercase tracking-[0.14em] text-foreground/45">
-                  Public profile
-                </p>
-                <Input defaultValue={`blink.lat/u/${short}`} className="h-10 border-white/15 bg-white/[0.04]" />
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-[12px] border border-white/10 bg-white/[0.03] p-4">
-              <p className="font-medium text-white">Portfolio Visibility</p>
-              <p className="mt-1 text-sm text-foreground/58">
-                Share your read-only stats with a public profile link.
-              </p>
-              <div className="mt-3 inline-flex items-center gap-2 rounded-[10px] border border-[#38d7a46a] bg-[#18392e] px-3 py-2 text-sm text-[#98f0d2]">
-                Enabled
-              </div>
-            </div>
-
-            <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
-              <button type="button" className="whop-secondary-btn text-rose-200">
-                Delete account
-              </button>
-              <button type="button" className="whop-blue-btn" onClick={props.onClose}>
-                Save
-              </button>
-            </div>
-          </section>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 function ConnectGate() {
@@ -449,11 +184,26 @@ function LeftRail(props: {
   const walletRows = marketRows.slice(0, 8);
   return (
     <aside className="flex min-h-[calc(100vh-7rem)] w-[366px] flex-col gap-2.5">
-      <div className="px-1 py-1">
-        <h1 className="text-5xl font-bold tracking-[-0.04em] text-white">
-          blink
-        </h1>
+      <div className="flex h-[68px] items-end px-1 py-1">
+        <motion.div
+          aria-hidden="true"
+          className="text-4xl md:text-5xl"
+          initial={{ opacity: 1 }}
+          animate={{
+            // Slower and clearer blink: open (1) for 1s, closing (0.3) for 0.2s, closed (0) for 0.15s, reopening (0.3) for 0.17s, open (1) for 1s
+            opacity: [1, 1, 0.3, 0, 0.3, 1, 1],
+          }}
+          transition={{
+            duration: 1000,
+            times: [0, 0.35, 0.45, 0.525, 0.61, 0.7, 1],
+            repeat: Number.POSITIVE_INFINITY,
+            ease: "easeInOut",
+          }}
+        >
+          👀
+        </motion.div>
       </div>
+      <div className="mb-3 h-[68px]" />
 
       <section className="glass-panel flex min-h-[392px] flex-col overflow-hidden p-0">
         <div className="border-b border-white/10 px-2.5 pb-1.5 pt-1.5">
@@ -477,7 +227,7 @@ function LeftRail(props: {
             return (
               <Link
                 key={item.coin}
-                href={`/app/${marketToSlug(item.coin)}`}
+                href={`/trade/${marketToSlug(item.coin)}`}
                 className={`block rounded-[10px] border px-2.5 py-2 transition ${
                   selected
                     ? "border-[#3be1ba9e] bg-[#2dc9ff2b]"
@@ -524,6 +274,8 @@ function OrderEntryPanel(props: {
   const [orderType, setOrderType] = useState<"limit" | "market">("limit");
   const [price, setPrice] = useState("");
   const [size, setSize] = useState("");
+  // "coin" = raw coin units; "usd" = notional USD (divided by mark on submit)
+  const [sizeMode, setSizeMode] = useState<"coin" | "usd">("coin");
   const [leverage, setLeverage] = useState(10);
   const [updatingLeverage, setUpdatingLeverage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -562,10 +314,45 @@ function OrderEntryPanel(props: {
   );
   const availableMargin = Math.max(0, accountValue - marginUsed);
 
-  // Estimated notional value
-  const sizeNum = Number.parseFloat(size) || 0;
-  const priceNum = Number.parseFloat(price) || markPrice;
-  const notional = sizeNum * (orderType === "limit" ? priceNum : markPrice);
+  // ── Size / notional derivation ──────────────────────────────────────
+  const rawSizeInput = Number.parseFloat(size) || 0;
+  const entryPrice = Number.parseFloat(price) || markPrice;
+
+  // Coin units the order will use (divide by price when in USD mode)
+  const coinSize =
+    sizeMode === "usd" && entryPrice > 0
+      ? rawSizeInput / entryPrice
+      : rawSizeInput;
+
+  const notional = coinSize * (orderType === "limit" ? entryPrice : markPrice);
+
+  // Legacy aliases used in handleSubmit
+  const sizeNum = coinSize;
+  const priceNum = entryPrice;
+
+  // ── Liquidation price (isolated-margin approx, HL MM ≈ 0.5%) ─────────
+  const MM_RATE = 0.005;
+  const liqPrice =
+    coinSize > 0 && entryPrice > 0
+      ? side === "buy"
+        ? entryPrice * (1 - 1 / leverage + MM_RATE)
+        : entryPrice * (1 + 1 / leverage - MM_RATE)
+      : null;
+  const marginRequired = coinSize > 0 ? notional / leverage : null;
+
+  // ── % size shortcuts ───────────────────────────────────────────────────
+  const fillSizePct = useCallback(
+    (pct: number) => {
+      if (!availableMargin || !entryPrice) return;
+      const notionalTarget = availableMargin * leverage * pct;
+      if (sizeMode === "usd") {
+        setSize(notionalTarget.toFixed(2));
+      } else {
+        setSize((notionalTarget / entryPrice).toFixed(6));
+      }
+    },
+    [availableMargin, leverage, entryPrice, sizeMode],
+  );
 
   const handleLeverageChange = useCallback(
     async (newLeverage: number) => {
@@ -694,8 +481,9 @@ function OrderEntryPanel(props: {
       <div className="flex items-center justify-between">
         <div>
           <p className="terminal-label">Order entry</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">
-            {props.market}
+          <h2 className="mt-2 flex items-center gap-2 text-xl font-semibold text-white">
+            <AssetIcon asset={props.market} className="size-7" />
+            {props.market}/USDC
           </h2>
         </div>
         <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] font-medium text-foreground/60">
@@ -732,6 +520,20 @@ function OrderEntryPanel(props: {
         >
           <ArrowUp className="size-3.5" />
           Buy / Long
+          {accountValue <= 0 && (
+            <span className="ml-2 text-xs text-amber-300">
+              <a
+                href="/deposit"
+                className="underline underline-offset-2 hover:text-amber-400"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Could route to deposit page here with router if SPA.
+                }}
+              >
+                Add funds
+              </a>
+            </span>
+          )}
         </button>
         <button
           type="button"
@@ -770,33 +572,125 @@ function OrderEntryPanel(props: {
               className="h-11 rounded-2xl border-white/8 bg-white/[0.04]"
             />
           </div>
+          {/* Size input — coin or USD mode */}
           <div className="space-y-1.5">
-            <p className="terminal-label">Size ({props.market})</p>
-            <Input
-              type="number"
-              min="0"
-              step="any"
-              placeholder="0.0000"
-              value={size}
-              onChange={(e) => setSize(e.target.value)}
-              className="h-11 rounded-2xl border-white/8 bg-white/[0.04]"
-            />
+            <div className="flex items-center justify-between">
+              <p className="terminal-label">
+                Size ({sizeMode === "usd" ? "USD" : props.market})
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSizeMode((m) => (m === "coin" ? "usd" : "coin"));
+                  setSize("");
+                }}
+                className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-foreground/50 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                {sizeMode === "coin" ? "→ USD" : "→ COIN"}
+              </button>
+            </div>
+            <div className="relative">
+              {sizeMode === "usd" && (
+                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-foreground/45">
+                  $
+                </span>
+              )}
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                placeholder={sizeMode === "usd" ? "0.00" : "0.0000"}
+                value={size}
+                onChange={(e) => setSize(e.target.value)}
+                className={`h-11 rounded-2xl border-white/8 bg-white/[0.04] ${sizeMode === "usd" ? "pl-7" : ""}`}
+              />
+            </div>
+            {/* Coin ↔ USD conversion hint */}
+            {size && entryPrice > 0 && (
+              <p className="px-1 text-[11px] text-foreground/38">
+                {sizeMode === "usd"
+                  ? `≈ ${coinSize.toFixed(6)} ${props.market}`
+                  : `≈ ${formatUsd(notional)} notional`}
+              </p>
+            )}
           </div>
+
+          {/* % quick-fill buttons */}
+          {availableMargin > 0 && (
+            <div className="flex gap-1.5">
+              {([0.25, 0.5, 0.75, 1] as const).map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() => fillSizePct(pct)}
+                  className="flex-1 rounded-full border border-white/8 bg-white/[0.03] py-1.5 text-[11px] font-medium text-foreground/50 transition hover:border-white/16 hover:bg-white/[0.07] hover:text-white"
+                >
+                  {pct === 1 ? "Max" : `${pct * 100}%`}
+                </button>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="market" className="mt-3 space-y-3">
+          {/* Size input — coin or USD mode */}
           <div className="space-y-1.5">
-            <p className="terminal-label">Size ({props.market})</p>
-            <Input
-              type="number"
-              min="0"
-              step="any"
-              placeholder="0.0000"
-              value={size}
-              onChange={(e) => setSize(e.target.value)}
-              className="h-11 rounded-2xl border-white/8 bg-white/[0.04]"
-            />
+            <div className="flex items-center justify-between">
+              <p className="terminal-label">
+                Size ({sizeMode === "usd" ? "USD" : props.market})
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSizeMode((m) => (m === "coin" ? "usd" : "coin"));
+                  setSize("");
+                }}
+                className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-foreground/50 transition hover:bg-white/[0.08] hover:text-white"
+              >
+                {sizeMode === "coin" ? "→ USD" : "→ COIN"}
+              </button>
+            </div>
+            <div className="relative">
+              {sizeMode === "usd" && (
+                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-sm text-foreground/45">
+                  $
+                </span>
+              )}
+              <Input
+                type="number"
+                min="0"
+                step="any"
+                placeholder={sizeMode === "usd" ? "0.00" : "0.0000"}
+                value={size}
+                onChange={(e) => setSize(e.target.value)}
+                className={`h-11 rounded-2xl border-white/8 bg-white/[0.04] ${sizeMode === "usd" ? "pl-7" : ""}`}
+              />
+            </div>
+            {size && entryPrice > 0 && (
+              <p className="px-1 text-[11px] text-foreground/38">
+                {sizeMode === "usd"
+                  ? `≈ ${coinSize.toFixed(6)} ${props.market}`
+                  : `≈ ${formatUsd(notional)} notional`}
+              </p>
+            )}
           </div>
+
+          {/* % quick-fill */}
+          {availableMargin > 0 && (
+            <div className="flex gap-1.5">
+              {([0.25, 0.5, 0.75, 1] as const).map((pct) => (
+                <button
+                  key={pct}
+                  type="button"
+                  onClick={() => fillSizePct(pct)}
+                  className="flex-1 rounded-full border border-white/8 bg-white/[0.03] py-1.5 text-[11px] font-medium text-foreground/50 transition hover:border-white/16 hover:bg-white/[0.07] hover:text-white"
+                >
+                  {pct === 1 ? "Max" : `${pct * 100}%`}
+                </button>
+              ))}
+            </div>
+          )}
+
           <p className="text-xs text-foreground/40">
             IOC limit at 5% slippage from mark.
           </p>
@@ -825,13 +719,35 @@ function OrderEntryPanel(props: {
         </div>
       </div>
 
-      {/* Notional estimate */}
-      {notional > 0 && (
-        <div className="mt-2 flex items-center justify-between rounded-[14px] border border-white/6 bg-white/[0.02] px-3 py-2">
-          <span className="text-xs text-foreground/40">Notional</span>
-          <span className="font-mono text-xs text-foreground/72">
-            {formatUsd(notional)}
-          </span>
+      {/* Order summary — notional / margin required / liq price */}
+      {coinSize > 0 && (
+        <div className="mt-2 divide-y divide-white/[0.05] overflow-hidden rounded-[14px] border border-white/6 bg-white/[0.02]">
+          <div className="flex items-center justify-between px-3 py-2">
+            <span className="text-xs text-foreground/40">Notional</span>
+            <span className="font-mono text-xs text-foreground/72">
+              {formatUsd(notional)}
+            </span>
+          </div>
+          {marginRequired !== null && (
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-xs text-foreground/40">Margin req.</span>
+              <span className="font-mono text-xs text-foreground/72">
+                {formatUsd(marginRequired)}
+              </span>
+            </div>
+          )}
+          {liqPrice !== null && (
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-xs text-foreground/40">
+                Est. liq. price
+              </span>
+              <span
+                className={`font-mono text-xs font-medium ${side === "buy" ? "text-rose-300" : "text-emerald-300"}`}
+              >
+                {formatUsd(liqPrice)}
+              </span>
+            </div>
+          )}
         </div>
       )}
 
@@ -916,13 +832,64 @@ function AccountPanel(props: { walletAddress: string }) {
     <section className="glass-panel mt-5 flex flex-col p-5">
       <div className="flex items-center justify-between">
         <div>
-          <p className="terminal-label">Live account</p>
-          <h2 className="mt-2 text-xl font-semibold text-white">
-            Positions, open orders, and recent history
-          </h2>
+          <p className="terminal-label mb-1">Summary</p>
+          <div className="flex gap-2">
+            <div className="flex flex-col items-start">
+              <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/30">
+                Account value
+              </span>
+              <span className="font-mono font-semibold text-white text-base mt-1">
+                {formatUsd(accountValue)}
+              </span>
+            </div>
+            <div className="flex flex-col items-start">
+              <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/30">
+                Open positions
+              </span>
+              <span className="font-mono font-semibold text-white text-base mt-1">
+                {positions.length}
+              </span>
+            </div>
+            <div className="flex flex-col items-start">
+              <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/30">
+                Open orders
+              </span>
+              <span className="font-mono font-semibold text-white text-base mt-1">
+                {openOrders.length}
+              </span>
+            </div>
+            <div className="flex flex-col items-start">
+              <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/30">
+                Recent fills
+              </span>
+              <span className="font-mono font-semibold text-white text-base mt-1">
+                {recentFills.length}
+              </span>
+            </div>
+          </div>
         </div>
         <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] font-medium text-foreground/60">
-          Polling every 15s
+          <div className="flex flex-col items-end gap-0.5">
+            <span className="text-[10px] text-foreground/55">
+              Refreshes every 15s
+            </span>
+            <span className="text-[11px] text-foreground/65">
+              <strong>Open notional:&nbsp;</strong>
+              {formatUsd(
+                Number(
+                  accountQuery.data?.state?.marginSummary?.totalNtlPos ?? 0,
+                ),
+              )}
+            </span>
+            <span className="text-[11px] text-foreground/65">
+              <strong>Margin used:&nbsp;</strong>
+              {formatUsd(
+                Number(
+                  accountQuery.data?.state?.marginSummary?.totalMarginUsed ?? 0,
+                ),
+              )}
+            </span>
+          </div>
         </Badge>
       </div>
 
@@ -967,33 +934,61 @@ function AccountPanel(props: { walletAddress: string }) {
         </TabsList>
 
         <TabsContent value="positions" className="mt-4">
-          <div className="grid grid-cols-5 gap-3 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-foreground/38">
+          <div className="grid grid-cols-[1fr_60px_72px_72px_80px_80px] gap-2 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-foreground/38">
             <span>Coin</span>
-            <span className="text-right">Size</span>
+            <span className="text-right">Side</span>
             <span className="text-right">Entry</span>
+            <span className="text-right">Liq.</span>
             <span className="text-right">Value</span>
-            <span className="text-right">Unrealized</span>
+            <span className="text-right">PnL</span>
           </div>
           <div className="space-y-2">
             {positions.length > 0 ? (
-              positions.map(({ position }) => (
-                <div
-                  key={`${position.coin}-${position.entryPx}`}
-                  className="grid grid-cols-5 gap-3 rounded-[18px] border border-white/8 bg-white/[0.03] px-3 py-3 text-sm text-foreground/72"
-                >
-                  <span className="font-medium text-white">
-                    {position.coin}
-                  </span>
-                  <span className="text-right">{position.szi}</span>
-                  <span className="text-right">{position.entryPx}</span>
-                  <span className="text-right">
-                    {formatUsd(Number(position.positionValue))}
-                  </span>
-                  <span className="text-right text-white">
-                    {formatUsd(Number(position.unrealizedPnl))}
-                  </span>
-                </div>
-              ))
+              positions.map(({ position }) => {
+                const sz = Number(position.szi);
+                const isLong = sz > 0;
+                const entry = Number(position.entryPx);
+                // Same isolated-margin liq formula used in OrderEntryPanel
+                const posLiq =
+                  entry > 0
+                    ? isLong
+                      ? entry *
+                        (1 - 1 / Number(position.leverage?.value ?? 10) + 0.005)
+                      : entry *
+                        (1 + 1 / Number(position.leverage?.value ?? 10) - 0.005)
+                    : null;
+                const pnl = Number(position.unrealizedPnl);
+                return (
+                  <div
+                    key={`${position.coin}-${position.entryPx}`}
+                    className="grid grid-cols-[1fr_60px_72px_72px_80px_80px] gap-2 rounded-[18px] border border-white/8 bg-white/[0.03] px-3 py-3 text-sm text-foreground/72"
+                  >
+                    <span className="font-medium text-white">
+                      {position.coin}
+                    </span>
+                    <span
+                      className={`text-right text-xs font-medium ${isLong ? "text-emerald-300" : "text-rose-300"}`}
+                    >
+                      {isLong ? "Long" : "Short"}
+                    </span>
+                    <span className="text-right font-mono text-xs">
+                      {position.entryPx}
+                    </span>
+                    <span className="text-right font-mono text-xs text-rose-300/80">
+                      {posLiq ? formatUsd(posLiq) : "—"}
+                    </span>
+                    <span className="text-right">
+                      {formatUsd(Number(position.positionValue))}
+                    </span>
+                    <span
+                      className={`text-right font-medium ${pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+                    >
+                      {pnl >= 0 ? "+" : ""}
+                      {formatUsd(pnl)}
+                    </span>
+                  </div>
+                );
+              })
             ) : (
               <div className="rounded-[20px] border border-dashed border-white/8 bg-white/[0.03] px-4 py-8 text-sm text-foreground/48">
                 No active positions yet.
@@ -1101,8 +1096,35 @@ function AccountPanel(props: { walletAddress: string }) {
   );
 }
 
+function TerminalLoader() {
+  return (
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background text-foreground">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(38,92,255,0.22),transparent_48%),radial-gradient(circle_at_70%_75%,rgba(26,204,188,0.16),transparent_42%)] blur-2xl" />
+      <div className="relative z-10 flex flex-col items-center text-center">
+        <motion.div
+          aria-hidden="true"
+          className="text-8xl md:text-9xl"
+          animate={{
+            scale: [1, 1.1, 0.96, 1],
+            y: [0, -3, 2, 0],
+            opacity: [0.72, 1, 0.82, 1],
+          }}
+          transition={{
+            duration: 1.35,
+            repeat: Number.POSITIVE_INFINITY,
+            ease: "easeInOut",
+          }}
+        >
+          👀
+        </motion.div>
+      </div>
+    </main>
+  );
+}
+
 export function TerminalShell(props: { market: string }) {
   const { ready, authenticated, user } = usePrivy();
+  const router = useRouter();
   const { wallets } = useWallets();
   const { logout } = useLogout();
 
@@ -1121,8 +1143,29 @@ export function TerminalShell(props: { market: string }) {
   const tradeEnabled = approvalQuery.data === true;
   const [builderModalOpen, setBuilderModalOpen] = useState(false);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [referralsModalOpen, setReferralsModalOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [blurBalances, setBlurBalances] = useState(false);
   const [autoPromptDismissed, setAutoPromptDismissed] = useState(false);
   const accountAvatar = `https://avatar.vercel.sh/${walletAddress || "blink-user"}.png?size=56`;
+
+  useEffect(() => {
+    if (accountModalOpen || referralsModalOpen || builderModalOpen) {
+      setProfileMenuOpen(false);
+    }
+  }, [accountModalOpen, referralsModalOpen, builderModalOpen]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setGlobalSearchOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     if (!walletAddress) return;
@@ -1138,13 +1181,7 @@ export function TerminalShell(props: { market: string }) {
   ]);
 
   if (!ready) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-background text-foreground">
-        <div className="glass-card px-6 py-5 text-sm text-foreground/65">
-          Preparing Blink terminal...
-        </div>
-      </main>
-    );
+    return <TerminalLoader />;
   }
 
   if (!authenticated || wallets.length === 0) {
@@ -1152,48 +1189,178 @@ export function TerminalShell(props: { market: string }) {
   }
 
   return (
-    <main className="min-h-screen bg-background px-3 pb-14 pt-3 text-foreground">
-      <div className="mx-auto flex w-full max-w-[1900px] gap-3">
+    <main className="relative min-h-screen overflow-hidden bg-background px-3 pb-14 pt-3 text-foreground">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(58,102,255,0.24),transparent_44%),radial-gradient(circle_at_78%_14%,rgba(39,198,181,0.2),transparent_42%),radial-gradient(circle_at_50%_78%,rgba(35,73,168,0.16),transparent_48%)] blur-3xl" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,8,24,0.18)_0%,rgba(2,8,24,0.4)_100%)]" />
+      </div>
+      <div className="relative z-10 mx-auto flex w-full max-w-[1900px] gap-3">
         <LeftRail market={props.market} />
 
         <div className="min-w-0 flex-1">
-          <header className="glass-panel flex items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-4">
-              <div className="flex size-11 items-center justify-center rounded-full bg-white/[0.08] text-sm font-semibold text-white">
-                B
-              </div>
-              <div>
-                <p className="terminal-label">Blink / {props.market}</p>
-                <h1 className="mt-1 text-xl font-semibold text-white">
-                  Hyperliquid Perps Terminal
-                </h1>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="hidden items-center gap-2 rounded-full border border-white/8 bg-white/[0.04] px-3 py-2 lg:flex">
-                <Search className="size-4 text-foreground/45" />
-                <span className="text-sm text-foreground/45">
-                  Search markets, wallets, setups
+          <div className="mb-3 flex h-[68px] items-center justify-center">
+            <button
+              type="button"
+              onClick={() => setGlobalSearchOpen(true)}
+              className="inline-flex h-12 w-full max-w-lg items-center justify-between rounded-[14px] border border-white/10 bg-[#0c101c] px-4 text-sm text-foreground/60 transition hover:border-white/20 hover:text-foreground/80"
+            >
+              <span className="inline-flex items-center gap-2">
+                <Search className="size-4" />
+                Search for tokens or traders...
+              </span>
+              <span className="inline-flex items-center gap-2">
+                <span className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] text-foreground/50">
+                  Paste
                 </span>
-              </div>
+                <span className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] text-foreground/50">
+                  ESC
+                </span>
+              </span>
+            </button>
+          </div>
 
+          <MarketInfoBar
+            market={props.market}
+            rightSlot={
               <AnimatePresence mode="wait" initial={false}>
                 {tradeEnabled ? (
-                  <motion.button
+                  <motion.div
                     key="account-cta"
-                    type="button"
                     initial={{ opacity: 0, y: -6, scale: 0.97 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 6, scale: 0.97 }}
                     transition={{ duration: 0.2 }}
-                    className="inline-flex items-center gap-2 rounded-[12px] border border-[#8fbfff55] bg-[#1a243f] px-2 py-1.5 text-sm text-white"
-                    onClick={() => setAccountModalOpen(true)}
+                    className="relative"
                   >
-                    <img src={accountAvatar} alt="User avatar" className="size-6 rounded-full border border-white/20" />
-                    Account
-                    <ArrowRight className="size-3.5 text-foreground/60" />
-                  </motion.button>
+                    <DropdownMenu
+                      open={profileMenuOpen}
+                      onOpenChange={setProfileMenuOpen}
+                    >
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="inline-flex h-[52px] items-center overflow-hidden rounded-[15px] border border-[#7ea9ff45] bg-[#0f1528f2] text-white shadow-[0_8px_28px_rgba(6,14,35,0.45)] transition hover:border-[#91b8ff73] hover:bg-[#151f38]"
+                        >
+                          <Link
+                            href="/deposit"
+                            onClick={() => setProfileMenuOpen(false)}
+                            className="flex h-full flex-col justify-center border-r border-white/10 px-3.5 py-1.5 text-left leading-tight"
+                          >
+                            <span className="text-[14px] font-medium text-foreground/70">
+                              100 USDC
+                            </span>
+                            <span className="text-[14px] font-semibold text-[#7fa8ff]">
+                              Deposit more
+                            </span>
+                          </Link>
+                          <span className="flex h-full items-center gap-2.5 px-3 py-1.5">
+                            <span className="flex flex-col text-left leading-tight">
+                              <span className="text-[15px] font-semibold text-white">
+                                $1.61
+                              </span>
+                              <span className="text-[13px] font-medium text-rose-300">
+                                -$0.67 24h
+                              </span>
+                            </span>
+                            <img
+                              src={accountAvatar}
+                              alt="User avatar"
+                              className="size-9 rounded-full border border-white/20"
+                            />
+                          </span>
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        sideOffset={10}
+                        className="z-[120] w-[240px] rounded-[14px] border border-white/10 bg-[#0f141fd9] p-1.5 shadow-[0_24px_65px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+                      >
+                        <DropdownMenuItem
+                          asChild
+                          className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
+                        >
+                          <Link href="/deposit">
+                            <Gift className="size-4" />
+                            Gift
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          asChild
+                          className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
+                        >
+                          <Link href="/deposit">
+                            <ArrowDownRight className="size-4" />
+                            Deposit USDC
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          asChild
+                          className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
+                        >
+                          <Link
+                            href={`/profile/${encodeURIComponent(user?.twitter?.username ?? user?.google?.email?.split("@")[0] ?? user?.email?.address?.split("@")[0] ?? user?.twitter?.username ?? user?.id ?? "me")}`}
+                          >
+                            <User className="size-4" />
+                            Your profile
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
+                          onClick={() => {
+                            setProfileMenuOpen(false);
+                            setAccountModalOpen(true);
+                          }}
+                        >
+                          <UserCog className="size-4" />
+                          Manage account
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
+                          onClick={() => setBlurBalances((prev) => !prev)}
+                        >
+                          <EyeOff className="size-4" />
+                          Blur balances
+                          <span className="ml-auto">
+                            <span
+                              className={`block h-2.5 w-2.5 rounded-full ${blurBalances ? "bg-emerald-300" : "bg-white/30"}`}
+                            />
+                          </span>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
+                          onClick={() => {
+                            setProfileMenuOpen(false);
+                            setReferralsModalOpen(true);
+                          }}
+                        >
+                          <Gift className="size-4" />
+                          Referrals
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="rounded-[10px] px-3 py-2 text-sm text-rose-200 focus:bg-rose-400/10 focus:text-rose-100"
+                          onClick={() => logout()}
+                        >
+                          <LogOut className="size-4" />
+                          Log out
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          asChild
+                          className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
+                        >
+                          <a
+                            href="https://home.privy.io"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            <ExternalLink className="size-4" />
+                            Privy Home
+                          </a>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </motion.div>
                 ) : (
                   <motion.div
                     key="enable-cta"
@@ -1216,30 +1383,8 @@ export function TerminalShell(props: { market: string }) {
                   </motion.div>
                 )}
               </AnimatePresence>
-
-              {isAdmin ? (
-                <Link href="/app/admin" className="whop-blue-btn">
-                  <LayoutDashboard className="size-4" />
-                  Admin
-                </Link>
-              ) : null}
-
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.04] px-3 py-2 text-sm text-foreground/72">
-                <Wallet className="size-4" />
-                {truncateAddress(walletAddress)}
-              </div>
-
-              <Button
-                variant="ghost"
-                className="rounded-full text-foreground/55 hover:bg-white/[0.05] hover:text-white"
-                onClick={() => void logout()}
-              >
-                <LogOut className="size-4" />
-              </Button>
-            </div>
-          </header>
-
-          <MarketInfoBar market={props.market} />
+            }
+          />
           {!tradeEnabled ? (
             <div className="whop-yellow-banner mt-3">
               One-time setup required to route trades on Hyperliquid.
@@ -1303,6 +1448,16 @@ export function TerminalShell(props: { market: string }) {
               <Disc className="size-3.5 text-[#6fb3ff]" />
               Watchlist
             </Link>
+            <a
+              href="https://rokitg.fun"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-[#8fb9ff] transition hover:text-[#c3d7ff]"
+            >
+              <Star className="size-3.5" />
+              rokitg.fun
+              <ArrowUpRight className="size-3" />
+            </a>
             <Link
               href="https://status.hyperliquid.xyz"
               target="_blank"
@@ -1358,8 +1513,46 @@ export function TerminalShell(props: { market: string }) {
       <AccountManagementModal
         open={accountModalOpen}
         walletAddress={walletAddress}
-        onClose={() => setAccountModalOpen(false)}
+        onClose={() => {
+          setAccountModalOpen(false);
+          setProfileMenuOpen(false);
+        }}
       />
+      <ReferralsModal
+        open={referralsModalOpen}
+        walletAddress={walletAddress}
+        alias="rokitg"
+        onClose={() => {
+          setReferralsModalOpen(false);
+          setProfileMenuOpen(false);
+        }}
+      />
+      <CommandDialog open={globalSearchOpen} onOpenChange={setGlobalSearchOpen}>
+        <CommandInput placeholder="Search markets, traders, wallets..." />
+        <CommandList>
+          <CommandEmpty>No results found.</CommandEmpty>
+          <CommandGroup heading="Markets">
+            {["BTC", "ETH", "SOL", "HYPE", "NEAR", "DOGE"].map((coin) => (
+              <CommandItem
+                key={coin}
+                onSelect={() => {
+                  window.location.href = `/trade/${coin}`;
+                }}
+              >
+                {coin} Perps
+              </CommandItem>
+            ))}
+          </CommandGroup>
+          <CommandGroup heading="Actions">
+            <CommandItem onSelect={() => setBuilderModalOpen(true)}>
+              Open Builder Setup
+            </CommandItem>
+            <CommandItem onSelect={() => setAccountModalOpen(true)}>
+              Open Account Settings
+            </CommandItem>
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
     </main>
   );
 }

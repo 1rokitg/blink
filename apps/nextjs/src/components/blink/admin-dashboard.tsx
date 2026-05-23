@@ -38,7 +38,7 @@ export function AdminDashboard() {
               internal metrics surface.
             </p>
             <Link
-              href="/app/btc"
+              href="/trade/BTC"
               className="mt-6 inline-flex text-sm text-foreground/60 transition hover:text-foreground/82"
             >
               Return to terminal
@@ -74,7 +74,9 @@ export function AdminDashboard() {
             ].map((item) => (
               <div key={item} className="glass-panel min-h-[128px] p-4">
                 <p className="terminal-label">{item}</p>
-                <p className="mt-5 text-2xl font-semibold text-white">Coming next</p>
+                <p className="mt-5 text-2xl font-semibold text-white">
+                  Coming next
+                </p>
               </div>
             ))}
           </div>

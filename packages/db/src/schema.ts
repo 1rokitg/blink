@@ -97,7 +97,9 @@ export const BuilderApproval = pgTable("builder_approval", (t) => ({
   approvedAt: t.timestamp().defaultNow().notNull(),
 }));
 
-export const CreateBuilderApprovalSchema = createInsertSchema(BuilderApproval).omit({
+export const CreateBuilderApprovalSchema = createInsertSchema(
+  BuilderApproval,
+).omit({
   id: true,
   approvedAt: true,
 });

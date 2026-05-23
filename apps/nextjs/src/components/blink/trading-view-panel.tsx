@@ -21,7 +21,8 @@ export function TradingViewPanel(props: { market: string }) {
 
         await new Promise<void>((resolve, reject) => {
           script.onload = () => resolve();
-          script.onerror = () => reject(new Error("Failed to load TradingView"));
+          script.onerror = () =>
+            reject(new Error("Failed to load TradingView"));
           document.head.appendChild(script);
         });
       }
@@ -32,7 +33,9 @@ export function TradingViewPanel(props: { market: string }) {
 
       const tradingView = window.TradingView as
         | {
-            widget: new (config: Record<string, unknown>) => {
+            widget: new (
+              config: Record<string, unknown>,
+            ) => {
               remove?: () => void;
             };
           }
@@ -49,18 +52,18 @@ export function TradingViewPanel(props: { market: string }) {
 
       widgetRef.current = tradingView
         ? new tradingView.widget({
-        autosize: true,
-        container_id: containerRef.current.id,
-        symbol: toTradingViewSymbol(props.market),
-        interval: "60",
-        timezone: "Etc/UTC",
-        theme: "dark",
-        style: "1",
-        locale: "en",
-        hide_top_toolbar: false,
-        hide_legend: false,
-        save_image: false,
-        toolbar_bg: "#0b1018",
+            autosize: true,
+            container_id: containerRef.current.id,
+            symbol: toTradingViewSymbol(props.market),
+            interval: "60",
+            timezone: "Etc/UTC",
+            theme: "dark",
+            style: "1",
+            locale: "en",
+            hide_top_toolbar: false,
+            hide_legend: false,
+            save_image: false,
+            toolbar_bg: "#0b1018",
           })
         : null;
     }

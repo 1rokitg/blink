@@ -18,7 +18,8 @@ export const metadata: Metadata = {
       : "http://localhost:3000",
   ),
   title: "Blink — Hyperliquid Terminal",
-  description: "All-in-one Hyperliquid terminal for serious traders. Live order book, real execution, routed through Blink.",
+  description:
+    "All-in-one Hyperliquid terminal for serious traders. Live order book, real execution, routed through Blink.",
   openGraph: {
     title: "Blink — Hyperliquid Terminal",
     description: "All-in-one Hyperliquid terminal for serious traders.",

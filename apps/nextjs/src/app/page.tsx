@@ -10,18 +10,15 @@ import { LandingMarketTeaser } from "~/components/blink/landing-market-teaser";
 const valueProps = [
   {
     title: "Execution-first workspace",
-    copy:
-      "Clean chart, order book, order entry, and live position context built for Hyperliquid traders.",
+    copy: "Clean chart, order book, order entry, and live position context built for Hyperliquid traders.",
   },
   {
     title: "Builder-code routing",
-    copy:
-      "Blink is designed to monetize routed volume transparently through a dedicated first-trade setup flow.",
+    copy: "Blink is designed to monetize routed volume transparently through a dedicated first-trade setup flow.",
   },
   {
     title: "Calm pro interface",
-    copy:
-      "Glassy, restrained, and modern enough for newer users without losing the density power users expect.",
+    copy: "Glassy, restrained, and modern enough for newer users without losing the density power users expect.",
   },
 ];
 
@@ -52,7 +49,7 @@ export default function HomePage() {
               asChild
               className="rounded-full bg-white px-5 text-sm font-semibold text-black hover:bg-white/90"
             >
-              <Link href="/app/btc">Enter Blink</Link>
+              <Link href="/trade/BTC">Enter Blink</Link>
             </Button>
           </div>
         </header>
@@ -79,7 +76,7 @@ export default function HomePage() {
                 size="lg"
                 className="rounded-full bg-white px-6 text-sm font-semibold text-black hover:bg-white/90"
               >
-                <Link href="/app/btc">
+                <Link href="/trade/BTC">
                   Launch Terminal
                   <ArrowUpRight className="ml-2 size-4" />
                 </Link>

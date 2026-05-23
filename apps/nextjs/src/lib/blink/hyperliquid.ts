@@ -25,8 +25,7 @@ export async function createExchangeClient(wallet: ConnectedWallet) {
   });
 
   return new hl.ExchangeClient({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    wallet: viemClient as any,
+    wallet: viemClient as unknown as hl.ExchangeClientParameters["wallet"],
     transport: new hl.HttpTransport(),
   });
 }

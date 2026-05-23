@@ -25,13 +25,13 @@ export function LandingMarketTeaser() {
     <section className="glass-card noise-mask overflow-hidden p-5">
       <div className="flex items-center justify-between">
         <div>
-          <p className="terminal-label">Top Hyperliquid markets</p>
+          <p className="terminal-label">Live market teaser</p>
           <h2 className="mt-2 text-2xl font-semibold text-white">
-            Highest 24h volume
+            Top Hyperliquid perps by daily volume
           </h2>
         </div>
         <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium text-foreground/68">
-          Tap to trade
+          Daily refresh, live price context
         </Badge>
       </div>
 

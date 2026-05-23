@@ -67,51 +67,67 @@ function asHexAddress(address: string) {
 }
 
 function ConnectGate() {
-  const { connectWallet } = usePrivy();
+  const { login } = usePrivy();
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 py-10 text-foreground">
-      <div className="glass-card noise-mask w-full max-w-3xl p-8 md:p-10">
-        <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
-          Blink Terminal Access
-        </Badge>
+      <div className="glass-card noise-mask w-full max-w-lg p-8 md:p-10">
+        <div className="flex size-12 items-center justify-center rounded-full bg-white/10 text-lg font-semibold text-white">
+          B
+        </div>
 
-        <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">
-          Connect an EVM wallet to enter the workspace.
+        <h1 className="mt-6 text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">
+          Sign in to trade.
         </h1>
-        <p className="mt-4 max-w-2xl text-base leading-7 text-foreground/58">
-          Blink is a wallet-gated Hyperliquid terminal. Connect your existing
-          wallet to unlock the chart, order book, order entry, and live account
-          surface.
+        <p className="mt-4 text-base leading-7 text-foreground/55">
+          Blink creates a non-custodial wallet for you automatically. No seed
+          phrase, no extension — just Google.
         </p>
 
-        <div className="mt-8 grid gap-4 md:grid-cols-3">
+        <Button
+          className="mt-8 h-12 w-full rounded-full bg-white text-sm font-semibold text-black hover:bg-white/90"
+          onClick={() => login()}
+        >
+          {/* Google G */}
+          <svg className="mr-2.5 size-4" viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+              fill="#4285F4"
+            />
+            <path
+              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+              fill="#34A853"
+            />
+            <path
+              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"
+              fill="#FBBC05"
+            />
+            <path
+              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+              fill="#EA4335"
+            />
+          </svg>
+          Continue with Google
+        </Button>
+
+        <div className="mt-6 grid grid-cols-3 gap-3">
           {[
-            "External EVM wallets first",
-            "Privy-powered wallet security layer",
-            "Builder setup only on first trade attempt",
+            "Non-custodial embedded wallet",
+            "No seed phrase needed",
+            "Builder approval on first trade",
           ].map((item) => (
-            <div key={item} className="glass-panel px-4 py-4">
-              <p className="text-sm text-foreground/72">{item}</p>
+            <div key={item} className="rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-3">
+              <p className="text-[11px] leading-5 text-foreground/52">{item}</p>
             </div>
           ))}
         </div>
 
-        <div className="mt-8 flex flex-wrap items-center gap-4">
-          <Button
-            className="rounded-full bg-white px-6 text-sm font-semibold text-black hover:bg-white/90"
-            onClick={() => connectWallet()}
-          >
-            <Wallet className="mr-2 size-4" />
-            Connect Wallet
-          </Button>
-          <Link
-            href="/"
-            className="text-sm text-foreground/52 transition hover:text-foreground/82"
-          >
-            Back to landing
-          </Link>
-        </div>
+        <Link
+          href="/"
+          className="mt-6 block text-center text-xs text-foreground/38 transition hover:text-foreground/65"
+        >
+          ← Back to landing
+        </Link>
       </div>
     </main>
   );
@@ -185,7 +201,11 @@ function Watchlist(props: {
 
 const LEVERAGE_PRESETS = [1, 2, 5, 10, 20];
 
-function OrderEntryPanel(props: { market: string; walletAddress: string }) {
+function OrderEntryPanel(props: {
+  market: string;
+  walletAddress: string;
+  tradeEnabled: boolean;
+}) {
   const { wallets } = useWallets();
   const queryClient = useQueryClient();
 
@@ -232,8 +252,8 @@ function OrderEntryPanel(props: { market: string; walletAddress: string }) {
   const availableMargin = Math.max(0, accountValue - marginUsed);
 
   // Estimated notional value
-  const sizeNum = parseFloat(size) || 0;
-  const priceNum = parseFloat(price) || markPrice;
+  const sizeNum = Number.parseFloat(size) || 0;
+  const priceNum = Number.parseFloat(price) || markPrice;
   const notional = sizeNum * (orderType === "limit" ? priceNum : markPrice);
 
   const handleLeverageChange = useCallback(
@@ -264,26 +284,19 @@ function OrderEntryPanel(props: { market: string; walletAddress: string }) {
   const handleSubmit = useCallback(async () => {
     const wallet = wallets[0];
     if (!wallet) return;
+    if (!props.tradeEnabled) {
+      window.location.href = `/app/setup/builder?market=${marketToSlug(props.market)}`;
+      return;
+    }
 
-    const sz = parseFloat(size);
-    const px = orderType === "limit" ? parseFloat(price) : 0;
+    const sz = Number.parseFloat(size);
+    const px = orderType === "limit" ? Number.parseFloat(price) : 0;
 
     if (!sz || sz <= 0) { toast.error("Enter a valid size"); return; }
     if (orderType === "limit" && (!px || px <= 0)) { toast.error("Enter a valid limit price"); return; }
 
     setSubmitting(true);
     try {
-      const approved = await isBuilderApproved(props.walletAddress as `0x${string}`);
-      if (!approved) {
-        toast.error("Builder not approved — complete setup first", {
-          action: {
-            label: "Setup",
-            onClick: () => { window.location.href = `/app/setup/builder?market=${marketToSlug(props.market)}`; },
-          },
-        });
-        return;
-      }
-
       const [exchClient, assetIdx] = await Promise.all([
         createExchangeClient(wallet),
         getAssetIndex(props.market),
@@ -317,7 +330,7 @@ function OrderEntryPanel(props: { market: string; walletAddress: string }) {
     } finally {
       setSubmitting(false);
     }
-  }, [wallets, side, orderType, price, size, markPrice, props.market, props.walletAddress, queryClient]);
+  }, [wallets, side, orderType, price, size, markPrice, props.market, props.tradeEnabled, props.walletAddress, queryClient]);
 
   return (
     <section className="glass-panel flex h-full flex-col p-5">
@@ -350,6 +363,7 @@ function OrderEntryPanel(props: { market: string; walletAddress: string }) {
       {/* Buy / Sell toggle */}
       <div className="mt-4 grid grid-cols-2 gap-2 rounded-full border border-white/8 bg-white/[0.04] p-1">
         <button
+          type="button"
           onClick={() => setSide("buy")}
           className={`flex items-center justify-center gap-1.5 rounded-full py-2 text-sm font-medium transition ${side === "buy" ? "bg-emerald-400/15 text-emerald-200" : "text-foreground/50 hover:text-foreground/80"}`}
         >
@@ -357,6 +371,7 @@ function OrderEntryPanel(props: { market: string; walletAddress: string }) {
           Buy / Long
         </button>
         <button
+          type="button"
           onClick={() => setSide("sell")}
           className={`flex items-center justify-center gap-1.5 rounded-full py-2 text-sm font-medium transition ${side === "sell" ? "bg-rose-400/15 text-rose-200" : "text-foreground/50 hover:text-foreground/80"}`}
         >
@@ -400,6 +415,7 @@ function OrderEntryPanel(props: { market: string; walletAddress: string }) {
         <div className="flex gap-1.5">
           {LEVERAGE_PRESETS.map((lv) => (
             <button
+              type="button"
               key={lv}
               onClick={() => void handleLeverageChange(lv)}
               className={`flex-1 rounded-full border py-1.5 text-[11px] font-medium transition ${leverage === lv ? "border-white/20 bg-white/10 text-white" : "border-white/6 bg-transparent text-foreground/45 hover:border-white/12 hover:text-foreground/75"}`}
@@ -417,12 +433,6 @@ function OrderEntryPanel(props: { market: string; walletAddress: string }) {
           <span className="font-mono text-xs text-foreground/72">{formatUsd(notional)}</span>
         </div>
       )}
-
-      {/* Routing */}
-      <div className="mt-3 flex items-center justify-between rounded-[14px] border border-white/6 bg-white/[0.02] px-3 py-2">
-        <span className="text-xs text-foreground/35">Builder fee</span>
-        <span className="font-mono text-xs text-foreground/45">≤ {(BUILDER_FEE_UNITS * 0.0001).toFixed(4)}%</span>
-      </div>
 
       <Button
         onClick={() => void handleSubmit()}
@@ -599,6 +609,7 @@ function AccountPanel(props: { walletAddress: string }) {
                     <span className="text-right font-mono text-xs">{order.sz}</span>
                     <span className="text-right text-xs text-foreground/45">{order.orderType}</span>
                     <button
+                      type="button"
                       onClick={() => void handleCancel(order.coin, order.oid)}
                       disabled={isCancelling}
                       className="flex items-center justify-center rounded-full border border-white/8 bg-white/[0.03] p-1.5 text-foreground/40 transition hover:border-rose-400/30 hover:bg-rose-400/10 hover:text-rose-300 disabled:opacity-40"
@@ -668,6 +679,14 @@ export function TerminalShell(props: { market: string }) {
   const isAdmin = walletAddress
     ? allowlist.includes(walletAddress.toLowerCase())
     : false;
+  const approvalQuery = useQuery({
+    queryKey: ["blink", "builder-approval", walletAddress],
+    queryFn: () => isBuilderApproved(asHexAddress(walletAddress)),
+    enabled: Boolean(walletAddress),
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
+  const tradeEnabled = approvalQuery.data === true;
 
   if (!ready) {
     return (
@@ -744,11 +763,20 @@ export function TerminalShell(props: { market: string }) {
           </header>
 
           <MarketInfoBar market={props.market} />
+          {!tradeEnabled ? (
+            <div className="mt-4 rounded-[20px] border border-amber-300/25 bg-amber-300/10 px-4 py-3 text-sm text-amber-100">
+              One-time setup required to route trades on Hyperliquid.
+            </div>
+          ) : null}
 
           <div className="mt-4 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px_360px]">
             <TradingViewPanel market={props.market} />
             <TerminalOrderBook market={props.market} />
-            <OrderEntryPanel market={props.market} walletAddress={walletAddress} />
+            <OrderEntryPanel
+              market={props.market}
+              walletAddress={walletAddress}
+              tradeEnabled={tradeEnabled}
+            />
           </div>
 
           <AccountPanel walletAddress={walletAddress} />
@@ -760,7 +788,7 @@ export function TerminalShell(props: { market: string }) {
             </div>
             <div className="flex items-center gap-4">
               <span>Desktop-first v1</span>
-              <span>External EVM wallets</span>
+              <span>Google + embedded wallet</span>
               <span>Market + limit orders first</span>
             </div>
           </footer>

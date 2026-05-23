@@ -67,26 +67,6 @@ const openrunde = localFont({
 export default function RootLayout(props: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      {/*
-        Suppress the "Cannot redefine property: ethereum" TypeError thrown when
-        multiple wallet browser extensions (MetaMask, Coinbase, Rabby, etc.)
-        all attempt to claim window.ethereum at the same time. This is a
-        browser-extension conflict — not a Blink bug — and the error is harmless.
-      */}
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.addEventListener('error', function(e) {
-                if (e.message && e.message.includes('Cannot redefine property: ethereum')) {
-                  e.stopImmediatePropagation();
-                  e.preventDefault();
-                }
-              }, true);
-            `,
-          }}
-        />
-      </head>
       <body
         suppressHydrationWarning
         className={cn(

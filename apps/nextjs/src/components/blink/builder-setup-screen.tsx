@@ -37,7 +37,7 @@ type ApprovalState =
   | { status: "error"; message: string };
 
 export function BuilderSetupScreen(props: { market: string | null }) {
-  const { connectWallet } = usePrivy();
+  const { login } = usePrivy();
   const { wallets } = useWallets();
 
   const marketSlug = useMemo(
@@ -114,7 +114,7 @@ export function BuilderSetupScreen(props: { market: string | null }) {
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {[
-              "Connect an external EVM wallet",
+              "Sign in with Google and use your embedded wallet",
               `Review fee disclosure: max ${feeRate} per trade`,
               "One-click approval — return to terminal immediately after",
             ].map((step) => (
@@ -189,9 +189,9 @@ export function BuilderSetupScreen(props: { market: string | null }) {
             {!walletAddress ? (
               <Button
                 className="rounded-full bg-white px-6 text-sm font-semibold text-black hover:bg-white/90"
-                onClick={() => connectWallet()}
+                onClick={() => login()}
               >
-                Connect Wallet
+                Continue with Google
               </Button>
             ) : isDone ? (
               <Button

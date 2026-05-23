@@ -30,19 +30,16 @@ export function ContextProviders({ children }: { children: React.ReactNode }) {
           config={{
             appearance: {
               theme: "dark",
-              walletChainType: "ethereum-only",
-              // wallet-only login — show wallet options first, no social toggle
-              showWalletLoginFirst: true,
             },
             embeddedWallets: {
               ethereum: {
-                // don't auto-create embedded wallets — external EVM wallets only
-                createOnLogin: "off",
+                // auto-create an embedded EVM wallet for every Google user on first login
+                createOnLogin: "users-without-wallets",
               },
               showWalletUIs: false,
             },
-            // external wallet only — no email/sms/social
-            loginMethods: ["wallet"],
+            // Google-only login — embedded wallet is provisioned automatically
+            loginMethods: ["google"],
           }}
         >
           {children}

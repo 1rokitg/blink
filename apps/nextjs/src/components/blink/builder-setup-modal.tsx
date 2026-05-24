@@ -132,7 +132,7 @@ export function BuilderSetupModal(props: {
       console.info("[setup] step 2 — approving trading agent:", agentAddress);
       const approveAgentResult = await exchClient.approveAgent({
         agentAddress,
-        agentName: "Blink",
+        agentName: "blink-web",
       });
       ensureExchangeActionOk(
         approveAgentResult,

@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { pgTable, primaryKey } from "drizzle-orm/pg-core";
+import { jsonb, pgTable, primaryKey } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -205,4 +205,51 @@ export const Referral = pgTable("referral", (t) => ({
   /** The code that was used (for audit / leaderboard). */
   code: t.varchar({ length: 64 }).notNull(),
   createdAt: t.timestamp().defaultNow().notNull(),
+}));
+
+/**
+ * Internal product analytics events (server-side canonical stream).
+ * This powers /internal KPIs and funnel metrics.
+ */
+export const MetricEvent = pgTable("metric_event", (t) => ({
+  id: t.uuid().notNull().primaryKey().defaultRandom(),
+  eventType: t.varchar({ length: 64 }).notNull(),
+  walletAddress: t.varchar({ length: 42 }),
+  source: t.varchar({ length: 64 }),
+  metadata: jsonb(),
+  createdAt: t.timestamp().defaultNow().notNull(),
+}));
+
+/**
+ * Daily rollups for builder analytics (HL volume + estimated builder revenue).
+ * One row per UTC day.
+ */
+export const BuilderDailyMetric = pgTable("builder_daily_metric", (t) => ({
+  id: t.uuid().notNull().primaryKey().defaultRandom(),
+  day: t.date().notNull().unique(),
+  activeUsers: t.integer().notNull().default(0),
+  fillsCount: t.integer().notNull().default(0),
+  volumeUsd: t.doublePrecision().notNull().default(0),
+  feeUsd: t.doublePrecision().notNull().default(0),
+  builderFeeUsd: t.doublePrecision().notNull().default(0),
+  createdAt: t.timestamp().defaultNow().notNull(),
+  updatedAt: t
+    .timestamp({ mode: "date", withTimezone: true })
+    .$onUpdateFn(() => sql`now()`),
+}));
+
+/**
+ * Runtime feature flags managed from /internal.
+ * Values here override .env defaults when read server-side.
+ */
+export const FeatureFlag = pgTable("feature_flag", (t) => ({
+  id: t.uuid().notNull().primaryKey().defaultRandom(),
+  key: t.varchar({ length: 64 }).notNull().unique(),
+  enabled: t.boolean().notNull().default(false),
+  description: t.varchar({ length: 255 }),
+  updatedBy: t.varchar({ length: 42 }),
+  createdAt: t.timestamp().defaultNow().notNull(),
+  updatedAt: t
+    .timestamp({ mode: "date", withTimezone: true })
+    .$onUpdateFn(() => sql`now()`),
 }));

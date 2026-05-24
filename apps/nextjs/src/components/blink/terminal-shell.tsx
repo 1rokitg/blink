@@ -2,11 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useLogout, usePrivy, useWallets } from "@privy-io/react-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { AnimatePresence, motion } from "motion/react";
+import {
+  AnimatePresence,
+  motion,
+  useMotionValue,
+  useTransform,
+  animate,
+} from "motion/react";
 import {
   ArrowDown,
   ArrowRight,
@@ -512,7 +518,133 @@ function LeftRail(props: {
   );
 }
 
-const LEVERAGE_PRESETS = [1, 2, 5, 10, 20];
+const LEVERAGE_PRESETS = [1, 2, 5, 10, 20] as const;
+
+const LEVERAGE_RISK: Record<
+  (typeof LEVERAGE_PRESETS)[number],
+  { activeCls: string; disclaimer: string }
+> = {
+  1: {
+    activeCls:
+      "border-emerald-400/50 bg-emerald-400/10 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.15)]",
+    disclaimer: "✓ Low leverage — safest for most traders.",
+  },
+  2: {
+    activeCls:
+      "border-emerald-400/50 bg-emerald-400/10 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.15)]",
+    disclaimer: "✓ Low leverage — safest for most traders.",
+  },
+  5: {
+    activeCls:
+      "border-amber-400/50 bg-amber-400/10 text-amber-300 shadow-[0_0_8px_rgba(251,191,36,0.15)]",
+    disclaimer: "Moderate risk. Consider 2× or less.",
+  },
+  10: {
+    activeCls:
+      "border-orange-400/50 bg-orange-400/10 text-orange-300 shadow-[0_0_8px_rgba(251,146,60,0.15)]",
+    disclaimer: "⚠ High leverage — liquidation risk is significant.",
+  },
+  20: {
+    activeCls:
+      "border-rose-400/50 bg-rose-400/10 text-rose-300 shadow-[0_0_8px_rgba(251,113,133,0.2)]",
+    disclaimer: "⚠ Extreme leverage — one move can wipe your position.",
+  },
+};
+
+/**
+ * Hold-to-confirm order button.
+ * Press and hold to fill left → right over ~650 ms, then fires onConfirm.
+ * Releasing early resets the fill with a spring.
+ */
+function HoldToConfirmButton({
+  onConfirm,
+  disabled,
+  side,
+  market,
+  submitting,
+}: {
+  onConfirm: () => void;
+  disabled?: boolean;
+  side: "buy" | "sell";
+  market: string;
+  submitting: boolean;
+}) {
+  const fillX = useMotionValue(0); // 0 → 100
+  const fillWidth = useTransform(fillX, [0, 100], ["0%", "100%"]);
+  const holdingRef = useRef(false);
+  const animRef = useRef<ReturnType<typeof animate> | null>(null);
+  const HOLD_MS = 0.65;
+
+  const isBuy = side === "buy";
+
+  const startHold = useCallback(() => {
+    if (disabled || submitting) return;
+    holdingRef.current = true;
+    animRef.current = animate(fillX, 100, {
+      duration: HOLD_MS,
+      ease: "linear",
+      onComplete: () => {
+        if (!holdingRef.current) return;
+        onConfirm();
+        // reset fill after the order fires
+        setTimeout(() => {
+          holdingRef.current = false;
+          void animate(fillX, 0, { duration: 0.2 });
+        }, 180);
+      },
+    });
+  }, [fillX, disabled, submitting, onConfirm]);
+
+  const cancelHold = useCallback(() => {
+    if (!holdingRef.current) return;
+    holdingRef.current = false;
+    animRef.current?.stop();
+    void animate(fillX, 0, { duration: 0.25, ease: [0.33, 1, 0.68, 1] });
+  }, [fillX]);
+
+  return (
+    <motion.button
+      type="button"
+      disabled={disabled}
+      onPointerDown={startHold}
+      onPointerUp={cancelHold}
+      onPointerLeave={cancelHold}
+      onPointerCancel={cancelHold}
+      className={`relative mt-4 h-12 w-full select-none overflow-hidden rounded-full border text-sm font-semibold transition-opacity disabled:cursor-not-allowed disabled:opacity-40 ${
+        isBuy
+          ? "border-emerald-400/30 bg-emerald-400/[0.06]"
+          : "border-rose-400/30 bg-rose-400/[0.06]"
+      }`}
+      style={{ touchAction: "none" }}
+      whileTap={{ scale: submitting ? 1 : 0.982 }}
+    >
+      {/* Fill bar */}
+      <motion.div
+        className={`absolute inset-y-0 left-0 ${isBuy ? "bg-emerald-400" : "bg-rose-400"}`}
+        style={{
+          width: fillWidth,
+          background: isBuy
+            ? "linear-gradient(90deg,#059669 0%,#34d399 85%,#6ee7b7 100%)"
+            : "linear-gradient(90deg,#be123c 0%,#f87171 85%,#fca5a5 100%)",
+        }}
+      />
+
+      {/* Label */}
+      <span
+        className={`relative z-10 flex items-center justify-center gap-2 font-semibold ${
+          isBuy ? "text-white" : "text-white"
+        }`}
+        style={{ textShadow: "0 1px 4px rgba(0,0,0,0.4)" }}
+      >
+        {submitting ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          `${isBuy ? "Buy / Long" : "Sell / Short"} ${market}`
+        )}
+      </span>
+    </motion.button>
+  );
+}
 
 function OrderEntryPanel(props: {
   market: string;
@@ -557,6 +689,24 @@ function OrderEntryPanel(props: {
     staleTime: 10_000,
     enabled: !!props.walletAddress,
   });
+
+  // Asset metadata — needed for szDecimals / min order size
+  const metaQuery = useQuery({
+    queryKey: ["blink", "meta"],
+    queryFn: async () => {
+      const [meta] = await infoClient.metaAndAssetCtxs();
+      return meta;
+    },
+    staleTime: 300_000,
+    gcTime: 600_000,
+  });
+
+  const szDecimals = useMemo(() => {
+    const asset = metaQuery.data?.universe.find((a) => a.name === props.market);
+    return (asset as { szDecimals?: number } | undefined)?.szDecimals ?? 4;
+  }, [metaQuery.data, props.market]);
+
+  const minSize = useMemo(() => Math.pow(10, -szDecimals), [szDecimals]);
 
   const markPrice = markQuery.data ?? 0;
   const accountValue = Number(
@@ -665,6 +815,10 @@ function OrderEntryPanel(props: {
 
     if (!sz || sz <= 0) {
       toast.error("Enter a valid size");
+      return;
+    }
+    if (sz < minSize) {
+      toast.error(`Min order size is ${minSize} ${props.market}`);
       return;
     }
     if (orderType === "limit" && (!px || px <= 0)) {
@@ -814,6 +968,7 @@ function OrderEntryPanel(props: {
     orderType,
     price,
     size,
+    minSize,
     markPrice,
     props.market,
     props.tradeEnabled,
@@ -958,7 +1113,7 @@ function OrderEntryPanel(props: {
                 className={`h-11 rounded-2xl border-white/8 bg-white/[0.04] ${sizeMode === "usd" ? "pl-7" : ""}`}
               />
             </div>
-            {/* Coin ↔ USD conversion hint */}
+            {/* Coin ↔ USD conversion hint + min size warning */}
             {size && entryPrice > 0 && (
               <p className="px-1 text-[11px] text-foreground/38">
                 {sizeMode === "usd"
@@ -966,21 +1121,29 @@ function OrderEntryPanel(props: {
                   : `≈ ${formatUsd(notional)} notional`}
               </p>
             )}
+            {coinSize > 0 && coinSize < minSize && (
+              <p className="px-1 text-[11px] font-medium text-amber-300/80">
+                ⚠ Min order: {minSize} {props.market}
+              </p>
+            )}
           </div>
 
-          {/* % quick-fill buttons */}
+          {/* % of balance quick-fill */}
           {availableMargin > 0 && (
-            <div className="flex gap-1.5">
-              {([0.25, 0.5, 0.75, 1] as const).map((pct) => (
-                <button
-                  key={pct}
-                  type="button"
-                  onClick={() => fillSizePct(pct)}
-                  className="flex-1 rounded-full border border-white/8 bg-white/[0.03] py-1.5 text-[11px] font-medium text-foreground/50 transition hover:border-white/16 hover:bg-white/[0.07] hover:text-white"
-                >
-                  {pct === 1 ? "Max" : `${pct * 100}%`}
-                </button>
-              ))}
+            <div className="space-y-1.5">
+              <p className="terminal-label">Size from balance</p>
+              <div className="flex gap-1.5">
+                {([0.25, 0.5, 0.75, 1] as const).map((pct) => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => fillSizePct(pct)}
+                    className="flex-1 rounded-full border border-white/8 bg-white/[0.03] py-1.5 text-[11px] font-medium text-foreground/50 transition hover:border-white/16 hover:bg-white/[0.07] hover:text-white"
+                  >
+                    {pct === 1 ? "Max" : `${pct * 100}%`}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </TabsContent>
@@ -1026,21 +1189,29 @@ function OrderEntryPanel(props: {
                   : `≈ ${formatUsd(notional)} notional`}
               </p>
             )}
+            {coinSize > 0 && coinSize < minSize && (
+              <p className="px-1 text-[11px] font-medium text-amber-300/80">
+                ⚠ Min order: {minSize} {props.market}
+              </p>
+            )}
           </div>
 
-          {/* % quick-fill */}
+          {/* % of balance quick-fill */}
           {availableMargin > 0 && (
-            <div className="flex gap-1.5">
-              {([0.25, 0.5, 0.75, 1] as const).map((pct) => (
-                <button
-                  key={pct}
-                  type="button"
-                  onClick={() => fillSizePct(pct)}
-                  className="flex-1 rounded-full border border-white/8 bg-white/[0.03] py-1.5 text-[11px] font-medium text-foreground/50 transition hover:border-white/16 hover:bg-white/[0.07] hover:text-white"
-                >
-                  {pct === 1 ? "Max" : `${pct * 100}%`}
-                </button>
-              ))}
+            <div className="space-y-1.5">
+              <p className="terminal-label">Size from balance</p>
+              <div className="flex gap-1.5">
+                {([0.25, 0.5, 0.75, 1] as const).map((pct) => (
+                  <button
+                    key={pct}
+                    type="button"
+                    onClick={() => fillSizePct(pct)}
+                    className="flex-1 rounded-full border border-white/8 bg-white/[0.03] py-1.5 text-[11px] font-medium text-foreground/50 transition hover:border-white/16 hover:bg-white/[0.07] hover:text-white"
+                  >
+                    {pct === 1 ? "Max" : `${pct * 100}%`}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -1054,22 +1225,73 @@ function OrderEntryPanel(props: {
       <div className="mt-3 space-y-2">
         <div className="flex items-center justify-between">
           <p className="terminal-label">Leverage</p>
-          <span className="font-mono text-xs text-white">
-            {leverage}×{updatingLeverage ? " …" : ""}
-          </span>
+          <div className="flex items-center gap-2">
+            {updatingLeverage && (
+              <Loader2 className="size-3 animate-spin text-foreground/40" />
+            )}
+            <span className="font-mono text-xs font-medium text-white">
+              {leverage}×
+            </span>
+          </div>
         </div>
+
+        {/* Risk-coloured presets */}
         <div className="flex gap-1.5">
+          {LEVERAGE_PRESETS.map((lv) => {
+            const risk = LEVERAGE_RISK[lv];
+            const isActive = leverage === lv;
+            return (
+              <button
+                type="button"
+                key={lv}
+                onClick={() => void handleLeverageChange(lv)}
+                className={`flex-1 rounded-full border py-1.5 text-[11px] font-medium transition-all ${
+                  isActive
+                    ? risk.activeCls
+                    : "border-white/6 bg-transparent text-foreground/40 hover:border-white/14 hover:text-foreground/70"
+                }`}
+              >
+                {lv}×
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Risk indicator bar */}
+        <div className="flex gap-0.5 overflow-hidden rounded-full">
           {LEVERAGE_PRESETS.map((lv) => (
-            <button
-              type="button"
+            <div
               key={lv}
-              onClick={() => void handleLeverageChange(lv)}
-              className={`flex-1 rounded-full border py-1.5 text-[11px] font-medium transition ${leverage === lv ? "border-white/20 bg-white/10 text-white" : "border-white/6 bg-transparent text-foreground/45 hover:border-white/12 hover:text-foreground/75"}`}
-            >
-              {lv}×
-            </button>
+              className={`h-[3px] flex-1 rounded-full transition-all ${
+                lv <= leverage
+                  ? lv <= 2
+                    ? "bg-emerald-400/70"
+                    : lv === 5
+                      ? "bg-amber-400/70"
+                      : lv === 10
+                        ? "bg-orange-400/70"
+                        : "bg-rose-400/80"
+                  : "bg-white/8"
+              }`}
+            />
           ))}
         </div>
+
+        {/* Disclaimer */}
+        <p
+          className={`text-[10px] transition-colors ${
+            leverage <= 2
+              ? "text-emerald-400/60"
+              : leverage <= 5
+                ? "text-amber-400/60"
+                : leverage <= 10
+                  ? "text-orange-400/70"
+                  : "text-rose-400/75"
+          }`}
+        >
+          {LEVERAGE_RISK[leverage as keyof typeof LEVERAGE_RISK]?.disclaimer ??
+            "Use leverage carefully."}
+        </p>
       </div>
 
       {/* Order summary — notional / margin required / liq price */}
@@ -1112,17 +1334,13 @@ function OrderEntryPanel(props: {
         </div>
       )}
 
-      <Button
-        onClick={() => void handleSubmit()}
+      <HoldToConfirmButton
+        onConfirm={() => void handleSubmit()}
         disabled={submitting}
-        className={`mt-4 h-12 w-full rounded-full text-sm font-semibold disabled:opacity-50 ${side === "buy" ? "bg-emerald-400 text-black hover:bg-emerald-300" : "bg-rose-400 text-white hover:bg-rose-300"}`}
-      >
-        {submitting ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          `${side === "buy" ? "Buy / Long" : "Sell / Short"} ${props.market}`
-        )}
-      </Button>
+        side={side}
+        market={props.market}
+        submitting={submitting}
+      />
 
       <button
         type="button"

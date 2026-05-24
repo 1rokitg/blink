@@ -3,58 +3,69 @@
 import * as hl from "@nktkas/hyperliquid";
 import { generatePrivateKey, privateKeyToAddress } from "viem/accounts";
 
-const SESSION_KEY = "blink_agent_pk";
+/**
+ * localStorage key for a given wallet address.
+ * Keyed per-wallet so different connected wallets each get their own agent key.
+ * Using localStorage (not sessionStorage) means the key survives tab close/reopen,
+ * so approveAgent only ever needs to be called once per wallet.
+ */
+function storageKey(walletAddress: string) {
+  return `blink_agent_pk_${walletAddress.toLowerCase()}`;
+}
 
 /**
- * Returns the session agent private key, generating one if it doesn't exist.
- * Stored in sessionStorage — cleared when the tab/browser is closed.
+ * Returns the persistent agent private key for a given wallet address,
+ * generating one if it doesn't exist yet.
  *
- * The agent key is an ephemeral keypair used to sign all L1 trading actions
- * (orders, cancels) locally without going through the external wallet provider.
- * This bypasses chainId validation in wallets like Rabby/MetaMask.
+ * Stored in localStorage — survives tab/browser close. The same key is always
+ * returned for the same wallet, so approveAgent only needs to be called once.
+ *
+ * The agent key signs all L1 trading actions (orders, cancels) locally without
+ * going through the external wallet provider. This bypasses chainId validation
+ * in wallets like Rabby/MetaMask.
  *
  * The agent must be approved on-chain via approveAgent() before it can trade.
  */
-export function getOrCreateAgentKey(): {
+export function getOrCreateAgentKey(walletAddress: string): {
   privateKey: `0x${string}`;
   address: `0x${string}`;
 } {
   if (typeof window === "undefined") {
-    // SSR guard — should never be called server-side
     throw new Error("agent-wallet must be used client-side only");
   }
 
-  let pk = sessionStorage.getItem(SESSION_KEY) as `0x${string}` | null;
+  const key = storageKey(walletAddress);
+  let pk = localStorage.getItem(key) as `0x${string}` | null;
   if (!pk) {
     pk = generatePrivateKey();
-    sessionStorage.setItem(SESSION_KEY, pk);
+    localStorage.setItem(key, pk);
   }
 
   return { privateKey: pk, address: privateKeyToAddress(pk) };
 }
 
-/** Remove the session agent key — call on logout. */
-export function clearAgentKey() {
+/** Remove the agent key for a wallet — call on logout/disconnect. */
+export function clearAgentKey(walletAddress: string) {
   if (typeof window !== "undefined") {
-    sessionStorage.removeItem(SESSION_KEY);
+    localStorage.removeItem(storageKey(walletAddress));
   }
 }
 
 /**
- * Build an ExchangeClient that signs locally with the session agent key.
- * No provider, no chainId validation, no wallet popups — instant signing.
+ * Build an ExchangeClient that signs locally with the persistent agent key
+ * for the given wallet address.
  *
- * @param vaultAddress - The main wallet address the agent is approved to trade
- *   on behalf of. Required: without it HL rejects with "wallet does not exist"
- *   because it would try to trade as the agent's own address (which has no funds).
+ * @param walletAddress - The user's main wallet address. Used both to look up
+ *   (or generate) the per-wallet agent key, and as defaultVaultAddress so HL
+ *   knows which account to trade on behalf of.
  */
 export function createAgentExchangeClient(
-  vaultAddress: `0x${string}`,
+  walletAddress: `0x${string}`,
 ): hl.ExchangeClient {
-  const { privateKey } = getOrCreateAgentKey();
+  const { privateKey } = getOrCreateAgentKey(walletAddress);
   return new hl.ExchangeClient({
     wallet: privateKey,
     transport: new hl.HttpTransport(),
-    defaultVaultAddress: vaultAddress,
+    defaultVaultAddress: walletAddress,
   });
 }

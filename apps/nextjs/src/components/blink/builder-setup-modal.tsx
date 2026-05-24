@@ -11,6 +11,7 @@ import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
 
+import { getOrCreateAgentKey } from "~/lib/blink/agent-wallet";
 import {
   BUILDER_ADDRESS,
   builderMaxFeeRate,
@@ -50,13 +51,26 @@ export function BuilderSetupModal(props: {
     setError(null);
     try {
       const exchClient = await createExchangeClient(wallet);
+
+      // 1. Approve builder fee routing
       await exchClient.approveBuilderFee({
         builder: BUILDER_ADDRESS,
         maxFeeRate: builderMaxFeeRate(),
       });
+
+      // 2. Approve the persistent agent key so it can trade without wallet popups.
+      //    Keyed by wallet address — same key every session, approve once forever.
+      const { address: agentAddress } = getOrCreateAgentKey(props.walletAddress);
+      console.info("[setup] approving agent", agentAddress);
+      await exchClient.approveAgent({
+        agentAddress,
+        agentName: "Blink",
+      });
+      console.info("[setup] agent approved ✓");
+
       setSuccessState(true);
       props.onApproved();
-      toast.success("Builder approval confirmed.");
+      toast.success("Trading enabled — one-click orders ready.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Approval failed");
     } finally {

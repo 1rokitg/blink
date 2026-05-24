@@ -70,9 +70,9 @@ const COINGECKO_IDS: Record<string, string> = {
   PNUT: "peanut-the-squirrel",
 };
 
-// Primary source: cryptocurrency-icons (fast, SVG, open-source)
+// Primary source: cryptocurrency-icons via npm CDN (pinned, stable)
 function cryptoIconUrl(symbol: string) {
-  return `https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@master/svg/color/${symbol.toLowerCase()}.svg`;
+  return `https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/${symbol.toLowerCase()}.svg`;
 }
 
 // Fallback: CoinGecko thumb (PNG, reliable but slower)

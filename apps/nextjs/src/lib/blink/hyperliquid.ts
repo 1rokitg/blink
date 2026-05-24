@@ -1,5 +1,6 @@
 import * as hl from "@nktkas/hyperliquid";
 import type { ConnectedWallet } from "@privy-io/react-auth";
+import { getAddress } from "viem";
 
 export const infoClient = new hl.InfoClient({
   transport: new hl.HttpTransport(),
@@ -29,10 +30,18 @@ export async function createExchangeClient(wallet: ConnectedWallet) {
   // so we must use exactly what eth_accounts returns.
   const accounts = (await provider.request({ method: "eth_accounts" })) as string[];
   const providerAddress = accounts[0];
+  // EIP-55 checksum every candidate — Rabby and Privy's EIP-1193 wrapper both
+  // compare params[0] against the current account case-sensitively. The SDK also
+  // recovers the signer from the returned signature and compares it (checksummed)
+  // against getAddresses()[0] — if that's lowercase the comparison fails.
   const fromCandidates = Array.from(
-    new Set([wallet.address, providerAddress].filter(Boolean)),
-  ) as string[];
-  const address = fromCandidates[0] ?? wallet.address;
+    new Set(
+      [wallet.address, providerAddress]
+        .filter(Boolean)
+        .map((a) => getAddress(a as string)),
+    ),
+  );
+  const address = fromCandidates[0] ?? getAddress(wallet.address);
 
   console.info("[exchange] signer context", {
     walletAddress: wallet.address,

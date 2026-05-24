@@ -6,12 +6,14 @@
  *   NEXT_PUBLIC_BUILDER_FEE_BPS  – fee in 0.1bps units (default 100 = 0.01%)
  */
 
+import { getAddress } from "viem";
+
 import { env } from "~/env";
 
 import { infoClient } from "./hyperliquid";
 
-/** Builder address (rokitg.eth resolved). */
-export const BUILDER_ADDRESS = env.NEXT_PUBLIC_BUILDER_ADDRESS as `0x${string}`;
+/** Builder address (rokitg.eth resolved) — EIP-55 checksummed. */
+export const BUILDER_ADDRESS = getAddress(env.NEXT_PUBLIC_BUILDER_ADDRESS);
 
 /**
  * Max fee rate string passed to approveBuilderFee, e.g. "0.01%".

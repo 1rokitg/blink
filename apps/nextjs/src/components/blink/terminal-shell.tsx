@@ -93,6 +93,7 @@ import { BuilderSetupModal } from "./builder-setup-modal";
 import { MarketInfoBar } from "./market-info-bar";
 import { PnlShareModal, type PnlPositionData } from "./pnl-share-modal";
 import { TradingIsland } from "./trading-island";
+import { ReferralWelcomeBanner } from "./referral-welcome-banner";
 import { emitTradingEvent } from "~/lib/blink/island-bus";
 import { ReferralsModal } from "./referrals-modal";
 import { TerminalOrderBook } from "./terminal-order-book";
@@ -2599,6 +2600,11 @@ export function TerminalShell(props: { market: string }) {
     <main className="relative min-h-screen overflow-hidden bg-background px-3 pb-14 pt-3 text-foreground">
       {/* ── Dynamic Island — primary feedback loop ───────────────────────── */}
       <TradingIsland />
+
+      {/* ── Referral welcome banner — shown once to users from /r/[code] ── */}
+      <div className="relative z-50 mx-3 mt-2">
+        <ReferralWelcomeBanner />
+      </div>
 
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(58,102,255,0.24),transparent_44%),radial-gradient(circle_at_78%_14%,rgba(39,198,181,0.2),transparent_42%),radial-gradient(circle_at_50%_78%,rgba(35,73,168,0.16),transparent_48%)] blur-3xl" />

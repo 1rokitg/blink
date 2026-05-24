@@ -172,6 +172,13 @@ function ConnectGate() {
             Google, or connect an existing wallet.
           </p>
 
+          {/* Divider */}
+          <div className="my-5 flex items-center gap-3">
+            <div className="h-px flex-1 bg-white/[0.07]" />
+            <span className="text-[11px] text-foreground/35">or</span>
+            <div className="h-px flex-1 bg-white/[0.07]" />
+          </div>
+
           {/* Wallet fallback */}
           <button
             type="button"

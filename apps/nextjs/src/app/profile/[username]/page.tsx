@@ -3,11 +3,8 @@ import Link from "next/link";
 import {
   CalendarDays,
   Gift,
-  Info,
   Pencil,
   Search,
-  ShieldCheck,
-  Trophy,
   Verified,
 } from "lucide-react";
 
@@ -15,12 +12,8 @@ import { BlinkAvatar } from "~/components/blink/blink-avatar";
 import { BlinkUsername } from "~/components/blink/blink-username";
 import { ConnectTwitterButton } from "~/components/blink/connect-twitter-button";
 import { ProfileEquitySection } from "~/components/blink/profile-equity-section";
+import { ProfileTopTraders } from "~/components/blink/profile-top-traders";
 import { resolveProfileAddress } from "~/lib/blink/resolve-address";
-
-function traderAvatarUrl(id: string, size = 80) {
-  return `https://avatar.vercel.sh/${encodeURIComponent(id)}.png?size=${size}`;
-}
-
 
 export default async function ProfilePage(props: {
   params: Promise<{ username: string }>;
@@ -53,7 +46,7 @@ export default async function ProfilePage(props: {
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/45" />
               <input
                 className="h-12 w-full rounded-[14px] border border-white/10 bg-[#0c101c] pl-9 pr-3 text-base outline-none placeholder:text-white/35"
-                placeholder="Search trader profiles..."
+                placeholder="Search wallets..."
               />
             </div>
           </div>
@@ -116,7 +109,9 @@ export default async function ProfilePage(props: {
 
             {/* Equity + balances — live from HL + Neon */}
             <div className="border-t border-white/10 px-5 pb-3 pt-5">
-              <ProfileEquitySection targetAddress={resolvedAddress ?? undefined} />
+              <ProfileEquitySection
+                targetAddress={resolvedAddress ?? undefined}
+              />
 
               <p className="mt-7 text-center text-sm text-white/35">
                 Powered by Hyperliquid
@@ -134,55 +129,10 @@ export default async function ProfilePage(props: {
         </section>
 
         {/* ── Right sidebar ────────────────────────────────── */}
-        <aside className="flex min-h-[calc(100vh-7rem)] flex-col gap-2 self-start">
-          <div className="flex h-[68px] items-end px-1 py-1" />
-          <section className="glass-panel p-3.5">
-            <div className="mb-3 flex items-center gap-2">
-              <Trophy className="size-4 text-white/70" />
-              <h2 className="text-lg font-semibold text-white">
-                Follow top traders
-              </h2>
-            </div>
-            <div className="space-y-2">
-              {[
-                "RUNE",
-                "Marcell",
-                "X Ventures",
-                "the red room",
-                "allheart",
-              ].map((name) => (
-                <div
-                  key={name}
-                  className="flex items-center justify-between rounded-[10px] border border-white/8 bg-white/[0.02] px-2.5 py-2"
-                >
-                  <div className="flex items-center gap-2">
-                    <img
-                      src={traderAvatarUrl(name, 48)}
-                      alt={name}
-                      className="size-8 rounded-full border border-white/20"
-                    />
-                    <span className="text-sm text-white/85">{name}</span>
-                  </div>
-                  <button
-                    type="button"
-                    className="rounded-lg bg-[#2c6bff] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#2c6bff]/90"
-                  >
-                    Follow
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
-          <section className="glass-panel p-3.5">
-            <div className="mb-2 flex items-center gap-2">
-              <Info className="size-4 text-white/70" />
-              <h3 className="text-sm font-medium text-white/90">Status</h3>
-            </div>
-            <p className="text-sm text-emerald-300">Online</p>
-            <p className="mt-1 text-xs text-white/45">
-              All trading services operational.
-            </p>
-          </section>
+        <aside className="flex min-h-[calc(100vh-7rem)] flex-col gap-3 self-start">
+          {/* Spacer to align with the search bar header */}
+          <div className="h-[68px]" />
+          <ProfileTopTraders />
         </aside>
       </div>
     </main>

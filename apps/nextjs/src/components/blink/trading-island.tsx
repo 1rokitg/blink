@@ -480,13 +480,9 @@ export function TradingIsland() {
   return (
     <div className="pointer-events-none fixed left-1/2 top-3 z-[9999] -translate-x-1/2">
       <AnimatePresence mode="wait">
-        {!current ? (
-          <IdlePill key="idle" />
-        ) : (
+        {current && (
           <motion.div
             key={current.id}
-            layoutId="island-pill"
-            layout
             className="pointer-events-auto relative cursor-pointer overflow-hidden rounded-[20px] border border-white/[0.09] shadow-[0_8px_40px_rgba(0,0,0,0.6)]"
             style={{
               background: `linear-gradient(135deg, #090c14f5 60%, ${config!.bg})`,
@@ -494,9 +490,9 @@ export function TradingIsland() {
               backdropFilter: "blur(24px)",
               WebkitBackdropFilter: "blur(24px)",
             }}
-            initial={{ opacity: 0, scale: 0.88, y: -8 }}
+            initial={{ opacity: 0, scale: 0.88, y: -10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.88, y: -8 }}
+            exit={{ opacity: 0, scale: 0.88, y: -10 }}
             transition={{ duration: 0.25, ease: [0.34, 1.56, 0.64, 1] }}
             onClick={() => dispatch({ type: "TOGGLE_EXPAND" })}
           >
@@ -510,7 +506,7 @@ export function TradingIsland() {
 
             {/* Content */}
             <div
-              className={`px-4 transition-all duration-200 ${expanded ? "py-4" : "py-2.5"}`}
+              className={`min-w-[260px] px-5 transition-all duration-200 ${expanded ? "py-4" : "py-3"}`}
             >
               <AnimatePresence mode="wait">
                 <motion.div

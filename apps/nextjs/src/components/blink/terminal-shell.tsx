@@ -1091,7 +1091,7 @@ function OrderEntryPanel(props: {
     setSubmitting(true);
     emitTradingEvent({
       type: "loading",
-      message: `${side === "buy" ? "Sending long" : "Sending short"} order…`,
+      message: `${orderType === "market" ? "Market" : "Limit"} ${side === "buy" ? "long" : "short"} ${props.market} ${sz}`,
       id: "order",
     });
     try {

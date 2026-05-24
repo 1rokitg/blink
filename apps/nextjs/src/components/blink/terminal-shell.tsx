@@ -2700,12 +2700,6 @@ export function TerminalShell(props: { market: string }) {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      // ⌘K / Ctrl+K — toggle
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setGlobalSearchOpen((prev) => !prev);
-        return;
-      }
       // "/" — open (only when no input/textarea is focused)
       if (
         event.key === "/" &&
@@ -2802,14 +2796,9 @@ export function TerminalShell(props: { market: string }) {
                   <Search className="size-3.5 shrink-0 text-[#5b8fff60]" />
                   <span className="text-[13px]">Search markets or paste a wallet…</span>
                 </span>
-                <span className="inline-flex shrink-0 items-center gap-1">
-                  <kbd className="rounded-md border border-white/[0.07] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-foreground/25">
-                    /
-                  </kbd>
-                  <kbd className="rounded-md border border-white/[0.07] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-foreground/25">
-                    ⌘K
-                  </kbd>
-                </span>
+                <kbd className="rounded-md border border-white/[0.07] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-foreground/25">
+                  /
+                </kbd>
               </button>
             </div>
           </div>

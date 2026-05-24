@@ -1,67 +1,98 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 
 import type * as hl from "@nktkas/hyperliquid";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@acme/ui/tabs";
 
 import { createSubscriptionClient } from "~/lib/blink/hyperliquid";
 
-type BookLevelRow = {
+// ─── Types ───────────────────────────────────────────────────────────────────
+
+type BookLevelRow = { price: number; size: number; total: number };
+
+type FormattedTrade = {
+  id: string;
+  time: number;
+  side: "buy" | "sell";
   price: number;
   size: number;
-  total: number;
 };
 
-function formatBookLevels(levels: hl.Book["levels"][0], reverse = false) {
-  const rows = levels.slice(0, 8).map((level, index) => {
-    const price = Number(level.px);
-    const size = Number(level.sz);
-    const total = levels
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const LEVELS = 8;
+
+function formatBookLevels(
+  levels: hl.Book["levels"][0],
+  reverse = false,
+): BookLevelRow[] {
+  const rows = levels.slice(0, LEVELS).map((level, index) => ({
+    price: Number(level.px),
+    size: Number(level.sz),
+    total: levels
       .slice(0, index + 1)
-      .reduce((sum, current) => sum + Number(current.sz), 0);
-
-    return {
-      price,
-      size,
-      total,
-    } satisfies BookLevelRow;
-  });
-
+      .reduce((sum, l) => sum + Number(l.sz), 0),
+  }));
   return reverse ? rows.reverse() : rows;
 }
 
+function fmtPrice(n: number) {
+  if (n < 0.0001) return n.toFixed(6);
+  if (n < 0.01) return n.toFixed(5);
+  if (n < 1) return n.toFixed(4);
+  if (n < 10) return n.toFixed(3);
+  return n.toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
+
+function fmtSize(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(2)}K`;
+  if (n < 0.001) return n.toFixed(6);
+  if (n < 1) return n.toFixed(4);
+  return n.toFixed(3);
+}
+
+// Depth-fade: row closest to mid → opacity 1.0, farthest → 0.28
+function depthOpacity(index: number, total: number, closestIsLow: boolean) {
+  const pos = closestIsLow ? index / (total - 1) : (total - 1 - index) / (total - 1);
+  return 0.28 + 0.72 * pos;
+}
+
+// ─── Component ───────────────────────────────────────────────────────────────
+
 export function TerminalOrderBook(props: { market: string }) {
   const [book, setBook] = useState<hl.Book | null>(null);
-  const [trades, setTrades] = useState<hl.WsTrade[]>([]);
-  const [changedRows, setChangedRows] = useState<Record<string, "up" | "down">>(
-    {},
-  );
+  const [trades, setTrades] = useState<FormattedTrade[]>([]);
+  const [changedRows, setChangedRows] = useState<Record<string, "up" | "down">>({});
   const [spreadPulse, setSpreadPulse] = useState<"up" | "down" | null>(null);
   const lastSizesRef = useRef<Map<string, number>>(new Map());
   const lastSpreadRef = useRef<number | null>(null);
 
+  // ── WebSocket subscriptions ───────────────────────────────────────────────
   useEffect(() => {
     let active = true;
-    let bookSubscription: hl.Subscription | null = null;
-    let tradesSubscription: hl.Subscription | null = null;
+    let bookSub: hl.Subscription | null = null;
+    let tradesSub: hl.Subscription | null = null;
 
     async function subscribe() {
       const client = createSubscriptionClient();
-      bookSubscription = await client.l2Book({ coin: props.market }, (data) => {
-        if (!active) {
-          return;
-        }
 
-        setBook(data);
+      bookSub = await client.l2Book({ coin: props.market }, (data) => {
+        if (active) setBook(data);
       });
 
-      tradesSubscription = await client.trades({ coin: props.market }, (data) => {
-        if (!active) {
-          return;
-        }
-        setTrades((prev) => [...data, ...prev].slice(0, 40));
+      tradesSub = await client.trades({ coin: props.market }, (data) => {
+        if (!active) return;
+        const incoming: FormattedTrade[] = data.map((t) => ({
+          id: `${t.time}-${t.px}-${t.sz}-${t.side}-${Math.random().toString(36).slice(2, 6)}`,
+          time: t.time,
+          side: t.side === "A" ? "sell" : "buy",
+          price: Number(t.px),
+          size: Number(t.sz),
+        }));
+        setTrades((prev) => [...incoming, ...prev].slice(0, 30));
       });
     }
 
@@ -69,15 +100,12 @@ export function TerminalOrderBook(props: { market: string }) {
 
     return () => {
       active = false;
-      if (bookSubscription) {
-        void bookSubscription.unsubscribe();
-      }
-      if (tradesSubscription) {
-        void tradesSubscription.unsubscribe();
-      }
+      bookSub?.unsubscribe();
+      tradesSub?.unsubscribe();
     };
   }, [props.market]);
 
+  // ── Derived book data ─────────────────────────────────────────────────────
   const asks = useMemo(
     () => (book ? formatBookLevels(book.levels[1], true) : []),
     [book],
@@ -90,29 +118,9 @@ export function TerminalOrderBook(props: { market: string }) {
   const bestAsk = asks.at(-1)?.price ?? 0;
   const bestBid = bids.at(0)?.price ?? 0;
   const spread = bestAsk && bestBid ? bestAsk - bestBid : 0;
-  const maxTotal = Math.max(
-    1,
-    ...asks.map((item) => item.total),
-    ...bids.map((item) => item.total),
-  );
+  const maxTotal = Math.max(1, ...asks.map((r) => r.total), ...bids.map((r) => r.total));
 
-  const formattedTrades = useMemo(
-    () =>
-      trades.map((trade) => {
-        const price = Number(trade.px);
-        const size = Number(trade.sz);
-        return {
-          time: trade.time,
-          side: trade.side === "A" ? "sell" : "buy",
-          price,
-          size,
-          notional: price * size,
-          id: `${trade.time}-${trade.px}-${trade.sz}-${trade.side}`,
-        };
-      }),
-    [trades],
-  );
-
+  // ── Flash on size change ──────────────────────────────────────────────────
   useEffect(() => {
     if (!asks.length && !bids.length) return;
     const updates: Record<string, "up" | "down"> = {};
@@ -121,221 +129,257 @@ export function TerminalOrderBook(props: { market: string }) {
     for (const ask of asks) {
       const key = `ask-${ask.price}`;
       const prev = lastSizesRef.current.get(key);
-      if (prev !== undefined && prev !== ask.size) {
+      if (prev !== undefined && prev !== ask.size)
         updates[key] = ask.size > prev ? "up" : "down";
-      }
       nowSizes.set(key, ask.size);
     }
     for (const bid of bids) {
       const key = `bid-${bid.price}`;
       const prev = lastSizesRef.current.get(key);
-      if (prev !== undefined && prev !== bid.size) {
+      if (prev !== undefined && prev !== bid.size)
         updates[key] = bid.size > prev ? "up" : "down";
-      }
       nowSizes.set(key, bid.size);
     }
 
     lastSizesRef.current = nowSizes;
-    if (Object.keys(updates).length > 0) {
-      setChangedRows((prev) => ({ ...prev, ...updates }));
-      const timeout = window.setTimeout(() => {
-        setChangedRows((prev) => {
-          const next = { ...prev };
-          for (const key of Object.keys(updates)) {
-            delete next[key];
-          }
-          return next;
-        });
-      }, 550);
-      return () => window.clearTimeout(timeout);
-    }
+    if (Object.keys(updates).length === 0) return;
+
+    setChangedRows((prev) => ({ ...prev, ...updates }));
+    const t = window.setTimeout(() => {
+      setChangedRows((prev) => {
+        const next = { ...prev };
+        for (const key of Object.keys(updates)) delete next[key];
+        return next;
+      });
+    }, 500);
+    return () => window.clearTimeout(t);
   }, [asks, bids]);
 
+  // ── Spread pulse ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!spread) return;
     const prev = lastSpreadRef.current;
     if (prev !== null && prev !== spread) {
       setSpreadPulse(spread < prev ? "up" : "down");
-      const timeout = window.setTimeout(() => setSpreadPulse(null), 500);
+      const t = window.setTimeout(() => setSpreadPulse(null), 500);
       lastSpreadRef.current = spread;
-      return () => window.clearTimeout(timeout);
+      return () => window.clearTimeout(t);
     }
     lastSpreadRef.current = spread;
   }, [spread]);
 
+  // ─── Render ──────────────────────────────────────────────────────────────
   return (
-    <section className="glass-panel flex h-[640px] flex-col overflow-hidden p-3">
+    <section className="glass-panel flex h-full flex-col overflow-hidden p-3">
+      {/* Header */}
       <div className="mb-2 shrink-0">
-        <p className="terminal-label">Order book</p>
-        <h2 className="mt-2 text-xl font-semibold text-white">
+        <p className="terminal-label">Order Book</p>
+        <h2 className="mt-1 text-lg font-semibold text-white">
           {props.market} live depth
         </h2>
       </div>
 
-      <Tabs defaultValue="orderbook" className="flex min-h-0 flex-1 flex-col rounded-[12px] border border-[#88b3ff2e] bg-[#060c18]">
-        <div className="shrink-0 border-b border-white/10 px-2 pt-2">
-          <TabsList className="grid h-9 w-full grid-cols-2 rounded-[10px] bg-white/[0.02] p-1">
+      <Tabs
+        defaultValue="orderbook"
+        className="flex min-h-0 flex-1 flex-col rounded-[12px] border border-[#88b3ff18] bg-[#060c18]"
+      >
+        {/* Tab bar */}
+        <div className="shrink-0 border-b border-white/[0.06] px-2 pt-2">
+          <TabsList className="grid h-8 w-full grid-cols-2 rounded-[9px] bg-white/[0.03] p-0.5">
             <TabsTrigger
               value="orderbook"
-              className="rounded-[8px] text-xs data-[state=active]:bg-white/[0.08]"
+              className="rounded-[7px] text-[11px] data-[state=active]:bg-white/[0.09] data-[state=active]:text-white"
             >
               Order Book
             </TabsTrigger>
             <TabsTrigger
               value="trades"
-              className="rounded-[8px] text-xs data-[state=active]:bg-white/[0.08]"
+              className="rounded-[7px] text-[11px] data-[state=active]:bg-white/[0.09] data-[state=active]:text-white"
             >
               Trades
             </TabsTrigger>
           </TabsList>
         </div>
 
-        <TabsContent value="orderbook" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="shrink-0 grid grid-cols-3 px-4 py-2 text-[11px] uppercase tracking-[0.14em] text-foreground/35">
+        {/* ── Order Book tab ─────────────────────────────────────────────── */}
+        <TabsContent
+          value="orderbook"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          {/* Column headers */}
+          <div className="shrink-0 grid grid-cols-3 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-foreground/30">
             <span>Price</span>
             <span className="text-right">Size</span>
             <span className="text-right">Total</span>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-0.5 px-2 pb-2">
-            {asks.map((ask) => {
-              const key = `ask-${ask.price}`;
-              const width = (ask.total / maxTotal) * 100;
-              const changed = changedRows[key];
+          <div className="flex flex-1 flex-col overflow-hidden px-1.5">
+            {/* Asks (sells) — farthest at top, closest at bottom */}
+            <div className="flex flex-1 flex-col justify-end space-y-px overflow-hidden">
+              {asks.map((ask, i) => {
+                const key = `ask-${ask.price}`;
+                const width = (ask.total / maxTotal) * 100;
+                const changed = changedRows[key];
+                // asks[0] = farthest (top), asks[LEVELS-1] = closest (bottom)
+                const opacity = depthOpacity(i, asks.length, true);
 
-              return (
-                <motion.div
-                  key={key}
-                  layout
-                  initial={{ opacity: 0.7, y: -2 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.1, ease: "easeOut" }}
-                  className="relative grid grid-cols-3 rounded-[6px] px-2 py-1.5 text-sm"
-                >
+                return (
                   <div
-                    className="absolute inset-y-0 left-0 rounded-[6px] bg-rose-400/10 transition-[width] duration-200 ease-out"
-                    style={{ width: `${width}%` }}
-                  />
-                  <span
-                    className={`relative z-10 tabular-nums transition-colors duration-300 ${changed === "down" ? "text-rose-300" : changed === "up" ? "text-emerald-200" : "text-rose-200"}`}
+                    key={key}
+                    className="relative grid grid-cols-3 rounded-[5px] px-2 py-[5px] text-xs"
+                    style={{ opacity }}
                   >
-                    {ask.price.toLocaleString()}
-                  </span>
-                  <span
-                    className={`relative z-10 text-right tabular-nums transition-colors duration-300 ${changed === "up" ? "text-emerald-300" : changed === "down" ? "text-rose-300" : "text-foreground/72"}`}
-                  >
-                    {ask.size.toFixed(4)}
-                  </span>
-                  <span className="relative z-10 text-right tabular-nums text-foreground/52">
-                    {ask.total.toFixed(4)}
-                  </span>
-                </motion.div>
-              );
-            })}
+                    {/* depth bar */}
+                    <div
+                      className="absolute inset-y-0 right-0 rounded-[5px] bg-rose-500/[0.12] transition-[width] duration-150 ease-out"
+                      style={{ width: `${width}%` }}
+                    />
+                    <span
+                      className={`relative z-10 tabular-nums font-medium transition-colors duration-300 ${
+                        changed === "down"
+                          ? "text-rose-400"
+                          : changed === "up"
+                            ? "text-emerald-300"
+                            : "text-rose-300"
+                      }`}
+                    >
+                      {fmtPrice(ask.price)}
+                    </span>
+                    <span className="relative z-10 text-right tabular-nums text-foreground/60">
+                      {fmtSize(ask.size)}
+                    </span>
+                    <span className="relative z-10 text-right tabular-nums text-foreground/35">
+                      {fmtSize(ask.total)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
 
+            {/* Spread row */}
             <motion.div
               animate={
                 spreadPulse
                   ? {
                       boxShadow:
                         spreadPulse === "up"
-                          ? "0 0 0 1px rgba(16,185,129,0.35), 0 0 18px rgba(16,185,129,0.14)"
-                          : "0 0 0 1px rgba(244,63,94,0.35), 0 0 18px rgba(244,63,94,0.14)",
+                          ? "0 0 0 1px rgba(16,185,129,0.3)"
+                          : "0 0 0 1px rgba(244,63,94,0.3)",
                     }
-                  : { boxShadow: "0 0 0 0 rgba(0,0,0,0)" }
+                  : { boxShadow: "0 0 0 0px rgba(0,0,0,0)" }
               }
-              transition={{ duration: 0.2, ease: "easeOut" }}
-              className="rounded-[6px] border border-white/8 bg-white/[0.04] px-3 py-1.5"
+              transition={{ duration: 0.2 }}
+              className="my-1 flex items-center justify-between rounded-[6px] border border-white/[0.06] bg-white/[0.03] px-3 py-1"
             >
-              <div className="flex items-center justify-between text-xs">
-                <span className="uppercase tracking-[0.14em] text-foreground/38">
-                  Spread
-                </span>
-                <span className="font-medium tabular-nums text-white">
-                  {spread.toFixed(2)}
-                </span>
-              </div>
+              <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/30">
+                Spread
+              </span>
+              <span className="text-[11px] font-medium tabular-nums text-white/70">
+                {spread > 0 ? fmtPrice(spread) : "—"}
+              </span>
             </motion.div>
 
-            {bids.map((bid) => {
-              const key = `bid-${bid.price}`;
-              const width = (bid.total / maxTotal) * 100;
-              const changed = changedRows[key];
+            {/* Bids (buys) — closest at top, farthest at bottom */}
+            <div className="flex flex-1 flex-col space-y-px overflow-hidden">
+              {bids.map((bid, i) => {
+                const key = `bid-${bid.price}`;
+                const width = (bid.total / maxTotal) * 100;
+                const changed = changedRows[key];
+                // bids[0] = closest (top), bids[LEVELS-1] = farthest (bottom)
+                const opacity = depthOpacity(i, bids.length, false);
 
-              return (
-                <motion.div
-                  key={key}
-                  layout
-                  initial={{ opacity: 0.7, y: 2 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.1, ease: "easeOut" }}
-                  className="relative grid grid-cols-3 rounded-[6px] px-2 py-1.5 text-sm"
-                >
+                return (
                   <div
-                    className="absolute inset-y-0 left-0 rounded-[6px] bg-emerald-400/10 transition-[width] duration-200 ease-out"
-                    style={{ width: `${width}%` }}
-                  />
-                  <span
-                    className={`relative z-10 tabular-nums transition-colors duration-300 ${changed === "up" ? "text-emerald-300" : changed === "down" ? "text-rose-200" : "text-emerald-200"}`}
+                    key={key}
+                    className="relative grid grid-cols-3 rounded-[5px] px-2 py-[5px] text-xs"
+                    style={{ opacity }}
                   >
-                    {bid.price.toLocaleString()}
-                  </span>
-                  <span
-                    className={`relative z-10 text-right tabular-nums transition-colors duration-300 ${changed === "up" ? "text-emerald-300" : changed === "down" ? "text-rose-300" : "text-foreground/72"}`}
-                  >
-                    {bid.size.toFixed(4)}
-                  </span>
-                  <span className="relative z-10 text-right tabular-nums text-foreground/52">
-                    {bid.total.toFixed(4)}
-                  </span>
-                </motion.div>
-              );
-            })}
+                    {/* depth bar */}
+                    <div
+                      className="absolute inset-y-0 right-0 rounded-[5px] bg-emerald-500/[0.12] transition-[width] duration-150 ease-out"
+                      style={{ width: `${width}%` }}
+                    />
+                    <span
+                      className={`relative z-10 tabular-nums font-medium transition-colors duration-300 ${
+                        changed === "up"
+                          ? "text-emerald-400"
+                          : changed === "down"
+                            ? "text-rose-300"
+                            : "text-emerald-300"
+                      }`}
+                    >
+                      {fmtPrice(bid.price)}
+                    </span>
+                    <span className="relative z-10 text-right tabular-nums text-foreground/60">
+                      {fmtSize(bid.size)}
+                    </span>
+                    <span className="relative z-10 text-right tabular-nums text-foreground/35">
+                      {fmtSize(bid.total)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </TabsContent>
 
-        <TabsContent value="trades" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="shrink-0 grid grid-cols-3 px-4 py-2 text-[11px] uppercase tracking-[0.14em] text-foreground/35">
+        {/* ── Trades tab ────────────────────────────────────────────────── */}
+        <TabsContent
+          value="trades"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+        >
+          {/* Column headers */}
+          <div className="shrink-0 grid grid-cols-3 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-foreground/30">
             <span>Price</span>
             <span className="text-right">Size</span>
             <span className="text-right">Time</span>
           </div>
-          <div className="flex-1 overflow-y-auto space-y-0.5 px-2 pb-2">
-            {formattedTrades.length === 0 ? (
-              <div className="rounded-[8px] border border-white/8 bg-white/[0.02] px-3 py-4 text-center text-sm text-foreground/45">
-                Waiting for trades stream…
+
+          <div className="flex-1 overflow-y-auto px-1.5 pb-1.5">
+            {trades.length === 0 ? (
+              <div className="mt-4 rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center text-xs text-foreground/35">
+                Waiting for trades…
               </div>
             ) : (
-              formattedTrades.slice(0, 28).map((trade) => (
-                <motion.div
-                  key={trade.id}
-                  layout
-                  initial={{ opacity: 0.7, y: 2 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.12, ease: "easeOut" }}
-                  className={`grid grid-cols-3 rounded-[6px] px-2 py-1.5 text-sm ${
-                    trade.side === "buy" ? "bg-emerald-400/6" : "bg-rose-400/6"
-                  }`}
-                >
-                  <span
-                    className={`tabular-nums ${
-                      trade.side === "buy" ? "text-emerald-300" : "text-rose-300"
-                    }`}
-                  >
-                    {trade.price.toLocaleString()}
-                  </span>
-                  <span className="text-right tabular-nums text-foreground/80">
-                    {trade.size.toFixed(4)}
-                  </span>
-                  <span className="text-right tabular-nums text-foreground/52">
-                    {new Date(trade.time).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                    })}
-                  </span>
-                </motion.div>
-              ))
+              <div>
+                {trades.map((trade, i) => {
+                  const isBuy = trade.side === "buy";
+                  const opacity = Math.max(0.22, 1 - i * 0.03);
+                  return (
+                    <div
+                      key={trade.id}
+                      className="group grid grid-cols-[1fr_1fr_auto] items-center gap-x-1 rounded-[4px] px-1.5 py-[3.5px] text-[11px]"
+                      style={{ opacity }}
+                    >
+                      {/* Arrow + Price */}
+                      <span className={`flex items-center gap-1 tabular-nums font-semibold ${isBuy ? "text-emerald-400" : "text-rose-400"}`}>
+                        {isBuy ? (
+                          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" className="shrink-0">
+                            <path d="M4 7V1M4 1L1.5 3.5M4 1L6.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        ) : (
+                          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" className="shrink-0">
+                            <path d="M4 1V7M4 7L1.5 4.5M4 7L6.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                        {fmtPrice(trade.price)}
+                      </span>
+                      {/* Size */}
+                      <span className="text-right tabular-nums text-foreground/55">
+                        {fmtSize(trade.size)}
+                      </span>
+                      {/* Time */}
+                      <span className="w-[54px] text-right tabular-nums text-[10px] text-foreground/30">
+                        {new Date(trade.time).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         </TabsContent>

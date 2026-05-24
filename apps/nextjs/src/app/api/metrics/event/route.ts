@@ -23,28 +23,59 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  const headers = request.headers;
-  const country =
-    headers.get("x-vercel-ip-country") ??
-    headers.get("cf-ipcountry") ??
-    "unknown";
-  const referer = headers.get("referer") ?? "";
-  const host = referer
-    ? (() => {
-        try {
-          return new URL(referer).hostname.toLowerCase();
-        } catch {
-          return "unknown";
-        }
-      })()
+  const h = request.headers;
+
+  // ── Vercel geo headers (free, injected at edge) ──────────────────────────
+  const country = h.get("x-vercel-ip-country") ?? h.get("cf-ipcountry") ?? "unknown";
+  const region  = h.get("x-vercel-ip-country-region") ?? null;
+  const city    = h.get("x-vercel-ip-city") ?? null;
+  const lat     = h.get("x-vercel-ip-latitude") ?? null;
+  const lon     = h.get("x-vercel-ip-longitude") ?? null;
+
+  // ── Request context ───────────────────────────────────────────────────────
+  const ua      = h.get("user-agent") ?? null;
+  const lang    = h.get("accept-language")?.split(",")[0]?.trim() ?? null;
+  const referer = h.get("referer") ?? "";
+  const origin  = h.get("origin") ?? null;
+
+  // Derive a clean acquisition source from referer
+  const refHost = referer
+    ? (() => { try { return new URL(referer).hostname.toLowerCase(); } catch { return "unknown"; } })()
     : "direct";
+
+  // Parse UTM params from the referer URL if present
+  let utmSource: string | null = null;
+  let utmMedium: string | null = null;
+  let utmCampaign: string | null = null;
+  try {
+    if (referer) {
+      const u = new URL(referer);
+      utmSource   = u.searchParams.get("utm_source");
+      utmMedium   = u.searchParams.get("utm_medium");
+      utmCampaign = u.searchParams.get("utm_campaign");
+    }
+  } catch { /* ignore */ }
+
   await trackMetricEvent({
     ...parsed.data,
-    source: parsed.data.source ?? host,
+    source: parsed.data.source ?? refHost,
     metadata: {
       ...(parsed.data.metadata ?? {}),
+      // Geo
       country,
+      ...(region   ? { region }   : {}),
+      ...(city      ? { city }      : {}),
+      ...(lat       ? { lat }       : {}),
+      ...(lon       ? { lon }       : {}),
+      // Request context
+      ...(ua        ? { userAgent: ua }     : {}),
+      ...(lang      ? { language: lang }    : {}),
+      ...(origin    ? { origin }            : {}),
       referer,
+      // UTM attribution
+      ...(utmSource   ? { utmSource }   : {}),
+      ...(utmMedium   ? { utmMedium }   : {}),
+      ...(utmCampaign ? { utmCampaign } : {}),
     },
   });
   return NextResponse.json({ ok: true });

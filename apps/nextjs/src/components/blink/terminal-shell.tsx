@@ -243,18 +243,14 @@ function CoinIcon({ coin, size = 24 }: { coin: string; size?: number }) {
 
 // ── Leaderboard mock data ──────────────────────────────────────────────────
 const LEADERBOARD_MOCK = [
-  { rank: 1, name: "rokitg", handle: "rokitg.eth", pnl: 284_197.43, avatar: "https://avatar.vercel.sh/rokitg.eth.png?size=48", href: "/profile/rokitg" },
-  { rank: 2, name: "logjam", handle: "@_logjam", pnl: 134_759.40, avatar: "https://avatar.vercel.sh/logjam.png?size=48", href: "#" },
-  { rank: 3, name: "mk4", handle: "@boosted", pnl: 125_413.63, avatar: "https://avatar.vercel.sh/mk4.png?size=48", href: "#" },
-  { rank: 4, name: "nmatrades", handle: "@Nma_trades", pnl: 113_594.80, avatar: "https://avatar.vercel.sh/nmatrades.png?size=48", href: "#" },
-  { rank: 5, name: "RC", handle: "@ResellCale", pnl: 86_923.94, avatar: "https://avatar.vercel.sh/rc_trader.png?size=48", href: "#" },
-  { rank: 6, name: "KienNguy...", handle: "@KienNguye...", pnl: 83_560.60, avatar: "https://avatar.vercel.sh/kien.png?size=48", href: "#" },
-  { rank: 7, name: "Marcell", handle: "@MarcellxMa...", pnl: 77_439.74, avatar: "https://avatar.vercel.sh/marcell.png?size=48", href: "#" },
-  { rank: 8, name: "frank", handle: "@frankdego...", pnl: 73_669.49, avatar: "https://avatar.vercel.sh/frank.png?size=48", href: "#" },
-  { rank: 9, name: "RUNE", handle: "@RuneCrypto_", pnl: 71_314.48, avatar: "https://avatar.vercel.sh/runecrypto.png?size=48", href: "#" },
-  { rank: 10, name: "Conviction", handle: "@ArtofConvic...", pnl: 65_157.05, avatar: "https://avatar.vercel.sh/conviction.png?size=48", href: "#" },
-  { rank: 11, name: "Thokani 🪁", handle: "@Thokani", pnl: 62_195.23, avatar: "https://avatar.vercel.sh/thokani.png?size=48", href: "#" },
-  { rank: 12, name: "asta", handle: "@astaso1", pnl: 61_339.76, avatar: "https://avatar.vercel.sh/asta.png?size=48", href: "#" },
+  {
+    rank: 1,
+    name: "rokitg",
+    handle: "rokitg.eth",
+    pnl: 284_197.43,
+    avatar: "https://avatar.vercel.sh/rokitg.eth.png?size=48",
+    href: "/profile/rokitg",
+  },
 ] as const;
 
 const RANK_MEDAL: Record<number, { emoji: string; color: string }> = {
@@ -302,7 +298,9 @@ function LeaderboardPanel() {
                 {medal ? (
                   <span className="text-base leading-none">{medal.emoji}</span>
                 ) : (
-                  <span className="text-xs text-foreground/35">{trader.rank}</span>
+                  <span className="text-xs text-foreground/35">
+                    {trader.rank}
+                  </span>
                 )}
               </div>
 
@@ -318,7 +316,9 @@ function LeaderboardPanel() {
 
               {/* name + handle */}
               <div className="flex-1 min-w-0">
-                <p className={`truncate text-sm font-semibold leading-none ${isTop ? "text-white" : "text-white/85"}`}>
+                <p
+                  className={`truncate text-sm font-semibold leading-none ${isTop ? "text-white" : "text-white/85"}`}
+                >
                   {trader.name}
                   {trader.rank === 1 && (
                     <span className="ml-1.5 inline-flex items-center rounded-full border border-[#ffd70040] bg-[#ffd70018] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#ffe566]">
@@ -326,7 +326,9 @@ function LeaderboardPanel() {
                     </span>
                   )}
                 </p>
-                <p className="mt-0.5 truncate text-[11px] text-foreground/40">{trader.handle}</p>
+                <p className="mt-0.5 truncate text-[11px] text-foreground/40">
+                  {trader.handle}
+                </p>
               </div>
 
               {/* pnl */}
@@ -351,8 +353,10 @@ function LeftRail(props: {
   tradeEnabled: boolean;
   onRequireBuilderSetup: () => void;
 }) {
-  const zeroFeeCoins = new Set(["BTC", "ETH", "SOL", "HYPE"]);
-  const [activeTab, setActiveTab] = useState<"watchlist" | "leaderboard">("watchlist");
+  // Use the shared ZERO_FEE_MARKETS constant defined at module level
+  const [activeTab, setActiveTab] = useState<"watchlist" | "leaderboard">(
+    "watchlist",
+  );
   const [searchQuery, setSearchQuery] = useState("");
 
   const marketsQuery = useQuery({
@@ -407,7 +411,9 @@ function LeftRail(props: {
             </div>
             <div>
               <p className="text-sm font-semibold text-white">Quick Setup</p>
-              <p className="text-xs text-foreground/50">Import your Hyperliquid account — 2 sigs</p>
+              <p className="text-xs text-foreground/50">
+                Import your Hyperliquid account — 2 sigs
+              </p>
             </div>
             <ArrowRight className="ml-auto size-4 text-[#3be1ba] opacity-60 transition group-hover:translate-x-0.5 group-hover:opacity-100" />
           </div>
@@ -417,7 +423,9 @@ function LeftRail(props: {
       <section className="glass-panel flex min-h-[392px] flex-col overflow-hidden p-0">
         <div className="border-b border-white/10 px-2.5 pb-1.5 pt-1.5">
           <div className="mb-1.5 flex items-center gap-1 text-sm">
-            <span className="rounded-md px-2 py-1 text-foreground/40 cursor-not-allowed text-xs">Alerts</span>
+            <span className="rounded-md px-2 py-1 text-foreground/40 cursor-not-allowed text-xs">
+              Alerts
+            </span>
             <button
               type="button"
               onClick={() => setActiveTab("watchlist")}
@@ -473,7 +481,9 @@ function LeftRail(props: {
         ) : (
           <div className="flex-1 space-y-0.5 overflow-y-auto p-1.5">
             {marketRows.length === 0 ? (
-              <p className="py-6 text-center text-xs text-foreground/40">No markets found</p>
+              <p className="py-6 text-center text-xs text-foreground/40">
+                No markets found
+              </p>
             ) : (
               marketRows.map((item) => {
                 const selected = item.coin === props.market;
@@ -492,7 +502,7 @@ function LeftRail(props: {
                     <div className="flex-1 min-w-0">
                       <p className="flex items-center gap-1.5 text-sm font-medium text-white leading-none">
                         <span className="truncate">{item.coin}</span>
-                        {zeroFeeCoins.has(item.coin) ? (
+                        {ZERO_FEE_MARKETS.has(item.coin) ? (
                           <span
                             className="size-1.5 shrink-0 rounded-full bg-[#39e5b6]"
                             style={{ boxShadow: "0 0 5px 1px #39e5b688" }}
@@ -504,8 +514,11 @@ function LeftRail(props: {
                         {formatUsd(item.markPx)}
                       </p>
                     </div>
-                    <span className={`shrink-0 text-xs tabular-nums ${positive ? "text-emerald-300" : "text-rose-300"}`}>
-                      {positive ? "+" : ""}{item.changePct.toFixed(2)}%
+                    <span
+                      className={`shrink-0 text-xs tabular-nums ${positive ? "text-emerald-300" : "text-rose-300"}`}
+                    >
+                      {positive ? "+" : ""}
+                      {item.changePct.toFixed(2)}%
                     </span>
                   </Link>
                 );
@@ -517,6 +530,12 @@ function LeftRail(props: {
     </aside>
   );
 }
+
+/**
+ * HIP-3 native markets — zero maker fee on Hyperliquid.
+ * Blink passes the benefit through: no builder fee on these assets.
+ */
+const ZERO_FEE_MARKETS = new Set(["BTC", "ETH", "SOL", "HYPE"]);
 
 const LEVERAGE_PRESETS = [1, 2, 5, 10, 20] as const;
 
@@ -553,8 +572,12 @@ const LEVERAGE_RISK: Record<
 
 /**
  * Hold-to-confirm order button.
- * Press and hold to fill left → right over ~650 ms, then fires onConfirm.
- * Releasing early resets the fill with a spring.
+ *
+ * UX philosophy: zero perceived latency.
+ * - Press and hold → fill sweeps left → right in 600 ms
+ * - On 100%: immediately flash white, reset the bar, fire onConfirm in background
+ * - The button never shows a spinner — the toast owns loading/success feedback
+ * - "submitting" only blocks re-pressing (prevents double orders), invisible to user
  */
 function HoldToConfirmButton({
   onConfirm,
@@ -570,77 +593,92 @@ function HoldToConfirmButton({
   submitting: boolean;
 }) {
   const fillX = useMotionValue(0); // 0 → 100
+  const flashOpacity = useMotionValue(0); // flash overlay on completion
   const fillWidth = useTransform(fillX, [0, 100], ["0%", "100%"]);
   const holdingRef = useRef(false);
+  const doneRef = useRef(false);
   const animRef = useRef<ReturnType<typeof animate> | null>(null);
-  const HOLD_MS = 0.65;
+  const HOLD_MS = 0.6;
 
   const isBuy = side === "buy";
 
   const startHold = useCallback(() => {
     if (disabled || submitting) return;
     holdingRef.current = true;
+    doneRef.current = false;
+
     animRef.current = animate(fillX, 100, {
       duration: HOLD_MS,
       ease: "linear",
       onComplete: () => {
         if (!holdingRef.current) return;
+        doneRef.current = true;
+
+        // 1. Fire the order immediately (zero-latency feel)
         onConfirm();
-        // reset fill after the order fires
+
+        // 2. Flash the button white — instant haptic-like reward
+        void animate(flashOpacity, 0.35, { duration: 0.08 }).then(() =>
+          animate(flashOpacity, 0, { duration: 0.22 }),
+        );
+
+        // 3. Spring the fill back after the flash
         setTimeout(() => {
           holdingRef.current = false;
-          void animate(fillX, 0, { duration: 0.2 });
-        }, 180);
+          void animate(fillX, 0, { duration: 0.35, ease: [0.22, 1, 0.36, 1] });
+        }, 100);
       },
     });
-  }, [fillX, disabled, submitting, onConfirm]);
+  }, [fillX, flashOpacity, disabled, submitting, onConfirm]);
 
   const cancelHold = useCallback(() => {
+    if (doneRef.current) return; // don't cancel after a confirmed fire
     if (!holdingRef.current) return;
     holdingRef.current = false;
     animRef.current?.stop();
-    void animate(fillX, 0, { duration: 0.25, ease: [0.33, 1, 0.68, 1] });
+    void animate(fillX, 0, { duration: 0.28, ease: [0.33, 1, 0.68, 1] });
   }, [fillX]);
 
   return (
     <motion.button
       type="button"
-      disabled={disabled}
+      disabled={disabled || submitting}
       onPointerDown={startHold}
       onPointerUp={cancelHold}
       onPointerLeave={cancelHold}
       onPointerCancel={cancelHold}
-      className={`relative mt-4 h-12 w-full select-none overflow-hidden rounded-full border text-sm font-semibold transition-opacity disabled:cursor-not-allowed disabled:opacity-40 ${
+      className={`relative mt-4 h-12 w-full select-none overflow-hidden rounded-full border text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
         isBuy
           ? "border-emerald-400/30 bg-emerald-400/[0.06]"
           : "border-rose-400/30 bg-rose-400/[0.06]"
       }`}
       style={{ touchAction: "none" }}
-      whileTap={{ scale: submitting ? 1 : 0.982 }}
+      whileTap={{ scale: 0.978 }}
+      transition={{ type: "spring", stiffness: 500, damping: 30 }}
     >
-      {/* Fill bar */}
+      {/* Color fill */}
       <motion.div
-        className={`absolute inset-y-0 left-0 ${isBuy ? "bg-emerald-400" : "bg-rose-400"}`}
+        className="absolute inset-y-0 left-0"
         style={{
           width: fillWidth,
           background: isBuy
-            ? "linear-gradient(90deg,#059669 0%,#34d399 85%,#6ee7b7 100%)"
-            : "linear-gradient(90deg,#be123c 0%,#f87171 85%,#fca5a5 100%)",
+            ? "linear-gradient(90deg,#047857 0%,#34d399 80%,#6ee7b7 100%)"
+            : "linear-gradient(90deg,#9f1239 0%,#f87171 80%,#fca5a5 100%)",
         }}
       />
 
-      {/* Label */}
+      {/* Flash overlay (white burst on confirm) */}
+      <motion.div
+        className="absolute inset-0 bg-white"
+        style={{ opacity: flashOpacity }}
+      />
+
+      {/* Label — always visible, never a spinner */}
       <span
-        className={`relative z-10 flex items-center justify-center gap-2 font-semibold ${
-          isBuy ? "text-white" : "text-white"
-        }`}
-        style={{ textShadow: "0 1px 4px rgba(0,0,0,0.4)" }}
+        className="relative z-10 flex items-center justify-center gap-2 font-semibold text-white"
+        style={{ textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}
       >
-        {submitting ? (
-          <Loader2 className="size-4 animate-spin" />
-        ) : (
-          `${isBuy ? "Buy / Long" : "Sell / Short"} ${market}`
-        )}
+        {`${isBuy ? "Buy / Long" : "Sell / Short"} ${market}`}
       </span>
     </motion.button>
   );
@@ -987,12 +1025,17 @@ function OrderEntryPanel(props: {
             <AssetIcon asset={props.market} className="size-7" />
             {props.market}/USDC
           </h2>
-          {isProRouting && (
+          {ZERO_FEE_MARKETS.has(props.market) ? (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-teal-400/30 bg-gradient-to-r from-teal-400/10 to-emerald-400/8 px-2.5 py-1 text-[10px] font-medium text-teal-300">
+              <Sparkles className="size-3" />
+              Zero platform fee on {props.market}
+            </div>
+          ) : isProRouting ? (
             <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-gradient-to-r from-amber-300/15 to-yellow-300/10 px-2.5 py-1 text-[10px] font-medium text-amber-200">
               <TicketPercent className="size-3" />
               BLINK PRO: Lower builder fee, faster fills.
             </div>
-          )}
+          ) : null}
         </div>
         <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] font-medium text-foreground/60">
           Live routing
@@ -1028,20 +1071,6 @@ function OrderEntryPanel(props: {
         >
           <ArrowUp className="size-3.5" />
           Buy / Long
-          {accountValue <= 0 && (
-            <span className="ml-2 text-xs text-amber-300">
-              <a
-                href="/deposit"
-                className="underline underline-offset-2 hover:text-amber-400"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // Could route to deposit page here with router if SPA.
-                }}
-              >
-                Add funds
-              </a>
-            </span>
-          )}
         </button>
         <button
           type="button"
@@ -1336,16 +1365,33 @@ function OrderEntryPanel(props: {
 
       <HoldToConfirmButton
         onConfirm={() => void handleSubmit()}
-        disabled={submitting}
+        disabled={false}
         side={side}
         market={props.market}
         submitting={submitting}
       />
 
+      {/* Inline order status feedback */}
+      <AnimatePresence>
+        {submitting && (
+          <motion.p
+            key="order-status"
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            transition={{ duration: 0.18 }}
+            className="mt-2 flex items-center justify-center gap-1.5 text-center text-[11px] text-foreground/50"
+          >
+            <Loader2 className="size-3 animate-spin" />
+            Sending {side === "buy" ? "long" : "short"} order…
+          </motion.p>
+        )}
+      </AnimatePresence>
+
       <button
         type="button"
         onClick={props.onRequireBuilderSetup}
-        className="mt-3 block w-full text-center text-xs text-foreground/35 transition hover:text-foreground/60"
+        className="mt-2 block w-full text-center text-xs text-foreground/35 transition hover:text-foreground/60"
       >
         <ShieldCheck className="mr-1 inline size-3" />
         Manage Approvals
@@ -1534,40 +1580,6 @@ function AccountPanel(props: {
       <div className="flex items-center justify-between">
         <div>
           <p className="terminal-label mb-1">Summary</p>
-          <div className="flex gap-2">
-            <div className="flex flex-col items-start">
-              <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/30">
-                Account value
-              </span>
-              <span className="font-mono font-semibold text-white text-base mt-1">
-                {formatUsd(accountValue)}
-              </span>
-            </div>
-            <div className="flex flex-col items-start">
-              <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/30">
-                Open positions
-              </span>
-              <span className="font-mono font-semibold text-white text-base mt-1">
-                {positions.length}
-              </span>
-            </div>
-            <div className="flex flex-col items-start">
-              <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/30">
-                Open orders
-              </span>
-              <span className="font-mono font-semibold text-white text-base mt-1">
-                {openOrders.length}
-              </span>
-            </div>
-            <div className="flex flex-col items-start">
-              <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/30">
-                Recent fills
-              </span>
-              <span className="font-mono font-semibold text-white text-base mt-1">
-                {recentFills.length}
-              </span>
-            </div>
-          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -1672,8 +1684,10 @@ function AccountPanel(props: {
                 const posLiq =
                   entry > 0
                     ? isLong
-                      ? entry * (1 - 1 / Number(position.leverage?.value ?? 10) + 0.005)
-                      : entry * (1 + 1 / Number(position.leverage?.value ?? 10) - 0.005)
+                      ? entry *
+                        (1 - 1 / Number(position.leverage?.value ?? 10) + 0.005)
+                      : entry *
+                        (1 + 1 / Number(position.leverage?.value ?? 10) - 0.005)
                     : null;
                 const pnl = Number(position.unrealizedPnl);
                 const accentColor = isLong ? "#3be1ba" : "#f87171";
@@ -1688,8 +1702,12 @@ function AccountPanel(props: {
                       <div className="flex items-center gap-2">
                         <CoinIcon coin={position.coin} size={22} />
                         <div>
-                          <p className="text-sm font-semibold text-white leading-none">{position.coin}</p>
-                          <p className="mt-0.5 text-[10px] text-foreground/40">{Number(position.leverage?.value ?? 1).toFixed(0)}×</p>
+                          <p className="text-sm font-semibold text-white leading-none">
+                            {position.coin}
+                          </p>
+                          <p className="mt-0.5 text-[10px] text-foreground/40">
+                            {Number(position.leverage?.value ?? 1).toFixed(0)}×
+                          </p>
                         </div>
                       </div>
                       {/* side */}
@@ -1720,7 +1738,8 @@ function AccountPanel(props: {
                       <span
                         className={`text-right font-mono text-sm font-semibold ${pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
                       >
-                        {pnl >= 0 ? "+" : ""}{formatUsd(pnl)}
+                        {pnl >= 0 ? "+" : ""}
+                        {formatUsd(pnl)}
                       </span>
                       {/* actions */}
                       <div className="flex items-center justify-end gap-1">
@@ -1738,7 +1757,9 @@ function AccountPanel(props: {
                         <button
                           type="button"
                           className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-foreground/60 transition hover:border-white/20 hover:text-white disabled:opacity-40"
-                          disabled={positionActionKey === `${position.coin}-cancel`}
+                          disabled={
+                            positionActionKey === `${position.coin}-cancel`
+                          }
                           onClick={() => void cancelCoinOrders(position.coin)}
                         >
                           Cancel exits
@@ -1746,9 +1767,18 @@ function AccountPanel(props: {
                         <button
                           type="button"
                           className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-foreground/60 transition hover:border-white/20 hover:text-white disabled:opacity-40"
-                          disabled={positionActionKey === `${position.coin}-${isLong ? "sell" : "buy"}-Ioc`}
+                          disabled={
+                            positionActionKey ===
+                            `${position.coin}-${isLong ? "sell" : "buy"}-Ioc`
+                          }
                           onClick={() =>
-                            void runPositionOrder({ coin: position.coin, isBuy: !isLong, size: absSz, reduceOnly: true, tif: "Ioc" })
+                            void runPositionOrder({
+                              coin: position.coin,
+                              isBuy: !isLong,
+                              size: absSz,
+                              reduceOnly: true,
+                              tif: "Ioc",
+                            })
                           }
                         >
                           Close
@@ -1757,9 +1787,18 @@ function AccountPanel(props: {
                           type="button"
                           className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-black transition disabled:opacity-40"
                           style={{ background: isLong ? "#f87171" : "#34d399" }}
-                          disabled={positionActionKey === `${position.coin}-${isLong ? "sell" : "buy"}-Ioc`}
+                          disabled={
+                            positionActionKey ===
+                            `${position.coin}-${isLong ? "sell" : "buy"}-Ioc`
+                          }
                           onClick={() =>
-                            void runPositionOrder({ coin: position.coin, isBuy: !isLong, size: absSz * 2, reduceOnly: false, tif: "Ioc" })
+                            void runPositionOrder({
+                              coin: position.coin,
+                              isBuy: !isLong,
+                              size: absSz * 2,
+                              reduceOnly: false,
+                              tif: "Ioc",
+                            })
                           }
                         >
                           Reverse
@@ -1897,7 +1936,10 @@ function AccountPanel(props: {
                     ? "just now"
                     : diffMin < 60
                       ? `${diffMin}m ago`
-                      : fillTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                      : fillTime.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        });
                 return (
                   <div
                     key={fill.tid}
@@ -1905,7 +1947,9 @@ function AccountPanel(props: {
                   >
                     <div className="flex items-center gap-2">
                       <CoinIcon coin={fill.coin} size={18} />
-                      <span className="font-medium text-white">{fill.coin}</span>
+                      <span className="font-medium text-white">
+                        {fill.coin}
+                      </span>
                     </div>
                     <div className="flex justify-center">
                       <span

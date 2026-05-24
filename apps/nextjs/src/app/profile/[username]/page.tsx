@@ -2,34 +2,36 @@ import Link from "next/link";
 
 import {
   CalendarDays,
-  Clock3,
-  ChevronRight,
-  Dot,
   Gift,
   Info,
   Pencil,
   Search,
   ShieldCheck,
   Trophy,
-  Wallet2,
-  AreaChartIcon,
-  LineChart,
+  Verified,
 } from "lucide-react";
 
 import { BlinkAvatar } from "~/components/blink/blink-avatar";
 import { BlinkUsername } from "~/components/blink/blink-username";
 import { ConnectTwitterButton } from "~/components/blink/connect-twitter-button";
 import { ProfileEquitySection } from "~/components/blink/profile-equity-section";
+import { resolveProfileAddress } from "~/lib/blink/resolve-address";
 
 function traderAvatarUrl(id: string, size = 80) {
   return `https://avatar.vercel.sh/${encodeURIComponent(id)}.png?size=${size}`;
 }
 
+
 export default async function ProfilePage(props: {
-  params: Promise<{ username: string; ens: string }>;
+  params: Promise<{ username: string }>;
 }) {
   const { username: rawUsername } = await props.params;
-  const username = decodeURIComponent(rawUsername);
+  const slug = decodeURIComponent(rawUsername);
+
+  const resolvedAddress = await resolveProfileAddress(slug);
+
+  // For the leaderboard mock (#1 slot), hardcode rokitg address
+  const isRokitg = slug === "rokitg" || slug === "rokitg.eth";
 
   return (
     <main className="min-h-screen bg-background px-3 pb-8 pt-3 text-[#f2f4f7]">
@@ -51,7 +53,7 @@ export default async function ProfilePage(props: {
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/45" />
               <input
                 className="h-12 w-full rounded-[14px] border border-white/10 bg-[#0c101c] pl-9 pr-3 text-base outline-none placeholder:text-white/35"
-                placeholder="Search profile assets..."
+                placeholder="Search trader profiles..."
               />
             </div>
           </div>
@@ -69,8 +71,8 @@ export default async function ProfilePage(props: {
                   <div>
                     <BlinkUsername />
                     <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-gradient-to-r from-amber-300/15 to-yellow-300/10 px-2.5 py-1 text-[10px] font-medium text-amber-200">
-                      <Gift className="size-3" />
-                      Blink Pro active: lower fees on every routed order.
+                      <Verified className="size-3" />
+                      Blink Pro
                     </div>
                   </div>
                 </div>
@@ -101,67 +103,20 @@ export default async function ProfilePage(props: {
 
               <div className="mt-3 flex flex-wrap items-center gap-5 text-sm text-white/55">
                 <span className="inline-flex items-center gap-1.5">
-                  <Clock3 className="size-4" />
-                  14h avg. hold
-                </span>
-                <span className="inline-flex items-center gap-1.5">
                   <CalendarDays className="size-4" />
-                  Joined Jan 2026
+                  {isRokitg ? "Joined Jan 2026" : "Joined recently"}
                 </span>
-                <span className="text-white/35">|</span>
-                <span className="text-white/90">
-                  <strong className="font-semibold">108</strong> Followers
-                </span>
-                <span className="text-white/90">
-                  <strong className="font-semibold">21</strong> Following
-                </span>
+                {resolvedAddress && (
+                  <span className="font-mono text-xs text-white/35">
+                    {resolvedAddress.slice(0, 6)}…{resolvedAddress.slice(-4)}
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Equity + balances */}
+            {/* Equity + balances — live from HL + Neon */}
             <div className="border-t border-white/10 px-5 pb-3 pt-5">
-              <ProfileEquitySection />
-
-              {/* Tabs */}
-              <div className="mt-8 border-b border-white/10">
-                <div className="flex items-center gap-8 text-2xl">
-                  <button
-                    type="button"
-                    className="border-b-2 border-[#276cff] pb-3 text-white"
-                  >
-                    Balances
-                  </button>
-                  <button type="button" className="pb-3 text-white/45">
-                    All activity
-                  </button>
-                  <button type="button" className="pb-3 text-white/45">
-                    Withdrawals
-                  </button>
-                </div>
-              </div>
-
-              {/* Balance rows */}
-              <div className="mt-5 space-y-3">
-                {[
-                  ["Cash", "USDC", "$13.10"],
-                  ["Positions", "Exposure", "$1.74"],
-                  ["Spot", "USDT · Bitcoin · Gold", "$99.46"],
-                ].map(([title, sub, value]) => (
-                  <div
-                    key={title}
-                    className="rounded-[10px] bg-white/[0.02] p-4"
-                  >
-                    <p className="text-4xl font-semibold">{title}</p>
-                    <div className="mt-4 flex items-center justify-between">
-                      <p className="text-2xl text-white/80">{sub}</p>
-                      <div className="flex items-center gap-3">
-                        <p className="text-2xl font-medium">{value}</p>
-                        <ChevronRight className="size-4 text-white/45" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <ProfileEquitySection targetAddress={resolvedAddress ?? undefined} />
 
               <p className="mt-7 text-center text-sm text-white/35">
                 Powered by Hyperliquid
@@ -171,7 +126,6 @@ export default async function ProfilePage(props: {
                   href="/trade/BTC"
                   className="inline-flex items-center text-sm text-white/55 hover:text-white"
                 >
-                  <Dot className="size-4" />
                   Back to trading
                 </Link>
               </div>
@@ -232,25 +186,5 @@ export default async function ProfilePage(props: {
         </aside>
       </div>
     </main>
-  );
-}
-
-// Inline icon to avoid adding another import just for the wallet icon
-function Wallet({ className }: { className?: string }) {
-  return (
-    // biome-ignore lint/a11y/noSvgWithoutTitle: <explanation>
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M21 12a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 12m18 0v6a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 9m18 0V6a2.25 2.25 0 0 0-2.25-2.25H5.25A2.25 2.25 0 0 0 3 6v3"
-      />
-    </svg>
   );
 }

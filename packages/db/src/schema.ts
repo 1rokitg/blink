@@ -139,3 +139,41 @@ export const BlinkMembership = pgTable("blink_membership", (t) => ({
     .timestamp({ mode: "date", withTimezone: true })
     .$onUpdateFn(() => sql`now()`),
 }));
+
+/**
+ * Social follow graph — who follows whom, keyed by wallet address.
+ * Enables follower/following counts and "people you follow" feeds.
+ */
+export const Follow = pgTable(
+  "follow",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    /** Wallet address of the user who is following. */
+    followerAddress: t.varchar({ length: 42 }).notNull(),
+    /** Wallet address of the trader being followed. */
+    followingAddress: t.varchar({ length: 42 }).notNull(),
+    createdAt: t.timestamp().defaultNow().notNull(),
+  }),
+);
+
+/**
+ * User profile metadata stored in Neon.
+ * Privy handles auth; this table stores social/display preferences.
+ */
+export const UserProfile = pgTable("user_profile", (t) => ({
+  id: t.uuid().notNull().primaryKey().defaultRandom(),
+  walletAddress: t.varchar({ length: 42 }).notNull().unique(),
+  /** Display name (can differ from Privy Google name). */
+  displayName: t.varchar({ length: 64 }),
+  /** Short bio shown on the profile page. */
+  bio: t.varchar({ length: 160 }),
+  /** ENS name if resolved. */
+  ensName: t.varchar({ length: 128 }),
+  /** Whether the user has Blink Pro (mirrors blink_membership but faster to read). */
+  isPro: t.boolean().notNull().default(false),
+  /** Timestamp user first connected (first builder approval or login). */
+  joinedAt: t.timestamp().defaultNow().notNull(),
+  updatedAt: t
+    .timestamp({ mode: "date", withTimezone: true })
+    .$onUpdateFn(() => sql`now()`),
+}));

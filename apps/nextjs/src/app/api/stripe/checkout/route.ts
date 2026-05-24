@@ -28,6 +28,25 @@ const PRICING: Record<
 
 const CRYPTO_DISCOUNT_RATE = 0.15;
 
+function resolveAppUrl(request: Request) {
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const host = forwardedHost ?? request.headers.get("host");
+  const proto =
+    request.headers.get("x-forwarded-proto") ??
+    (host?.includes("localhost") ? "http" : "https");
+
+  if (host) {
+    return `${proto}://${host}`;
+  }
+
+  const vercelUrl = process.env.VERCEL_URL;
+  if (vercelUrl) {
+    return `https://${vercelUrl}`;
+  }
+
+  return env.NEXT_PUBLIC_APP_URL;
+}
+
 export async function POST(request: Request) {
   if (!env.STRIPE_SECRET_KEY) {
     return NextResponse.json(
@@ -52,7 +71,7 @@ export async function POST(request: Request) {
       ? Math.round(baseAmount * (1 - CRYPTO_DISCOUNT_RATE))
       : baseAmount;
   const stripe = new Stripe(env.STRIPE_SECRET_KEY);
-  const appUrl = env.NEXT_PUBLIC_APP_URL;
+  const appUrl = resolveAppUrl(request);
 
   try {
     const session = await stripe.checkout.sessions.create({

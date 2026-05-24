@@ -1,5 +1,6 @@
 import { createEnv } from "@t3-oss/env-nextjs";
 import { vercel } from "@t3-oss/env-nextjs/presets-zod";
+import { getAddress } from "viem";
 import { z } from "zod";
 
 import { env as authEnv } from "@acme/auth/env";
@@ -37,7 +38,8 @@ export const env = createEnv({
     /** Hyperliquid builder wallet address (0x…). Resolves rokitg.eth. */
     NEXT_PUBLIC_BUILDER_ADDRESS: z
       .string()
-      .regex(/^0x[0-9a-fA-F]{40}$/, "Must be a valid EVM address"),
+      .regex(/^0x[0-9a-fA-F]{40}$/, "Must be a valid EVM address")
+      .transform((addr) => getAddress(addr)),
     /** Builder fee in 0.1bps units. 100 = 0.01%. */
     NEXT_PUBLIC_BUILDER_FEE_BPS: z.coerce.number().int().min(0).default(100),
     /** Canonical app URL used to form OAuth redirect URIs. */

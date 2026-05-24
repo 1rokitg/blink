@@ -62,6 +62,7 @@ import {
   BUILDER_ADDRESS,
   BUILDER_FEE_UNITS,
   builderMaxFeeRate,
+  getApprovedBuilderFee,
   isBuilderApproved,
 } from "~/lib/blink/builder";
 import { getAssetIndex, getAssetIndexSync, infoClient } from "~/lib/blink/hyperliquid";
@@ -403,6 +404,15 @@ function OrderEntryPanel(props: {
 
   const handleSubmit = useCallback(async () => {
     if (!props.tradeEnabled) {
+      props.onRequireBuilderSetup();
+      return;
+    }
+    const liveApprovedFee = await getApprovedBuilderFee(
+      asHexAddress(props.walletAddress),
+    );
+    const liveRequiredFee = BUILDER_FEE_UNITS * 0.0001;
+    if (liveApprovedFee < liveRequiredFee) {
+      toast.error("Builder fee has not been approved.");
       props.onRequireBuilderSetup();
       return;
     }

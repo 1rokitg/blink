@@ -29,6 +29,31 @@ function truncateAddress(address: string) {
 
 type Step = "idle" | "step1-pending" | "step1-done" | "step2-pending" | "done";
 
+function ensureExchangeActionOk(
+  result: unknown,
+  fallbackMessage: string,
+): void {
+  const maybe = result as
+    | { status?: string; response?: unknown }
+    | undefined
+    | null;
+  if (!maybe || maybe.status !== "ok") {
+    throw new Error(fallbackMessage);
+  }
+  const response = maybe.response as
+    | { type?: string; data?: { statuses?: Array<{ error?: string }> } }
+    | string
+    | undefined;
+  if (typeof response === "string") {
+    throw new Error(response || fallbackMessage);
+  }
+  const statuses = response?.data?.statuses;
+  const firstErr = statuses?.find((s) => typeof s.error === "string")?.error;
+  if (firstErr) {
+    throw new Error(firstErr);
+  }
+}
+
 export function BuilderSetupModal(props: {
   open: boolean;
   walletAddress: string;
@@ -64,10 +89,14 @@ export function BuilderSetupModal(props: {
       });
       const exchClient = await createExchangeClient(wallet);
       console.info("[setup] step 1 — approving builder fee...");
-      await exchClient.approveBuilderFee({
+      const result = await exchClient.approveBuilderFee({
         builder: BUILDER_ADDRESS,
         maxFeeRate: builderMaxFeeRate(),
       });
+      ensureExchangeActionOk(
+        result,
+        "Builder fee approval was not accepted by Hyperliquid",
+      );
       console.info("[setup] step 1 — builder fee approved ✓");
       setStep("step1-done");
     } catch (err) {
@@ -100,12 +129,22 @@ export function BuilderSetupModal(props: {
         agentAddress,
         market: props.market,
       });
-      console.info("[setup] step 2 — approving agent key:", agentAddress);
-      await exchClient.approveAgent({
+      console.info("[setup] step 2 — approving trading agent:", agentAddress);
+      const approveAgentResult = await exchClient.approveAgent({
         agentAddress,
         agentName: "Blink",
       });
-      console.info("[setup] step 2 — agent approved ✓");
+      ensureExchangeActionOk(
+        approveAgentResult,
+        "Agent approval was not accepted by Hyperliquid",
+      );
+      const builderApproved = await isBuilderApproved(
+        asHexAddress(props.walletAddress),
+      );
+      if (!builderApproved) {
+        throw new Error("Builder fee has not been approved yet.");
+      }
+      console.info("[setup] step 2 — trading agent approved ✓");
       setStep("done");
       setSuccessState(true);
       props.onApproved();
@@ -330,12 +369,13 @@ export function BuilderSetupModal(props: {
                               <div className="flex items-center gap-2">
                                 <Zap className="size-4 text-[#fee440]" />
                                 <p className="text-sm font-semibold text-white">
-                                  Approve Agent Key
+                                  Approve Trading Agent
                                 </p>
                               </div>
                               <p className="mt-1 text-xs text-foreground/50">
-                                Authorises a local key to sign orders instantly
-                                — no wallet popup per trade.
+                                Enables one-click trading: authorises a local
+                                signer so orders execute instantly with no
+                                wallet popup per trade.
                               </p>
                               {(step === "step1-done" ||
                                 step === "step2-pending") && (

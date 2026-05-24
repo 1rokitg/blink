@@ -64,7 +64,7 @@ import {
   builderMaxFeeRate,
   isBuilderApproved,
 } from "~/lib/blink/builder";
-import { getAssetIndex, infoClient } from "~/lib/blink/hyperliquid";
+import { getAssetIndex, getAssetIndexSync, infoClient } from "~/lib/blink/hyperliquid";
 import { createAgentExchangeClient } from "~/lib/blink/agent-wallet";
 import {
   fetchTopMarketsByVolume,
@@ -95,6 +95,29 @@ function readAdminAllowlist() {
 
 function asHexAddress(address: string) {
   return address as `0x${string}`;
+}
+
+function decimalPlacesFromNumericString(value?: string) {
+  if (!value) return 2;
+  const normalized = value.toLowerCase();
+  if (normalized.includes("e")) return 2;
+  const dot = value.indexOf(".");
+  if (dot === -1) return 0;
+  return Math.max(0, value.length - dot - 1);
+}
+
+function roundWithMode(value: number, decimals: number, mode: "up" | "down" | "nearest") {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  const factor = 10 ** Math.max(0, decimals);
+  const scaled = value * factor;
+  const rounded =
+    mode === "up"
+      ? Math.ceil(scaled)
+      : mode === "down"
+        ? Math.floor(scaled)
+        : Math.round(scaled);
+  const normalized = (rounded / factor).toFixed(Math.max(0, decimals));
+  return normalized.replace(/\.?0+$/, "");
 }
 
 function ConnectGate() {
@@ -399,12 +422,21 @@ function OrderEntryPanel(props: {
       `${side === "buy" ? "Sending long" : "Sending short"} order…`,
     );
     try {
-      const [exchClient, assetIdx] = await Promise.all([
+      const [exchClient, metaAndCtxs, mids] = await Promise.all([
         Promise.resolve(
           createAgentExchangeClient(props.walletAddress as `0x${string}`),
         ),
-        getAssetIndex(props.market),
+        infoClient.metaAndAssetCtxs(),
+        infoClient.allMids(),
       ]);
+      const [meta] = metaAndCtxs;
+      const assetIdx = getAssetIndexSync(props.market, meta);
+      const universeEntry = meta.universe[assetIdx];
+      const sizeDecimals = Math.max(0, universeEntry?.szDecimals ?? 6);
+      const marketMidRaw = mids[props.market];
+      const priceDecimals = Math.max(0, decimalPlacesFromNumericString(marketMidRaw));
+      const sizeStr = roundWithMode(sz, sizeDecimals, "down");
+      const limitPxStr = roundWithMode(px, priceDecimals, "nearest");
 
       const placeOrder = async () => {
         if (orderType === "limit") {
@@ -413,8 +445,8 @@ function OrderEntryPanel(props: {
               {
                 a: assetIdx,
                 b: side === "buy",
-                p: px.toString(),
-                s: sz.toString(),
+                p: limitPxStr,
+                s: sizeStr,
                 r: false,
                 t: { limit: { tif: "Gtc" } },
               },
@@ -425,20 +457,20 @@ function OrderEntryPanel(props: {
           return;
         }
 
-        const mid =
-          markPrice ||
-          (await infoClient
-            .allMids()
-            .then((m) => Number(m[props.market] ?? 0)));
+        const mid = markPrice || Number(marketMidRaw ?? 0);
         if (!mid) throw new Error("Could not fetch mark price");
         const slippage = side === "buy" ? mid * 1.05 : mid * 0.95;
+        const marketPxStr =
+          side === "buy"
+            ? roundWithMode(slippage, priceDecimals, "up")
+            : roundWithMode(slippage, priceDecimals, "down");
         await exchClient.order({
           orders: [
             {
               a: assetIdx,
               b: side === "buy",
-              p: slippage.toFixed(2),
-              s: sz.toString(),
+              p: marketPxStr,
+              s: sizeStr,
               r: false,
               t: { limit: { tif: "Ioc" } },
             },
@@ -827,6 +859,12 @@ function OrderEntryPanel(props: {
 function AccountPanel(props: { walletAddress: string }) {
   const queryClient = useQueryClient();
   const [cancellingOid, setCancellingOid] = useState<number | null>(null);
+  const [positionActionKey, setPositionActionKey] = useState<string | null>(
+    null,
+  );
+  const [editingCoin, setEditingCoin] = useState<string | null>(null);
+  const [editExitPrice, setEditExitPrice] = useState("");
+  const [editExitSize, setEditExitSize] = useState("");
 
   const accountQuery = useQuery({
     queryKey: ["blink", "account", props.walletAddress],
@@ -835,14 +873,17 @@ function AccountPanel(props: { walletAddress: string }) {
         infoClient.clearinghouseState({
           user: asHexAddress(props.walletAddress),
         }),
-        infoClient.frontendOpenOrders({
+        infoClient.openOrders({
           user: asHexAddress(props.walletAddress),
         }),
         infoClient.userFills({ user: asHexAddress(props.walletAddress) }),
       ]);
       return { state, openOrders, fills: fills.slice(0, 20) };
     },
-    refetchInterval: 15_000,
+    enabled: Boolean(props.walletAddress),
+    staleTime: 2_000,
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
   });
 
   const handleCancel = useCallback(
@@ -874,6 +915,114 @@ function AccountPanel(props: { walletAddress: string }) {
   const recentFills = accountQuery.data?.fills ?? [];
   const accountValue = Number(
     accountQuery.data?.state?.marginSummary?.accountValue ?? 0,
+  );
+
+  const runPositionOrder = useCallback(
+    async (params: {
+      coin: string;
+      isBuy: boolean;
+      size: number;
+      reduceOnly: boolean;
+      tif: "Gtc" | "Ioc";
+      limitPrice?: number;
+    }) => {
+      const actionToast = toast.loading("Submitting position action…");
+      setPositionActionKey(
+        `${params.coin}-${params.isBuy ? "buy" : "sell"}-${params.tif}`,
+      );
+      try {
+        const [exchClient, [meta], mids] = await Promise.all([
+          Promise.resolve(
+            createAgentExchangeClient(props.walletAddress as `0x${string}`),
+          ),
+          infoClient.metaAndAssetCtxs(),
+          infoClient.allMids(),
+        ]);
+        const assetIdx = getAssetIndexSync(params.coin, meta);
+        const szDecimals = Math.max(0, meta.universe[assetIdx]?.szDecimals ?? 6);
+        const midRaw = mids[params.coin];
+        const mid = Number(midRaw ?? 0);
+        const pxDecimals = Math.max(0, decimalPlacesFromNumericString(midRaw));
+
+        if (!mid && params.tif === "Ioc") {
+          throw new Error("Could not fetch mark price for market action");
+        }
+
+        const sizeStr = roundWithMode(params.size, szDecimals, "down");
+        const resolvedPx =
+          params.limitPrice && params.limitPrice > 0
+            ? roundWithMode(params.limitPrice, pxDecimals, "nearest")
+            : params.tif === "Ioc"
+              ? params.isBuy
+                ? roundWithMode(mid * 1.02, pxDecimals, "up")
+                : roundWithMode(mid * 0.98, pxDecimals, "down")
+              : roundWithMode(mid, pxDecimals, "nearest");
+
+        await exchClient.order({
+          orders: [
+            {
+              a: assetIdx,
+              b: params.isBuy,
+              p: resolvedPx,
+              s: sizeStr,
+              r: params.reduceOnly,
+              t: { limit: { tif: params.tif } },
+            },
+          ],
+          grouping: "na",
+          builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_UNITS },
+        });
+
+        toast.success("Position action submitted", { id: actionToast });
+        await queryClient.invalidateQueries({
+          queryKey: ["blink", "account", props.walletAddress],
+        });
+      } catch (err) {
+        toast.error(
+          err instanceof Error ? err.message : "Position action failed",
+          { id: actionToast },
+        );
+      } finally {
+        setPositionActionKey(null);
+      }
+    },
+    [props.walletAddress, queryClient],
+  );
+
+  const cancelCoinOrders = useCallback(
+    async (coin: string) => {
+      const coinOrders = openOrders.filter((order) => order.coin === coin);
+      if (coinOrders.length === 0) {
+        toast.message(`No open orders for ${coin}`);
+        return;
+      }
+      const toastId = toast.loading(`Cancelling ${coinOrders.length} orders…`);
+      setPositionActionKey(`${coin}-cancel`);
+      try {
+        const [exchClient, assetIdx] = await Promise.all([
+          Promise.resolve(
+            createAgentExchangeClient(props.walletAddress as `0x${string}`),
+          ),
+          getAssetIndex(coin),
+        ]);
+        await exchClient.cancel({
+          cancels: coinOrders.map((order) => ({ a: assetIdx, o: order.oid })),
+        });
+        toast.success(`Cancelled ${coinOrders.length} ${coin} orders`, {
+          id: toastId,
+        });
+        await queryClient.invalidateQueries({
+          queryKey: ["blink", "account", props.walletAddress],
+        });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Cancel failed", {
+          id: toastId,
+        });
+      } finally {
+        setPositionActionKey(null);
+      }
+    },
+    [openOrders, props.walletAddress, queryClient],
   );
 
   return (
@@ -916,29 +1065,45 @@ function AccountPanel(props: { walletAddress: string }) {
             </div>
           </div>
         </div>
-        <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] font-medium text-foreground/60">
-          <div className="flex flex-col items-end gap-0.5">
-            <span className="text-[10px] text-foreground/55">
-              Refreshes every 15s
-            </span>
-            <span className="text-[11px] text-foreground/65">
-              <strong>Open notional:&nbsp;</strong>
-              {formatUsd(
-                Number(
-                  accountQuery.data?.state?.marginSummary?.totalNtlPos ?? 0,
-                ),
-              )}
-            </span>
-            <span className="text-[11px] text-foreground/65">
-              <strong>Margin used:&nbsp;</strong>
-              {formatUsd(
-                Number(
-                  accountQuery.data?.state?.marginSummary?.totalMarginUsed ?? 0,
-                ),
-              )}
-            </span>
-          </div>
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => void accountQuery.refetch()}
+            disabled={accountQuery.isFetching}
+            className="h-7 rounded-full border-white/10 bg-white/[0.04] px-2.5 text-[10px] text-foreground/70 hover:bg-white/[0.1]"
+          >
+            {accountQuery.isFetching ? (
+              <Loader2 className="size-3 animate-spin" />
+            ) : (
+              "Refresh now"
+            )}
+          </Button>
+          <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] font-medium text-foreground/60">
+            <div className="flex flex-col items-end gap-0.5">
+              <span className="text-[10px] text-foreground/55">
+                Refreshes every 5s
+              </span>
+              <span className="text-[11px] text-foreground/65">
+                <strong>Open notional:&nbsp;</strong>
+                {formatUsd(
+                  Number(
+                    accountQuery.data?.state?.marginSummary?.totalNtlPos ?? 0,
+                  ),
+                )}
+              </span>
+              <span className="text-[11px] text-foreground/65">
+                <strong>Margin used:&nbsp;</strong>
+                {formatUsd(
+                  Number(
+                    accountQuery.data?.state?.marginSummary?.totalMarginUsed ?? 0,
+                  ),
+                )}
+              </span>
+            </div>
+          </Badge>
+        </div>
       </div>
 
       <div className="mt-4 grid gap-3 md:grid-cols-4">
@@ -982,19 +1147,21 @@ function AccountPanel(props: { walletAddress: string }) {
         </TabsList>
 
         <TabsContent value="positions" className="mt-4">
-          <div className="grid grid-cols-[1fr_60px_72px_72px_80px_80px] gap-2 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-foreground/38">
+          <div className="grid grid-cols-[1fr_60px_72px_72px_80px_80px_260px] gap-2 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-foreground/38">
             <span>Coin</span>
             <span className="text-right">Side</span>
             <span className="text-right">Entry</span>
             <span className="text-right">Liq.</span>
             <span className="text-right">Value</span>
             <span className="text-right">PnL</span>
+            <span className="text-right">Actions</span>
           </div>
           <div className="space-y-2">
             {positions.length > 0 ? (
               positions.map(({ position }) => {
                 const sz = Number(position.szi);
                 const isLong = sz > 0;
+                const absSz = Math.abs(sz);
                 const entry = Number(position.entryPx);
                 // Same isolated-margin liq formula used in OrderEntryPanel
                 const posLiq =
@@ -1009,31 +1176,141 @@ function AccountPanel(props: { walletAddress: string }) {
                 return (
                   <div
                     key={`${position.coin}-${position.entryPx}`}
-                    className="grid grid-cols-[1fr_60px_72px_72px_80px_80px] gap-2 rounded-[18px] border border-white/8 bg-white/[0.03] px-3 py-3 text-sm text-foreground/72"
+                    className="rounded-[18px] border border-white/8 bg-white/[0.03] px-3 py-3 text-sm text-foreground/72"
                   >
-                    <span className="font-medium text-white">
-                      {position.coin}
-                    </span>
-                    <span
-                      className={`text-right text-xs font-medium ${isLong ? "text-emerald-300" : "text-rose-300"}`}
-                    >
-                      {isLong ? "Long" : "Short"}
-                    </span>
-                    <span className="text-right font-mono text-xs">
-                      {position.entryPx}
-                    </span>
-                    <span className="text-right font-mono text-xs text-rose-300/80">
-                      {posLiq ? formatUsd(posLiq) : "—"}
-                    </span>
-                    <span className="text-right">
-                      {formatUsd(Number(position.positionValue))}
-                    </span>
-                    <span
-                      className={`text-right font-medium ${pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
-                    >
-                      {pnl >= 0 ? "+" : ""}
-                      {formatUsd(pnl)}
-                    </span>
+                    <div className="grid grid-cols-[1fr_60px_72px_72px_80px_80px_260px] items-center gap-2">
+                      <span className="font-medium text-white">
+                        {position.coin}
+                      </span>
+                      <span
+                        className={`text-right text-xs font-medium ${isLong ? "text-emerald-300" : "text-rose-300"}`}
+                      >
+                        {isLong ? "Long" : "Short"}
+                      </span>
+                      <span className="text-right font-mono text-xs">
+                        {position.entryPx}
+                      </span>
+                      <span className="text-right font-mono text-xs text-rose-300/80">
+                        {posLiq ? formatUsd(posLiq) : "—"}
+                      </span>
+                      <span className="text-right">
+                        {formatUsd(Number(position.positionValue))}
+                      </span>
+                      <span
+                        className={`text-right font-medium ${pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+                      >
+                        {pnl >= 0 ? "+" : ""}
+                        {formatUsd(pnl)}
+                      </span>
+                      <div className="ml-auto flex items-center justify-end gap-1.5">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 rounded-full border-white/10 bg-white/[0.03] px-2.5 text-[11px]"
+                          onClick={() => {
+                            setEditingCoin(position.coin);
+                            setEditExitPrice(position.entryPx);
+                            setEditExitSize(absSz.toString());
+                          }}
+                        >
+                          Edit exit
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={positionActionKey === `${position.coin}-cancel`}
+                          className="h-7 rounded-full border-white/10 bg-white/[0.03] px-2.5 text-[11px]"
+                          onClick={() => void cancelCoinOrders(position.coin)}
+                        >
+                          Cancel exits
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={
+                            positionActionKey ===
+                            `${position.coin}-${isLong ? "sell" : "buy"}-Ioc`
+                          }
+                          className="h-7 rounded-full border-white/10 bg-white/[0.03] px-2.5 text-[11px]"
+                          onClick={() =>
+                            void runPositionOrder({
+                              coin: position.coin,
+                              isBuy: !isLong,
+                              size: absSz,
+                              reduceOnly: true,
+                              tif: "Ioc",
+                            })
+                          }
+                        >
+                          Close
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={
+                            positionActionKey ===
+                            `${position.coin}-${isLong ? "sell" : "buy"}-Ioc`
+                          }
+                          className="h-7 rounded-full bg-emerald-400 px-2.5 text-[11px] font-semibold text-black hover:bg-emerald-300"
+                          onClick={() =>
+                            void runPositionOrder({
+                              coin: position.coin,
+                              isBuy: !isLong,
+                              size: absSz * 2,
+                              reduceOnly: false,
+                              tif: "Ioc",
+                            })
+                          }
+                        >
+                          Reverse
+                        </Button>
+                      </div>
+                    </div>
+                    {editingCoin === position.coin && (
+                      <div className="mt-3 grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-2">
+                        <Input
+                          value={editExitPrice}
+                          onChange={(event) => setEditExitPrice(event.target.value)}
+                          placeholder="Exit price"
+                          className="h-8 rounded-lg border-white/10 bg-white/[0.04] text-xs"
+                        />
+                        <Input
+                          value={editExitSize}
+                          onChange={(event) => setEditExitSize(event.target.value)}
+                          placeholder="Exit size"
+                          className="h-8 rounded-lg border-white/10 bg-white/[0.04] text-xs"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-8 rounded-lg bg-[#2c6bff] px-2.5 text-[11px] hover:bg-[#1f5df2]"
+                          onClick={() =>
+                            void runPositionOrder({
+                              coin: position.coin,
+                              isBuy: !isLong,
+                              size: Number.parseFloat(editExitSize) || 0,
+                              limitPrice: Number.parseFloat(editExitPrice) || 0,
+                              reduceOnly: true,
+                              tif: "Gtc",
+                            })
+                          }
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 rounded-lg border-white/10 bg-white/[0.03] px-2.5 text-[11px]"
+                          onClick={() => setEditingCoin(null)}
+                        >
+                          Dismiss
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -1051,7 +1328,7 @@ function AccountPanel(props: { walletAddress: string }) {
             <span className="text-right">Side</span>
             <span className="text-right">Price</span>
             <span className="text-right">Size</span>
-            <span className="text-right">Type</span>
+            <span className="text-right">Orig size</span>
             <span />
           </div>
           <div className="space-y-2">
@@ -1077,7 +1354,7 @@ function AccountPanel(props: { walletAddress: string }) {
                       {order.sz}
                     </span>
                     <span className="text-right text-xs text-foreground/45">
-                      {order.orderType}
+                      {order.origSz}
                     </span>
                     <button
                       type="button"
@@ -1504,9 +1781,8 @@ export function TerminalShell(props: { market: string }) {
                 {user?.wallet?.address ? "Wallet connected" : "Connected"}
               </span>
               <span>
-                {formatCompactNumber(
-                  e2eConfig.enabled ? 1 : wallets.length,
-                )} linked wallet session
+                {formatCompactNumber(e2eConfig.enabled ? 1 : wallets.length)}{" "}
+                linked wallet session
               </span>
             </div>
             <div className="flex items-center gap-4">

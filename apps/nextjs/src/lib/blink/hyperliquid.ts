@@ -134,6 +134,14 @@ export async function createExchangeClient(wallet: ConnectedWallet) {
  */
 export async function getAssetIndex(coin: string): Promise<number> {
   const [meta] = await infoClient.metaAndAssetCtxs();
+  const idx = getAssetIndexSync(coin, meta);
+  return idx;
+}
+
+export function getAssetIndexSync(
+  coin: string,
+  meta: Awaited<ReturnType<typeof infoClient.metaAndAssetCtxs>>[0],
+): number {
   const idx = meta.universe.findIndex((m) => m.name === coin);
   if (idx === -1) throw new Error(`Unknown market: ${coin}`);
   return idx;

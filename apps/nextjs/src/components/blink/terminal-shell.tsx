@@ -579,7 +579,19 @@ const LEVERAGE_RISK: Record<
  * - The button never shows a spinner — the toast owns loading/success feedback
  * - "submitting" only blocks re-pressing (prevents double orders), invisible to user
  */
-function HoldToConfirmButton({
+/**
+ * Optimistic order submit button.
+ *
+ * Flow:
+ *   1. Press → order fires INSTANTLY (onConfirm called synchronously)
+ *   2. Fill animation plays left→right as visual feedback while API is in-flight
+ *   3. White flash at completion, then spring back to empty
+ *   4. Toast owns success/error state — button never blocks
+ *
+ * Button is disabled only during the active submitting window to prevent
+ * double-fires, but the animation still runs so it never feels frozen.
+ */
+function OrderSubmitButton({
   onConfirm,
   disabled,
   side,
@@ -592,91 +604,75 @@ function HoldToConfirmButton({
   market: string;
   submitting: boolean;
 }) {
-  const fillX = useMotionValue(0); // 0 → 100
-  const flashOpacity = useMotionValue(0); // flash overlay on completion
+  const fillX = useMotionValue(0);
+  const flashOpacity = useMotionValue(0);
   const fillWidth = useTransform(fillX, [0, 100], ["0%", "100%"]);
-  const holdingRef = useRef(false);
-  const doneRef = useRef(false);
   const animRef = useRef<ReturnType<typeof animate> | null>(null);
-  const HOLD_MS = 0.6;
-
   const isBuy = side === "buy";
 
-  const startHold = useCallback(() => {
+  const handlePress = useCallback(() => {
     if (disabled || submitting) return;
-    holdingRef.current = true;
-    doneRef.current = false;
 
+    // ── 1. Fire the order immediately — zero latency ──────────────────────
+    onConfirm();
+
+    // ── 2. Play fill animation as in-flight feedback ──────────────────────
+    animRef.current?.stop();
+    // Snap to 0 instantly then sweep to 100
+    fillX.set(0);
     animRef.current = animate(fillX, 100, {
-      duration: HOLD_MS,
-      ease: "linear",
+      duration: 0.55,
+      ease: [0.25, 0.1, 0.25, 1], // ease-in-out cubic
       onComplete: () => {
-        if (!holdingRef.current) return;
-        doneRef.current = true;
-
-        // 1. Fire the order immediately (zero-latency feel)
-        onConfirm();
-
-        // 2. Flash the button white — instant haptic-like reward
-        void animate(flashOpacity, 0.35, { duration: 0.08 }).then(() =>
-          animate(flashOpacity, 0, { duration: 0.22 }),
+        // White flash — feels like a confirmation pulse
+        void animate(flashOpacity, 0.3, { duration: 0.07 }).then(() =>
+          animate(flashOpacity, 0, { duration: 0.2 }),
         );
-
-        // 3. Spring the fill back after the flash
+        // Spring back to empty
         setTimeout(() => {
-          holdingRef.current = false;
-          void animate(fillX, 0, { duration: 0.35, ease: [0.22, 1, 0.36, 1] });
-        }, 100);
+          void animate(fillX, 0, {
+            duration: 0.4,
+            ease: [0.22, 1, 0.36, 1], // ease-out expo
+          });
+        }, 90);
       },
     });
   }, [fillX, flashOpacity, disabled, submitting, onConfirm]);
 
-  const cancelHold = useCallback(() => {
-    if (doneRef.current) return; // don't cancel after a confirmed fire
-    if (!holdingRef.current) return;
-    holdingRef.current = false;
-    animRef.current?.stop();
-    void animate(fillX, 0, { duration: 0.28, ease: [0.33, 1, 0.68, 1] });
-  }, [fillX]);
-
   return (
     <motion.button
       type="button"
-      disabled={disabled || submitting}
-      onPointerDown={startHold}
-      onPointerUp={cancelHold}
-      onPointerLeave={cancelHold}
-      onPointerCancel={cancelHold}
+      disabled={disabled}
+      onClick={handlePress}
       className={`relative mt-4 h-12 w-full select-none overflow-hidden rounded-full border text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
         isBuy
           ? "border-emerald-400/30 bg-emerald-400/[0.06]"
           : "border-rose-400/30 bg-rose-400/[0.06]"
       }`}
-      style={{ touchAction: "none" }}
-      whileTap={{ scale: 0.978 }}
-      transition={{ type: "spring", stiffness: 500, damping: 30 }}
+      whileTap={{ scale: 0.975 }}
+      transition={{ type: "spring", stiffness: 600, damping: 35 }}
     >
-      {/* Color fill */}
+      {/* Fill bar — sweeps in as feedback */}
       <motion.div
         className="absolute inset-y-0 left-0"
         style={{
           width: fillWidth,
           background: isBuy
-            ? "linear-gradient(90deg,#047857 0%,#34d399 80%,#6ee7b7 100%)"
-            : "linear-gradient(90deg,#9f1239 0%,#f87171 80%,#fca5a5 100%)",
+            ? "linear-gradient(90deg,#047857 0%,#34d399 78%,#6ee7b7 100%)"
+            : "linear-gradient(90deg,#9f1239 0%,#f87171 78%,#fca5a5 100%)",
         }}
       />
 
-      {/* Flash overlay (white burst on confirm) */}
+      {/* White flash on complete */}
       <motion.div
-        className="absolute inset-0 bg-white"
+        className="pointer-events-none absolute inset-0 bg-white"
         style={{ opacity: flashOpacity }}
       />
 
-      {/* Label — always visible, never a spinner */}
+      {/* Label — clean, no spinner, always readable */}
       <span
-        className="relative z-10 flex items-center justify-center gap-2 font-semibold text-white"
-        style={{ textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}
+        className="relative z-10 flex items-center justify-center font-semibold text-white"
+        style={{ textShadow: "0 1px 6px rgba(0,0,0,0.55)" }}
       >
         {`${isBuy ? "Buy / Long" : "Sell / Short"} ${market}`}
       </span>
@@ -1363,9 +1359,8 @@ function OrderEntryPanel(props: {
         </div>
       )}
 
-      <HoldToConfirmButton
+      <OrderSubmitButton
         onConfirm={() => void handleSubmit()}
-        disabled={false}
         side={side}
         market={props.market}
         submitting={submitting}
@@ -1620,33 +1615,6 @@ function AccountPanel(props: {
               </span>
             </div>
           </Badge>
-        </div>
-      </div>
-
-      <div className="mt-4 grid gap-3 md:grid-cols-4">
-        <div className="rounded-[20px] border border-white/8 bg-white/[0.04] p-4">
-          <p className="terminal-label">Account value</p>
-          <p className="mt-2 text-2xl font-semibold text-white">
-            {formatUsd(accountValue)}
-          </p>
-        </div>
-        <div className="rounded-[20px] border border-white/8 bg-white/[0.04] p-4">
-          <p className="terminal-label">Open positions</p>
-          <p className="mt-2 text-2xl font-semibold text-white">
-            {positions.length}
-          </p>
-        </div>
-        <div className="rounded-[20px] border border-white/8 bg-white/[0.04] p-4">
-          <p className="terminal-label">Open orders</p>
-          <p className="mt-2 text-2xl font-semibold text-white">
-            {openOrders.length}
-          </p>
-        </div>
-        <div className="rounded-[20px] border border-white/8 bg-white/[0.04] p-4">
-          <p className="terminal-label">Recent fills</p>
-          <p className="mt-2 text-2xl font-semibold text-white">
-            {recentFills.length}
-          </p>
         </div>
       </div>
 

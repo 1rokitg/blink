@@ -1550,7 +1550,7 @@ export function TerminalShell(props: { market: string }) {
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
-  const resolvedBuilderFeeUnits = builderFeeQuery.data?.feeUnits ?? 100;
+  const resolvedBuilderFeeUnits = builderFeeQuery.data?.feeUnits ?? 10;
   const approvalQuery = useQuery({
     queryKey: [
       "blink",

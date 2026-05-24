@@ -24,8 +24,8 @@ export const env = createEnv({
     TWITTER_CLIENT_SECRET: z.string().default(""),
     /** Stripe secret key used to create Blink Pro checkout sessions. */
     STRIPE_SECRET_KEY: z.string().default(""),
-    /** Blink Pro reduced builder fee in 0.1bps units (e.g. 70 = 0.007%). */
-    BLINK_PRO_BUILDER_FEE_BPS: z.coerce.number().int().min(0).default(70),
+    /** Blink Pro reduced builder fee in HL units (1 unit = 0.001%). e.g. 7 = 0.007%. */
+    BLINK_PRO_BUILDER_FEE_BPS: z.coerce.number().int().min(0).default(7),
     /** Optional comma-separated wallet allowlist for Pro fee while webhooks are rolling out. */
     BLINK_PRO_WALLET_ALLOWLIST: z.string().default(""),
   },
@@ -40,8 +40,8 @@ export const env = createEnv({
       .string()
       .regex(/^0x[0-9a-fA-F]{40}$/, "Must be a valid EVM address")
       .transform((addr) => getAddress(addr)),
-    /** Builder fee in 0.1bps units. 100 = 0.01%. */
-    NEXT_PUBLIC_BUILDER_FEE_BPS: z.coerce.number().int().min(0).default(100),
+    /** Builder fee in HL units (1 unit = 0.1bps = 0.001%). 10 = 0.01%, 100 = 0.1% (max). */
+    NEXT_PUBLIC_BUILDER_FEE_BPS: z.coerce.number().int().min(0).default(10),
     /** Canonical app URL used to form OAuth redirect URIs. */
     NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
   },

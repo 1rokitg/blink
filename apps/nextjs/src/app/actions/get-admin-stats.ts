@@ -7,6 +7,7 @@ import { BlinkMembership, BuilderApproval, MetricEvent, Referral } from "@acme/d
 
 import {
   getBuilderAttributionSnapshot,
+  getLiveBuilderFillFeed,
   getBuilderMetricsSnapshot,
   syncBuilderDailyMetrics,
 } from "~/lib/blink/internal-metrics.server";
@@ -68,6 +69,26 @@ export interface AdminStats {
         fillsCount: number;
       }>;
     };
+    live: {
+      windowMinutes: number;
+      totals: {
+        revenueUsd: number;
+        notionalUsd: number;
+        fillsCount: number;
+      };
+      fills: Array<{
+        time: number;
+        walletAddress: string;
+        coin: string;
+        side: "buy" | "sell";
+        px: number;
+        sz: number;
+        notionalUsd: number;
+        builderFeeUsd: number;
+        feeUnits: number;
+        tid: string;
+      }>;
+    };
   };
   recentApprovals: Array<{
     walletAddress: string;
@@ -85,6 +106,9 @@ export interface AdminStats {
 
 export async function getAdminStats(options?: {
   syncHyperliquid?: boolean;
+  includeAttribution?: boolean;
+  liveWindowMinutes?: number;
+  liveLimit?: number;
 }): Promise<AdminStats> {
   if (options?.syncHyperliquid) {
     await syncBuilderDailyMetrics(90);
@@ -94,7 +118,11 @@ export async function getAdminStats(options?: {
   const ms24h = 24 * 60 * 60 * 1000;
   const ms7d = 7 * ms24h;
 
-  const [totalRows, allApprovals, referralRows, activeProRows, metricRows, builderSnapshot, attribution, featureFlags] = await Promise.all([
+  const includeAttribution = options?.includeAttribution ?? true;
+  const liveWindowMinutes = options?.liveWindowMinutes ?? 30;
+  const liveLimit = options?.liveLimit ?? 120;
+
+  const [totalRows, allApprovals, referralRows, activeProRows, metricRows, builderSnapshot, attribution, liveFeed, featureFlags] = await Promise.all([
     db.select({ c: count() }).from(BuilderApproval),
     db
       .select({
@@ -119,7 +147,17 @@ export async function getAdminStats(options?: {
       .orderBy(desc(MetricEvent.createdAt))
       .limit(3000),
     getBuilderMetricsSnapshot(90),
-    getBuilderAttributionSnapshot(90),
+    includeAttribution
+      ? getBuilderAttributionSnapshot(90)
+      : Promise.resolve({
+          byUser: [],
+          bySource: [],
+          byCountry: [],
+        }),
+    getLiveBuilderFillFeed({
+      minutes: liveWindowMinutes,
+      limit: liveLimit,
+    }),
     getFeatureFlags(),
   ]);
 
@@ -199,6 +237,11 @@ export async function getAdminStats(options?: {
       fillsCount: builderSnapshot.totals.fillsCount,
       series: builderSnapshot.series,
       attribution,
+      live: {
+        windowMinutes: liveWindowMinutes,
+        totals: liveFeed.totals,
+        fills: liveFeed.fills,
+      },
     },
     recentApprovals: allApprovals.slice(0, 10).map((a) => ({
       walletAddress: a.walletAddress,

@@ -19,7 +19,7 @@ import {
 
 import { getAdminStats, type AdminStats } from "~/app/actions/get-admin-stats";
 import { setFeatureFlagAction } from "~/app/actions/set-feature-flag";
-import { isAdminWallet } from "~/lib/blink/admin-allowlist";
+import { getWalletRole, isAdminWallet } from "~/lib/blink/admin-allowlist";
 
 function truncateAddress(address: string) {
   if (!address) return "—";
@@ -61,31 +61,61 @@ function formatLabel(input: string) {
 
 export function AdminDashboard() {
   const { wallets } = useWallets();
-  const walletAddress = wallets[0]?.address?.toLowerCase() ?? "";
-  const isAllowed = isAdminWallet(walletAddress);
+  const connectedWallets = wallets
+    .map((wallet) => wallet.address?.toLowerCase())
+    .filter((address): address is string => Boolean(address));
+  const matchedAdminWallet =
+    connectedWallets.find((address) => isAdminWallet(address)) ?? "";
+  const walletAddress = matchedAdminWallet || connectedWallets[0] || "";
+  const isAllowed = Boolean(matchedAdminWallet);
+  const role = getWalletRole(matchedAdminWallet);
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [flagSaving, setFlagSaving] = useState<string | null>(null);
 
-  const fetchStats = useCallback(async (syncHyperliquid = false) => {
-    setLoading(true);
+  const fetchStats = useCallback(async (options?: {
+    syncHyperliquid?: boolean;
+    includeAttribution?: boolean;
+    isBackground?: boolean;
+  }) => {
+    if (!options?.isBackground) {
+      setLoading(true);
+    }
     try {
-      const data = await getAdminStats({ syncHyperliquid });
+      const data = await getAdminStats({
+        syncHyperliquid: options?.syncHyperliquid,
+        includeAttribution: options?.includeAttribution,
+        liveWindowMinutes: 30,
+        liveLimit: 120,
+      });
       setStats(data);
       setLastFetched(new Date());
     } catch (err) {
       console.error("[admin] Failed to load stats:", err);
     } finally {
-      setLoading(false);
+      if (!options?.isBackground) {
+        setLoading(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     if (isAllowed) {
-      void fetchStats(true);
+      void fetchStats({ syncHyperliquid: true, includeAttribution: true });
     }
+  }, [fetchStats, isAllowed]);
+
+  useEffect(() => {
+    if (!isAllowed) return;
+    const id = setInterval(() => {
+      void fetchStats({
+        includeAttribution: false,
+        isBackground: true,
+      });
+    }, 8_000);
+    return () => clearInterval(id);
   }, [fetchStats, isAllowed]);
 
   const chartConfig = {
@@ -117,9 +147,12 @@ export function AdminDashboard() {
               </code>{" "}
               to unlock the metrics surface.
             </p>
-            {walletAddress && (
+            {connectedWallets.length > 0 && (
               <p className="mt-3 font-mono text-sm text-foreground/45">
-                Connected: {walletAddress}
+                Connected: {connectedWallets[0]}
+                {connectedWallets.length > 1
+                  ? ` (+${connectedWallets.length - 1} linked)`
+                  : ""}
               </p>
             )}
             <Link
@@ -142,6 +175,11 @@ export function AdminDashboard() {
             <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
               Internal dashboard
             </Badge>
+            {role === "superuser" ? (
+              <Badge className="ml-2 rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-amber-300">
+                Superuser
+              </Badge>
+            ) : null}
             <h1 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-white">
               Blink metrics
             </h1>
@@ -154,7 +192,12 @@ export function AdminDashboard() {
             )}
             <button
               type="button"
-              onClick={() => void fetchStats(true)}
+              onClick={() =>
+                void fetchStats({
+                  syncHyperliquid: true,
+                  includeAttribution: true,
+                })
+              }
               disabled={loading}
               className="inline-flex items-center gap-2 rounded-[10px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-foreground/70 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
             >
@@ -163,7 +206,7 @@ export function AdminDashboard() {
               ) : (
                 <RefreshCw className="size-3.5" />
               )}
-              Refresh
+              Refresh (full)
             </button>
           </div>
         </div>
@@ -436,6 +479,91 @@ export function AdminDashboard() {
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="glass-card mt-6 p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-white">
+              Live builder fill revenue
+            </h2>
+            <span className="text-xs text-foreground/45">
+              Polling every 8s · last {stats?.builder.live.windowMinutes ?? 30}m
+            </span>
+          </div>
+          <div className="mb-4 grid gap-3 md:grid-cols-3">
+            <div className="rounded-[10px] border border-white/10 bg-white/[0.03] px-3 py-2">
+              <p className="text-[11px] uppercase tracking-[0.12em] text-foreground/45">
+                Revenue (window)
+              </p>
+              <p className="mt-1 text-xl font-semibold text-emerald-300">
+                {formatMoney(stats?.builder.live.totals.revenueUsd ?? 0)}
+              </p>
+            </div>
+            <div className="rounded-[10px] border border-white/10 bg-white/[0.03] px-3 py-2">
+              <p className="text-[11px] uppercase tracking-[0.12em] text-foreground/45">
+                Notional (window)
+              </p>
+              <p className="mt-1 text-xl font-semibold text-white">
+                {formatCompact(stats?.builder.live.totals.notionalUsd ?? 0)}
+              </p>
+            </div>
+            <div className="rounded-[10px] border border-white/10 bg-white/[0.03] px-3 py-2">
+              <p className="text-[11px] uppercase tracking-[0.12em] text-foreground/45">
+                Fills (window)
+              </p>
+              <p className="mt-1 text-xl font-semibold text-white">
+                {stats?.builder.live.totals.fillsCount ?? 0}
+              </p>
+            </div>
+          </div>
+          <div className="max-h-[360px] overflow-auto rounded-[12px] border border-white/10">
+            <table className="w-full min-w-[980px] text-sm">
+              <thead className="sticky top-0 bg-[#081126] text-left text-xs uppercase tracking-[0.12em] text-foreground/45">
+                <tr>
+                  <th className="px-3 py-2">Time</th>
+                  <th className="px-3 py-2">Wallet</th>
+                  <th className="px-3 py-2">Market</th>
+                  <th className="px-3 py-2">Side</th>
+                  <th className="px-3 py-2 text-right">Price</th>
+                  <th className="px-3 py-2 text-right">Size</th>
+                  <th className="px-3 py-2 text-right">Notional</th>
+                  <th className="px-3 py-2 text-right">Fee units</th>
+                  <th className="px-3 py-2 text-right">Builder rev</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {(stats?.builder.live.fills ?? []).map((fill) => (
+                  <tr key={`${fill.tid}-${fill.walletAddress}`}>
+                    <td className="px-3 py-2 text-foreground/65">
+                      {new Date(fill.time).toLocaleTimeString()}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-xs text-foreground/78">
+                      {truncateAddress(fill.walletAddress)}
+                    </td>
+                    <td className="px-3 py-2 text-white">{fill.coin}</td>
+                    <td className={`px-3 py-2 ${fill.side === "buy" ? "text-emerald-300" : "text-rose-300"}`}>
+                      {fill.side.toUpperCase()}
+                    </td>
+                    <td className="px-3 py-2 text-right text-white/85">
+                      {fill.px.toFixed(4)}
+                    </td>
+                    <td className="px-3 py-2 text-right text-white/85">
+                      {fill.sz.toFixed(6)}
+                    </td>
+                    <td className="px-3 py-2 text-right text-white/85">
+                      {formatMoney(fill.notionalUsd)}
+                    </td>
+                    <td className="px-3 py-2 text-right text-white/70">
+                      {fill.feeUnits}
+                    </td>
+                    <td className="px-3 py-2 text-right font-semibold text-emerald-300">
+                      {formatMoney(fill.builderFeeUsd)}
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

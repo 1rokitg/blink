@@ -16,6 +16,19 @@ type TrackMetricEventInput = {
   metadata?: Record<string, unknown>;
 };
 
+type BuilderFillRow = {
+  time: number;
+  walletAddress: string;
+  coin: string;
+  side: "buy" | "sell";
+  px: number;
+  sz: number;
+  notionalUsd: number;
+  builderFeeUsd: number;
+  feeUnits: number;
+  tid: string;
+};
+
 function toDayKey(date: Date) {
   const y = date.getUTCFullYear();
   const m = `${date.getUTCMonth() + 1}`.padStart(2, "0");
@@ -26,6 +39,68 @@ function toDayKey(date: Date) {
 function numberOrZero(value: unknown) {
   const n = Number(value ?? 0);
   return Number.isFinite(n) ? n : 0;
+}
+
+function estimateBuilderFeeUsd(
+  params: {
+    coin: string;
+    notionalUsd: number;
+    walletAddress: string;
+    explicitBuilderFeeUsd?: number;
+  },
+  proSet: Set<string>,
+) {
+  const explicit = numberOrZero(params.explicitBuilderFeeUsd);
+  if (explicit > 0) {
+    return {
+      builderFeeUsd: explicit,
+      feeUnits:
+        params.notionalUsd > 0 ? Math.round((explicit / params.notionalUsd) * 1e6) : 0,
+    };
+  }
+
+  const isZeroFeeGrowthMarket =
+    isGrowthModeEnabled() && GROWTH_ZERO_FEE_MARKETS.includes(params.coin);
+  const feeUnits =
+    isZeroFeeGrowthMarket
+      ? 0
+      : proSet.has(params.walletAddress.toLowerCase())
+        ? env.BLINK_PRO_BUILDER_FEE_BPS
+        : BUILDER_FEE_UNITS;
+  return {
+    builderFeeUsd: params.notionalUsd * feeUnits * 1e-6,
+    feeUnits,
+  };
+}
+
+async function getApprovedWallets() {
+  const approvalRows = await db
+    .select({
+      walletAddress: BuilderApproval.walletAddress,
+    })
+    .from(BuilderApproval);
+  return Array.from(
+    new Set(
+      approvalRows
+        .map((row) => row.walletAddress?.toLowerCase())
+        .filter(Boolean),
+    ),
+  );
+}
+
+async function getActiveProSet() {
+  const activeProRows = await db
+    .select({
+      walletAddress: BlinkMembership.walletAddress,
+    })
+    .from(BlinkMembership)
+    .where(
+      and(
+        eq(BlinkMembership.status, "active"),
+        gte(BlinkMembership.currentPeriodEnd, new Date()),
+      ),
+    );
+  return new Set(activeProRows.map((row) => row.walletAddress.toLowerCase()));
 }
 
 export async function trackMetricEvent(input: TrackMetricEventInput) {
@@ -45,38 +120,13 @@ export async function syncBuilderDailyMetrics(days = 90) {
   const now = Date.now();
   const startTime = now - days * 24 * 60 * 60 * 1000;
 
-  const approvalRows = await db
-    .select({
-      walletAddress: BuilderApproval.walletAddress,
-    })
-    .from(BuilderApproval);
-
-  const approvedWallets = Array.from(
-    new Set(
-      approvalRows
-        .map((row) => row.walletAddress?.toLowerCase())
-        .filter(Boolean),
-    ),
-  );
+  const approvedWallets = await getApprovedWallets();
 
   if (approvedWallets.length === 0) {
     return { syncedDays: 0, wallets: 0 };
   }
 
-  const activeProRows = await db
-    .select({
-      walletAddress: BlinkMembership.walletAddress,
-    })
-    .from(BlinkMembership)
-    .where(
-      and(
-        eq(BlinkMembership.status, "active"),
-        gte(BlinkMembership.currentPeriodEnd, new Date()),
-      ),
-    );
-  const proSet = new Set(
-    activeProRows.map((row) => row.walletAddress.toLowerCase()),
-  );
+  const proSet = await getActiveProSet();
 
   const dayMap = new Map<
     string,
@@ -112,19 +162,17 @@ export async function syncBuilderDailyMetrics(days = 90) {
       if (!Number.isFinite(volume) || volume <= 0) continue;
 
       const feeUsd = Math.abs(numberOrZero(fill.fee));
-      let builderFeeUsd = numberOrZero((fill as { builderFee?: unknown }).builderFee);
-
-      if (!builderFeeUsd) {
-        const isZeroFeeGrowthMarket =
-          isGrowthModeEnabled() && GROWTH_ZERO_FEE_MARKETS.includes(coin);
-        const feeUnits =
-          isZeroFeeGrowthMarket
-            ? 0
-            : proSet.has(wallet.toLowerCase())
-              ? env.BLINK_PRO_BUILDER_FEE_BPS
-              : BUILDER_FEE_UNITS;
-        builderFeeUsd = volume * feeUnits * 1e-6;
-      }
+      const { builderFeeUsd } = estimateBuilderFeeUsd(
+        {
+          coin,
+          notionalUsd: volume,
+          walletAddress: wallet,
+          explicitBuilderFeeUsd: numberOrZero(
+            (fill as { builderFee?: unknown }).builderFee,
+          ),
+        },
+        proSet,
+      );
 
       const current = dayMap.get(day) ?? {
         activeUsers: new Set<string>(),
@@ -219,8 +267,8 @@ export async function getBuilderAttributionSnapshot(days = 90) {
   const now = Date.now();
   const startTime = now - days * 24 * 60 * 60 * 1000;
 
-  const [approvalRows, signupRows, activeProRows] = await Promise.all([
-    db.select({ walletAddress: BuilderApproval.walletAddress }).from(BuilderApproval),
+  const [approvedWallets, signupRows, proSet] = await Promise.all([
+    getApprovedWallets(),
     db
       .select({
         walletAddress: MetricEvent.walletAddress,
@@ -231,21 +279,8 @@ export async function getBuilderAttributionSnapshot(days = 90) {
       .from(MetricEvent)
       .where(eq(MetricEvent.eventType, "signup"))
       .orderBy(desc(MetricEvent.createdAt)),
-    db
-      .select({ walletAddress: BlinkMembership.walletAddress })
-      .from(BlinkMembership)
-      .where(
-        and(
-          eq(BlinkMembership.status, "active"),
-          gte(BlinkMembership.currentPeriodEnd, new Date()),
-        ),
-      ),
+    getActiveProSet(),
   ]);
-
-  const approvedWallets = Array.from(
-    new Set(approvalRows.map((r) => r.walletAddress?.toLowerCase()).filter(Boolean)),
-  );
-  const proSet = new Set(activeProRows.map((r) => r.walletAddress.toLowerCase()));
   const signupMap = new Map<
     string,
     {
@@ -294,18 +329,17 @@ export async function getBuilderAttributionSnapshot(days = 90) {
       const volume = px * sz;
       if (!Number.isFinite(volume) || volume <= 0) continue;
 
-      let builderFeeUsd = numberOrZero((fill as { builderFee?: unknown }).builderFee);
-      if (!builderFeeUsd) {
-        const isZeroFeeGrowthMarket =
-          isGrowthModeEnabled() && GROWTH_ZERO_FEE_MARKETS.includes(coin);
-        const feeUnits =
-          isZeroFeeGrowthMarket
-            ? 0
-            : proSet.has(wallet.toLowerCase())
-              ? env.BLINK_PRO_BUILDER_FEE_BPS
-              : BUILDER_FEE_UNITS;
-        builderFeeUsd = volume * feeUnits * 1e-6;
-      }
+      const { builderFeeUsd } = estimateBuilderFeeUsd(
+        {
+          coin,
+          notionalUsd: volume,
+          walletAddress: wallet,
+          explicitBuilderFeeUsd: numberOrZero(
+            (fill as { builderFee?: unknown }).builderFee,
+          ),
+        },
+        proSet,
+      );
 
       const currentUser = byUser.get(wallet) ?? {
         walletAddress: wallet,
@@ -359,4 +393,82 @@ export async function getBuilderAttributionSnapshot(days = 90) {
       .map((r) => ({ ...r, users: r.users.size }))
       .sort((a, b) => b.revenueUsd - a.revenueUsd),
   };
+}
+
+export async function getLiveBuilderFillFeed(options?: {
+  minutes?: number;
+  limit?: number;
+}) {
+  const minutes = Math.max(1, Math.min(options?.minutes ?? 30, 360));
+  const limit = Math.max(10, Math.min(options?.limit ?? 200, 500));
+  const startTime = Date.now() - minutes * 60 * 1000;
+
+  const [approvedWallets, proSet] = await Promise.all([
+    getApprovedWallets(),
+    getActiveProSet(),
+  ]);
+  if (approvedWallets.length === 0) {
+    return { fills: [] as BuilderFillRow[], totals: { revenueUsd: 0, notionalUsd: 0, fillsCount: 0 } };
+  }
+
+  const allFills: BuilderFillRow[] = [];
+  for (const wallet of approvedWallets) {
+    let fills: Array<Record<string, unknown>> = [];
+    try {
+      fills = (await infoClient.userFillsByTime({
+        user: wallet as `0x${string}`,
+        startTime,
+      })) as unknown as Array<Record<string, unknown>>;
+    } catch (error) {
+      console.warn("[metrics] live fill feed failed", { wallet, error });
+      continue;
+    }
+
+    for (const fill of fills) {
+      const coin = String(fill.coin ?? "").toUpperCase();
+      const time = numberOrZero(fill.time);
+      if (!time) continue;
+      const px = numberOrZero(fill.px);
+      const sz = Math.abs(numberOrZero(fill.sz));
+      const notionalUsd = px * sz;
+      if (!Number.isFinite(notionalUsd) || notionalUsd <= 0) continue;
+      const sideRaw = String(fill.side ?? "").toLowerCase();
+      const side: "buy" | "sell" = sideRaw.includes("sell") ? "sell" : "buy";
+      const { builderFeeUsd, feeUnits } = estimateBuilderFeeUsd(
+        {
+          coin,
+          notionalUsd,
+          walletAddress: wallet,
+          explicitBuilderFeeUsd: numberOrZero(
+            (fill as { builderFee?: unknown }).builderFee,
+          ),
+        },
+        proSet,
+      );
+      allFills.push({
+        time,
+        walletAddress: wallet,
+        coin,
+        side,
+        px,
+        sz,
+        notionalUsd,
+        builderFeeUsd,
+        feeUnits,
+        tid: String(fill.tid ?? `${wallet}-${time}`),
+      });
+    }
+  }
+
+  const fills = allFills.sort((a, b) => b.time - a.time).slice(0, limit);
+  const totals = fills.reduce(
+    (acc, fill) => {
+      acc.revenueUsd += fill.builderFeeUsd;
+      acc.notionalUsd += fill.notionalUsd;
+      acc.fillsCount += 1;
+      return acc;
+    },
+    { revenueUsd: 0, notionalUsd: 0, fillsCount: 0 },
+  );
+  return { fills, totals };
 }

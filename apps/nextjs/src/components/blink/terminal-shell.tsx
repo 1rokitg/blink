@@ -583,13 +583,11 @@ const LEVERAGE_RISK: Record<
  * Optimistic order submit button.
  *
  * Flow:
- *   1. Press → order fires INSTANTLY (onConfirm called synchronously)
- *   2. Fill animation plays left→right as visual feedback while API is in-flight
- *   3. White flash at completion, then spring back to empty
- *   4. Toast owns success/error state — button never blocks
- *
- * Button is disabled only during the active submitting window to prevent
- * double-fires, but the animation still runs so it never feels frozen.
+ *   1. Press → order fires INSTANTLY (zero latency)
+ *   2. Gentle fill sweeps left→right as in-flight feedback (~750ms)
+ *   3. Soft white pulse at sweep completion, graceful spring-back
+ *   4. When HL confirms the fill → emerald/rose glow pulses around the button
+ *   5. Toast owns success/error messaging — button is purely visual
  */
 function OrderSubmitButton({
   onConfirm,
@@ -597,86 +595,114 @@ function OrderSubmitButton({
   side,
   market,
   submitting,
+  orderResult,
 }: {
   onConfirm: () => void;
   disabled?: boolean;
   side: "buy" | "sell";
   market: string;
   submitting: boolean;
+  orderResult: "idle" | "success" | "error";
 }) {
   const fillX = useMotionValue(0);
   const flashOpacity = useMotionValue(0);
+  const glowOpacity = useMotionValue(0);
   const fillWidth = useTransform(fillX, [0, 100], ["0%", "100%"]);
   const animRef = useRef<ReturnType<typeof animate> | null>(null);
   const isBuy = side === "buy";
 
+  // ── Press handler — fire order first, then animate ────────────────────────
   const handlePress = useCallback(() => {
     if (disabled || submitting) return;
 
-    // ── 1. Fire the order immediately — zero latency ──────────────────────
-    onConfirm();
+    onConfirm(); // instant
 
-    // ── 2. Play fill animation as in-flight feedback ──────────────────────
     animRef.current?.stop();
-    // Snap to 0 instantly then sweep to 100
     fillX.set(0);
     animRef.current = animate(fillX, 100, {
-      duration: 0.55,
-      ease: [0.25, 0.1, 0.25, 1], // ease-in-out cubic
+      duration: 0.75,             // a touch slower — easier on the eye
+      ease: [0.4, 0, 0.2, 1],    // material ease-in-out
       onComplete: () => {
-        // White flash — feels like a confirmation pulse
-        void animate(flashOpacity, 0.3, { duration: 0.07 }).then(() =>
-          animate(flashOpacity, 0, { duration: 0.2 }),
+        // Soft white pulse
+        void animate(flashOpacity, 0.22, { duration: 0.1 }).then(() =>
+          animate(flashOpacity, 0, { duration: 0.28 }),
         );
-        // Spring back to empty
+        // Graceful spring-back
         setTimeout(() => {
           void animate(fillX, 0, {
-            duration: 0.4,
-            ease: [0.22, 1, 0.36, 1], // ease-out expo
+            duration: 0.5,
+            ease: [0.22, 1, 0.36, 1],
           });
-        }, 90);
+        }, 110);
       },
     });
   }, [fillX, flashOpacity, disabled, submitting, onConfirm]);
 
+  // ── Glow when HL confirms the fill ───────────────────────────────────────
+  useEffect(() => {
+    if (orderResult === "idle") return;
+    // Quick in, slow fade — like a heartbeat
+    void animate(glowOpacity, 1, { duration: 0.15 }).then(() =>
+      animate(glowOpacity, 0, { duration: 1.1, ease: [0.16, 1, 0.3, 1] }),
+    );
+  }, [orderResult, glowOpacity]);
+
+  const glowColor =
+    orderResult === "error"
+      ? "rgba(248,113,113,0.55)"   // rose
+      : isBuy
+        ? "rgba(52,211,153,0.55)"  // emerald
+        : "rgba(251,113,133,0.55)"; // rose for sell success
+
   return (
-    <motion.button
-      type="button"
-      disabled={disabled}
-      onClick={handlePress}
-      className={`relative mt-4 h-12 w-full select-none overflow-hidden rounded-full border text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
-        isBuy
-          ? "border-emerald-400/30 bg-emerald-400/[0.06]"
-          : "border-rose-400/30 bg-rose-400/[0.06]"
-      }`}
-      whileTap={{ scale: 0.975 }}
-      transition={{ type: "spring", stiffness: 600, damping: 35 }}
-    >
-      {/* Fill bar — sweeps in as feedback */}
+    <div className="relative mt-4">
+      {/* Glow ring — sits outside the button, doesn't clip */}
       <motion.div
-        className="absolute inset-y-0 left-0"
+        className="pointer-events-none absolute inset-0 rounded-full"
         style={{
-          width: fillWidth,
-          background: isBuy
-            ? "linear-gradient(90deg,#047857 0%,#34d399 78%,#6ee7b7 100%)"
-            : "linear-gradient(90deg,#9f1239 0%,#f87171 78%,#fca5a5 100%)",
+          opacity: glowOpacity,
+          boxShadow: `0 0 0 3px ${glowColor}, 0 0 24px 6px ${glowColor}`,
         }}
       />
 
-      {/* White flash on complete */}
-      <motion.div
-        className="pointer-events-none absolute inset-0 bg-white"
-        style={{ opacity: flashOpacity }}
-      />
-
-      {/* Label — clean, no spinner, always readable */}
-      <span
-        className="relative z-10 flex items-center justify-center font-semibold text-white"
-        style={{ textShadow: "0 1px 6px rgba(0,0,0,0.55)" }}
+      <motion.button
+        type="button"
+        disabled={disabled}
+        onClick={handlePress}
+        className={`relative h-12 w-full select-none overflow-hidden rounded-full border text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+          isBuy
+            ? "border-emerald-400/30 bg-emerald-400/[0.06]"
+            : "border-rose-400/30 bg-rose-400/[0.06]"
+        }`}
+        whileTap={{ scale: 0.976 }}
+        transition={{ type: "spring", stiffness: 500, damping: 32 }}
       >
-        {`${isBuy ? "Buy / Long" : "Sell / Short"} ${market}`}
-      </span>
-    </motion.button>
+        {/* Fill bar */}
+        <motion.div
+          className="absolute inset-y-0 left-0"
+          style={{
+            width: fillWidth,
+            background: isBuy
+              ? "linear-gradient(90deg,#047857 0%,#34d399 75%,#6ee7b7 100%)"
+              : "linear-gradient(90deg,#9f1239 0%,#f87171 75%,#fca5a5 100%)",
+          }}
+        />
+
+        {/* Soft white pulse */}
+        <motion.div
+          className="pointer-events-none absolute inset-0 bg-white"
+          style={{ opacity: flashOpacity }}
+        />
+
+        {/* Label */}
+        <span
+          className="relative z-10 flex items-center justify-center font-semibold text-white"
+          style={{ textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}
+        >
+          {`${isBuy ? "Buy / Long" : "Sell / Short"} ${market}`}
+        </span>
+      </motion.button>
+    </div>
   );
 }
 
@@ -698,6 +724,7 @@ function OrderEntryPanel(props: {
   const [leverage, setLeverage] = useState(10);
   const [updatingLeverage, setUpdatingLeverage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [orderResult, setOrderResult] = useState<"idle" | "success" | "error">("idle");
 
   // Live mark price — poll allMids every 3s
   const markQuery = useQuery({
@@ -970,16 +997,20 @@ function OrderEntryPanel(props: {
         );
       }
 
+      // Signal fill confirmation — triggers glow on the button
+      setOrderResult("success");
+      setTimeout(() => setOrderResult("idle"), 1800);
+
       setSize("");
       setPrice("");
-      // Refresh account state immediately
       void queryClient.invalidateQueries({
         queryKey: ["blink", "account", props.walletAddress],
       });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      // Agent key not approved yet — re-trigger setup automatically
       const msgLower = msg.toLowerCase();
+      setOrderResult("error");
+      setTimeout(() => setOrderResult("idle"), 1800);
       if (
         msgLower.includes("does not exist") ||
         msgLower.includes("builder fee has not been approved")
@@ -1364,6 +1395,7 @@ function OrderEntryPanel(props: {
         side={side}
         market={props.market}
         submitting={submitting}
+        orderResult={orderResult}
       />
 
       {/* Inline order status feedback */}

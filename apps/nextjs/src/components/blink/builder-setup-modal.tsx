@@ -58,6 +58,7 @@ export function BuilderSetupModal(props: {
   open: boolean;
   walletAddress: string;
   market: string;
+  requiredFeeUnits: number;
   onClose: () => void;
   onApproved: () => void;
 }) {
@@ -140,9 +141,12 @@ export function BuilderSetupModal(props: {
       );
       const builderApproved = await isBuilderApproved(
         asHexAddress(props.walletAddress),
+        props.requiredFeeUnits,
       );
       if (!builderApproved) {
-        throw new Error("Builder fee has not been approved yet.");
+        throw new Error(
+          `Builder fee has not been approved yet (${props.requiredFeeUnits} units required).`,
+        );
       }
       console.info("[setup] step 2 — trading agent approved ✓");
       setStep("done");
@@ -162,6 +166,7 @@ export function BuilderSetupModal(props: {
     try {
       const approved = await isBuilderApproved(
         asHexAddress(props.walletAddress),
+        props.requiredFeeUnits,
       );
       if (approved) {
         setSuccessState(true);

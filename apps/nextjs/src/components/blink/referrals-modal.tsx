@@ -1,6 +1,10 @@
 "use client";
 
 import { ArrowRight, Clipboard, Copy, Gift } from "lucide-react";
+import {
+  getGrowthReferralMultiplier,
+  isGrowthModeEnabled,
+} from "~/lib/blink/growth-mode";
 
 import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
 
@@ -21,6 +25,9 @@ export function ReferralsModal(props: {
   walletAddress?: string;
   alias?: string;
 }) {
+  const growthMode = isGrowthModeEnabled();
+  const referralMultiplier = growthMode ? getGrowthReferralMultiplier() : 1;
+
   return (
     <Dialog open={props.open} onOpenChange={(open) => !open && props.onClose()}>
       <DialogContent className="border-none bg-transparent p-0 shadow-none sm:max-w-[500px]">
@@ -38,7 +45,8 @@ export function ReferralsModal(props: {
             <div className="mt-5 overflow-hidden rounded-[20px] border border-white/10 bg-white/[0.03]">
               <div className="whop-blue-btn h-10 w-full justify-center rounded-none border-0 text-sm">
                 <Gift className="size-4" />
-                Refer traders to earn $BLINK
+                Refer traders to earn{" "}
+                {growthMode ? `${referralMultiplier}x ` : ""}$BLINK
               </div>
               <div className="grid grid-cols-2">
                 <div className="px-4 py-4">

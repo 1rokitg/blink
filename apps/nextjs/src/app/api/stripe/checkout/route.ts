@@ -4,6 +4,10 @@ import Stripe from "stripe";
 import { z } from "zod";
 
 import { env } from "~/env";
+import {
+  getGrowthProDiscountRate,
+  isGrowthModeEnabled,
+} from "~/lib/blink/growth-mode";
 
 export const runtime = "nodejs";
 
@@ -66,10 +70,14 @@ export async function POST(request: Request) {
 
   const { tier, billing, paymentMethod, walletAddress } = parsed.data;
   const baseAmount = PRICING[tier][billing];
+  const growthDiscountRate = isGrowthModeEnabled()
+    ? getGrowthProDiscountRate()
+    : 0;
+  const growthDiscountedAmount = baseAmount * (1 - growthDiscountRate);
   const amount =
     paymentMethod === "crypto"
-      ? Math.round(baseAmount * (1 - CRYPTO_DISCOUNT_RATE))
-      : baseAmount;
+      ? Math.round(growthDiscountedAmount * (1 - CRYPTO_DISCOUNT_RATE))
+      : Math.round(growthDiscountedAmount);
   const stripe = new Stripe(env.STRIPE_SECRET_KEY);
   const appUrl = resolveAppUrl(request);
 
@@ -101,6 +109,7 @@ export async function POST(request: Request) {
         billing,
         paymentMethod,
         walletAddress: walletAddress ?? "",
+        growthMode: isGrowthModeEnabled() ? "1" : "0",
       },
       subscription_data: {
         trial_period_days: 7,
@@ -110,6 +119,7 @@ export async function POST(request: Request) {
           billing,
           paymentMethod,
           walletAddress: walletAddress ?? "",
+          growthMode: isGrowthModeEnabled() ? "1" : "0",
         },
       },
     });

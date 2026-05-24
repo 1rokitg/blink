@@ -13,6 +13,10 @@ import {
   SelectValue,
 } from "@acme/ui/select";
 import { toast } from "sonner";
+import {
+  getGrowthProDiscountRate,
+  isGrowthModeEnabled,
+} from "~/lib/blink/growth-mode";
 
 type Tier = "basic" | "preferred" | "premium";
 type Billing = "monthly" | "yearly";
@@ -104,12 +108,16 @@ export default function BlinkProPage() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [checkoutTier, setCheckoutTier] = useState<Tier | null>(null);
   const walletAddress = wallets[0]?.address;
+  const growthMode = isGrowthModeEnabled();
+  const growthDiscountRate = growthMode ? getGrowthProDiscountRate() : 0;
 
   const selected = tierMeta[selectedTier];
-  const selectedPrice =
+  const baseSelectedPrice =
     billing === "yearly" ? selected.yearly : selected.monthly;
-  const selectedPerMonth =
+  const selectedPrice = baseSelectedPrice * (1 - growthDiscountRate);
+  const baseSelectedPerMonth =
     billing === "yearly" ? selected.yearly / 12 : selected.monthly;
+  const selectedPerMonth = baseSelectedPerMonth * (1 - growthDiscountRate);
   const selectedPerMonthEffective =
     paymentMethod === "crypto"
       ? selectedPerMonth * (1 - CRYPTO_DISCOUNT_RATE)
@@ -218,11 +226,22 @@ export default function BlinkProPage() {
               <span className="font-semibold text-[#8fb9ff]">
                 $
                 {billing === "yearly"
-                  ? (tierMeta.basic.yearly / 12).toFixed(2)
-                  : tierMeta.basic.monthly}
+                  ? (
+                      (tierMeta.basic.yearly * (1 - growthDiscountRate)) /
+                      12
+                    ).toFixed(2)
+                  : (tierMeta.basic.monthly * (1 - growthDiscountRate)).toFixed(
+                      0,
+                    )}
                 /mo
               </span>
             </p>
+            {growthMode ? (
+              <p className="mt-2 text-sm font-medium text-[#fee38a]">
+                Growth mode live: extra {Math.round(growthDiscountRate * 100)}%
+                off all Blink Pro plans.
+              </p>
+            ) : null}
 
             <div className="mt-6 inline-flex rounded-xl border border-white/10 bg-white/[0.03] p-1">
               {(["basic", "preferred", "premium"] as Tier[]).map((tier) => (

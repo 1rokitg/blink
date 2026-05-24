@@ -18,6 +18,10 @@ import {
   Twitter,
   Users,
 } from "lucide-react";
+import {
+  getGrowthReferralMultiplier,
+  isGrowthModeEnabled,
+} from "~/lib/blink/growth-mode";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -40,7 +44,11 @@ function timeAgo(date: string | Date) {
 
 // ─── Copy row ─────────────────────────────────────────────────────────────────
 
-function CopyRow({ label, value, display }: { label: string; value: string; display?: string }) {
+function CopyRow({
+  label,
+  value,
+  display,
+}: { label: string; value: string; display?: string }) {
   const [copied, setCopied] = useState(false);
   function handleCopy() {
     void navigator.clipboard.writeText(value);
@@ -50,7 +58,9 @@ function CopyRow({ label, value, display }: { label: string; value: string; disp
   return (
     <div className="flex items-center justify-between gap-3 rounded-[12px] border border-white/[0.07] bg-white/[0.03] px-4 py-3">
       <div className="min-w-0">
-        <p className="text-[10px] uppercase tracking-[0.13em] text-white/35">{label}</p>
+        <p className="text-[10px] uppercase tracking-[0.13em] text-white/35">
+          {label}
+        </p>
         <p className="mt-0.5 truncate font-mono text-sm font-semibold text-[#6fa8ff]">
           {display ?? value}
         </p>
@@ -60,7 +70,11 @@ function CopyRow({ label, value, display }: { label: string; value: string; disp
         onClick={handleCopy}
         className="flex shrink-0 items-center gap-1.5 rounded-[8px] border border-white/[0.08] px-3 py-1.5 text-xs font-medium text-white/50 transition hover:bg-white/[0.07] hover:text-white"
       >
-        {copied ? <Check className="size-3.5 text-emerald-400" /> : <Copy className="size-3.5" />}
+        {copied ? (
+          <Check className="size-3.5 text-emerald-400" />
+        ) : (
+          <Copy className="size-3.5" />
+        )}
         {copied ? "Copied" : "Copy"}
       </button>
     </div>
@@ -69,7 +83,10 @@ function CopyRow({ label, value, display }: { label: string; value: string; disp
 
 // ─── Referred trader row ──────────────────────────────────────────────────────
 
-function ReferredRow({ address, joinedAt }: { address: string; joinedAt: string }) {
+function ReferredRow({
+  address,
+  joinedAt,
+}: { address: string; joinedAt: string }) {
   return (
     <div className="flex items-center gap-3 rounded-[12px] border border-white/[0.06] bg-white/[0.02] px-4 py-3">
       <img
@@ -100,6 +117,8 @@ function ReferredRow({ address, joinedAt }: { address: string; joinedAt: string 
 export default function RewardsPage() {
   const { wallets } = useWallets();
   const address = wallets[0]?.address;
+  const growthMode = isGrowthModeEnabled();
+  const referralMultiplier = growthMode ? getGrowthReferralMultiplier() : 1;
 
   // Fetch or create referral code for this wallet
   const codeQuery = useQuery({
@@ -157,7 +176,10 @@ export default function RewardsPage() {
       <div className="relative z-10 mx-auto max-w-[920px]">
         {/* ── Top nav ──────────────────────────────────────────────────────── */}
         <div className="mb-10 flex items-center justify-between">
-          <Link href="/trade/BTC" className="text-3xl font-bold tracking-[-0.04em] text-white">
+          <Link
+            href="/trade/BTC"
+            className="text-3xl font-bold tracking-[-0.04em] text-white"
+          >
             blink
           </Link>
           <div className="flex items-center gap-1">
@@ -170,7 +192,9 @@ export default function RewardsPage() {
                 key={item.href}
                 href={item.href}
                 className={`rounded-[10px] px-3 py-2 text-sm font-medium transition ${
-                  item.active ? "bg-white/[0.08] text-white" : "text-white/45 hover:text-white/75"
+                  item.active
+                    ? "bg-white/[0.08] text-white"
+                    : "text-white/45 hover:text-white/75"
                 }`}
               >
                 {item.label}
@@ -191,16 +215,24 @@ export default function RewardsPage() {
             <span className="text-[#6fa8ff]">Build the network.</span>
           </h1>
           <p className="mt-4 text-base text-white/40">
-            Every trader you bring to Blink makes the ecosystem stronger.
-            Share your link, grow your circle.
+            Every trader you bring to Blink makes the ecosystem stronger. Share
+            your link, grow your circle.
           </p>
+          {growthMode ? (
+            <p className="mt-3 text-sm font-medium text-[#fee38a]">
+              Growth mode active: {referralMultiplier}x referral rewards are
+              boosted right now.
+            </p>
+          ) : null}
         </div>
 
         {/* ── Not connected guard ───────────────────────────────────────────── */}
         {!address ? (
           <div className="flex flex-col items-center gap-4 rounded-[24px] border border-white/[0.08] bg-[#080d1a] px-8 py-14 text-center">
             <Sparkles className="size-10 text-white/20" />
-            <p className="text-lg font-semibold text-white">Connect your wallet to continue</p>
+            <p className="text-lg font-semibold text-white">
+              Connect your wallet to continue
+            </p>
             <p className="text-sm text-white/40">
               Your referral code and stats will appear here.
             </p>
@@ -215,7 +247,6 @@ export default function RewardsPage() {
           <div className="grid gap-5 md:grid-cols-[1fr_340px]">
             {/* ── Left: referral link + list ──────────────────────────────── */}
             <div className="space-y-4">
-
               {/* Stats bar */}
               <div className="grid grid-cols-2 gap-3">
                 {/* Slots used */}
@@ -232,12 +263,19 @@ export default function RewardsPage() {
                       className="h-full rounded-full transition-all duration-500"
                       style={{
                         width: `${Math.min((count / 10) * 100, 100)}%`,
-                        background: count >= 10 ? "#f87171" : count >= 7 ? "#fbbf24" : "#3be1ba",
+                        background:
+                          count >= 10
+                            ? "#f87171"
+                            : count >= 7
+                              ? "#fbbf24"
+                              : "#3be1ba",
                       }}
                     />
                   </div>
                   {count >= 10 && (
-                    <p className="mt-1.5 text-[10px] font-semibold text-rose-400">Limit reached</p>
+                    <p className="mt-1.5 text-[10px] font-semibold text-rose-400">
+                      Limit reached
+                    </p>
                   )}
                 </div>
                 <div className="rounded-[16px] border border-white/[0.08] bg-[#080d1a] p-5">
@@ -248,7 +286,7 @@ export default function RewardsPage() {
                     {codeQuery.isLoading ? (
                       <Loader2 className="mt-1 size-5 animate-spin text-white/30" />
                     ) : (
-                      code ?? "—"
+                      (code ?? "—")
                     )}
                   </p>
                 </div>
@@ -259,7 +297,9 @@ export default function RewardsPage() {
                 <div className="border-b border-white/[0.06] px-5 py-4">
                   <div className="flex items-center gap-2">
                     <Share2 className="size-4 text-white/40" />
-                    <h2 className="text-sm font-semibold text-white">Your referral link</h2>
+                    <h2 className="text-sm font-semibold text-white">
+                      Your referral link
+                    </h2>
                   </div>
                 </div>
                 <div className="space-y-2.5 p-5">
@@ -281,7 +321,9 @@ export default function RewardsPage() {
                         </a>
                         <button
                           type="button"
-                          onClick={() => void navigator.clipboard.writeText(referralLink)}
+                          onClick={() =>
+                            void navigator.clipboard.writeText(referralLink)
+                          }
                           className="flex flex-1 items-center justify-center gap-2 rounded-[12px] border border-white/[0.08] bg-white/[0.04] py-3 text-sm font-semibold text-white/65 transition hover:bg-white/[0.09] hover:text-white"
                         >
                           <Copy className="size-4" />
@@ -303,7 +345,9 @@ export default function RewardsPage() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Users className="size-4 text-white/40" />
-                      <h2 className="text-sm font-semibold text-white">Traders you referred</h2>
+                      <h2 className="text-sm font-semibold text-white">
+                        Traders you referred
+                      </h2>
                     </div>
                     {count > 0 && (
                       <span className="rounded-full bg-[#2c6bff]/15 px-2.5 py-0.5 text-xs font-semibold text-[#6fa8ff]">
@@ -321,7 +365,9 @@ export default function RewardsPage() {
                   ) : referrals.length === 0 ? (
                     <div className="flex flex-col items-center py-12 text-center">
                       <Users className="mb-3 size-10 text-white/10" />
-                      <p className="text-sm font-semibold text-white/40">No referrals yet</p>
+                      <p className="text-sm font-semibold text-white/40">
+                        No referrals yet
+                      </p>
                       <p className="mt-1 text-xs text-white/25">
                         Share your link above to get started.
                       </p>
@@ -329,7 +375,11 @@ export default function RewardsPage() {
                   ) : (
                     <div className="space-y-2">
                       {referrals.map((r) => (
-                        <ReferredRow key={r.address} address={r.address} joinedAt={r.joinedAt} />
+                        <ReferredRow
+                          key={r.address}
+                          address={r.address}
+                          joinedAt={r.joinedAt}
+                        />
                       ))}
                     </div>
                   )}
@@ -344,7 +394,9 @@ export default function RewardsPage() {
                 <div className="border-b border-white/[0.06] px-5 py-4">
                   <div className="flex items-center gap-2">
                     <Sparkles className="size-4 text-white/40" />
-                    <h2 className="text-sm font-semibold text-white">How it works</h2>
+                    <h2 className="text-sm font-semibold text-white">
+                      How it works
+                    </h2>
                   </div>
                 </div>
                 <div className="divide-y divide-white/[0.05]">
@@ -365,13 +417,20 @@ export default function RewardsPage() {
                       body: "Every trader you bring strengthens the Blink leaderboard. Rewards are coming.",
                     },
                   ].map((step) => (
-                    <div key={step.n} className="flex items-start gap-4 px-5 py-4">
+                    <div
+                      key={step.n}
+                      className="flex items-start gap-4 px-5 py-4"
+                    >
                       <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-[#2c6bff]/30 bg-[#2c6bff]/10 text-xs font-bold text-[#6fa8ff]">
                         {step.n}
                       </span>
                       <div>
-                        <p className="text-sm font-semibold text-white">{step.title}</p>
-                        <p className="mt-0.5 text-xs leading-relaxed text-white/40">{step.body}</p>
+                        <p className="text-sm font-semibold text-white">
+                          {step.title}
+                        </p>
+                        <p className="mt-0.5 text-xs leading-relaxed text-white/40">
+                          {step.body}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -383,7 +442,9 @@ export default function RewardsPage() {
                 <div className="flex items-start gap-3">
                   <Gift className="mt-0.5 size-5 shrink-0 text-amber-300/60" />
                   <div>
-                    <p className="text-sm font-semibold text-white">Rewards coming soon</p>
+                    <p className="text-sm font-semibold text-white">
+                      Rewards coming soon
+                    </p>
                     <p className="mt-1.5 text-xs leading-relaxed text-white/40">
                       Fee-sharing and on-chain rewards for top referrers are in
                       development. Every referral you make now counts toward

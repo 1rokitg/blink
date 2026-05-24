@@ -6,6 +6,7 @@ import { BlinkMembership } from "@acme/db/schema";
 import { env } from "~/env";
 
 import { BUILDER_FEE_UNITS } from "./builder";
+import { GROWTH_ZERO_FEE_MARKETS, isGrowthModeEnabled } from "./growth-mode";
 
 function parseAllowlist() {
   return env.BLINK_PRO_WALLET_ALLOWLIST.split(",")
@@ -38,11 +39,24 @@ export async function isWalletBlinkPro(walletAddress: string) {
   }
 }
 
-export async function getBuilderFeeUnitsForWallet(walletAddress: string) {
+export async function getBuilderFeeUnitsForWallet(
+  walletAddress: string,
+  market?: string,
+) {
   const isPro = await isWalletBlinkPro(walletAddress);
+  const normalizedMarket = market?.toUpperCase();
+  const isZeroFeeGrowthMarket =
+    isGrowthModeEnabled() &&
+    Boolean(
+      normalizedMarket && GROWTH_ZERO_FEE_MARKETS.includes(normalizedMarket),
+    );
+
   return {
     isPro,
-    feeUnits: isPro ? env.BLINK_PRO_BUILDER_FEE_BPS : BUILDER_FEE_UNITS,
+    feeUnits: isZeroFeeGrowthMarket
+      ? 0
+      : isPro
+        ? env.BLINK_PRO_BUILDER_FEE_BPS
+        : BUILDER_FEE_UNITS,
   };
 }
-

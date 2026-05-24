@@ -28,6 +28,14 @@ export const env = createEnv({
     BLINK_PRO_BUILDER_FEE_BPS: z.coerce.number().int().min(0).default(7),
     /** Optional comma-separated wallet allowlist for Pro fee while webhooks are rolling out. */
     BLINK_PRO_WALLET_ALLOWLIST: z.string().default(""),
+    /** Extra Pro discount (%) applied during growth campaigns. e.g. 20 = additional 20% off. */
+    BLINK_GROWTH_PRO_DISCOUNT_PCT: z.coerce.number().min(0).max(90).default(20),
+    /** Referral reward multiplier during growth campaigns. e.g. 2 = 2x rewards messaging. */
+    BLINK_GROWTH_REFERRAL_MULTIPLIER: z.coerce
+      .number()
+      .min(1)
+      .max(10)
+      .default(2),
   },
 
   /**
@@ -44,6 +52,8 @@ export const env = createEnv({
     NEXT_PUBLIC_BUILDER_FEE_BPS: z.coerce.number().int().min(0).default(10),
     /** Canonical app URL used to form OAuth redirect URIs. */
     NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
+    /** Growth campaign mode toggle. When enabled, activates growth-specific perks. */
+    NEXT_PUBLIC_GROWTH_MODE: z.enum(["0", "1"]).default("0"),
   },
   /**
    * Destructure all variables from `process.env` to make sure they aren't tree-shaken away.
@@ -53,6 +63,7 @@ export const env = createEnv({
     NEXT_PUBLIC_BUILDER_ADDRESS: process.env.NEXT_PUBLIC_BUILDER_ADDRESS,
     NEXT_PUBLIC_BUILDER_FEE_BPS: process.env.NEXT_PUBLIC_BUILDER_FEE_BPS,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    NEXT_PUBLIC_GROWTH_MODE: process.env.NEXT_PUBLIC_GROWTH_MODE,
   },
   skipValidation:
     !!process.env.CI || process.env.npm_lifecycle_event === "lint",

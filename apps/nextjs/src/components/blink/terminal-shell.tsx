@@ -1570,7 +1570,9 @@ export function TerminalShell(props: { market: string }) {
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [blurBalances, setBlurBalances] = useState(false);
   const [autoPromptDismissed, setAutoPromptDismissed] = useState(false);
+  const [showProPromo, setShowProPromo] = useState(false);
   const accountAvatar = `https://avatar.vercel.sh/${effectiveWalletAddress || "blink-user"}.png?size=56`;
+  const isProMember = builderFeeQuery.data?.isPro === true;
 
   useEffect(() => {
     if (accountModalOpen || referralsModalOpen || builderModalOpen) {
@@ -1601,6 +1603,28 @@ export function TerminalShell(props: { market: string }) {
     tradeEnabled,
     autoPromptDismissed,
   ]);
+
+  useEffect(() => {
+    if (!effectiveWalletAddress) return;
+    if (!tradeEnabled) return;
+    if (isProMember) {
+      setShowProPromo(false);
+      return;
+    }
+    if (typeof window === "undefined") return;
+    const key = `blink:pro-promo-dismissed:${effectiveWalletAddress.toLowerCase()}`;
+    const dismissedUntilRaw = window.localStorage.getItem(key);
+    const dismissedUntil = dismissedUntilRaw ? Number(dismissedUntilRaw) : 0;
+    setShowProPromo(!dismissedUntil || Date.now() > dismissedUntil);
+  }, [effectiveWalletAddress, tradeEnabled, isProMember]);
+
+  const dismissProPromo = useCallback(() => {
+    setShowProPromo(false);
+    if (typeof window === "undefined" || !effectiveWalletAddress) return;
+    const key = `blink:pro-promo-dismissed:${effectiveWalletAddress.toLowerCase()}`;
+    const cooldownMs = 6 * 60 * 60 * 1000; // 6h
+    window.localStorage.setItem(key, String(Date.now() + cooldownMs));
+  }, [effectiveWalletAddress]);
 
   if (!effectiveReady) {
     return <TerminalLoader />;
@@ -1810,6 +1834,29 @@ export function TerminalShell(props: { market: string }) {
           {!tradeEnabled ? (
             <div className="whop-yellow-banner mt-3">
               One-time setup required to route trades on Hyperliquid.
+            </div>
+          ) : null}
+          {tradeEnabled && showProPromo ? (
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-[14px] border border-amber-300/30 bg-gradient-to-r from-amber-300/12 to-yellow-300/8 px-3 py-2.5">
+              <p className="text-sm text-amber-100/95">
+                Blink Pro unlocks lower builder fees and priority routing.
+              </p>
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/pro"
+                  className="rounded-lg border border-amber-200/30 bg-amber-200/20 px-2.5 py-1 text-xs font-semibold text-amber-100 transition hover:bg-amber-200/30"
+                >
+                  View Pro
+                </Link>
+                <button
+                  type="button"
+                  onClick={dismissProPromo}
+                  className="rounded-md border border-white/15 bg-white/[0.04] p-1 text-foreground/60 transition hover:text-white"
+                  aria-label="Dismiss Pro banner"
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
             </div>
           ) : null}
 

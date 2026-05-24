@@ -22,15 +22,27 @@ export const metadata: Metadata = {
   description:
     "All-in-one Hyperliquid terminal for serious traders. Live order book, real execution, routed through Blink.",
   openGraph: {
+    type: "website",
     title: "Blink — Hyperliquid Terminal",
     description: "All-in-one Hyperliquid terminal for serious traders.",
     url: "https://blink.lat",
     siteName: "Blink",
+    images: [
+      {
+        url: "/og-image",
+        width: 1200,
+        height: 630,
+        alt: "Blink — Hyperliquid Terminal",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     site: "@rokitdotgg",
     creator: "@rokitdotgg",
+    title: "Blink — Hyperliquid Terminal",
+    description: "All-in-one Hyperliquid terminal for serious traders.",
+    images: ["/twitter-image"],
   },
 };
 

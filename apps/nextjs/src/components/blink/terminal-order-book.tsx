@@ -31,9 +31,7 @@ function formatBookLevels(
   const rows = levels.slice(0, LEVELS).map((level, index) => ({
     price: Number(level.px),
     size: Number(level.sz),
-    total: levels
-      .slice(0, index + 1)
-      .reduce((sum, l) => sum + Number(l.sz), 0),
+    total: levels.slice(0, index + 1).reduce((sum, l) => sum + Number(l.sz), 0),
   }));
   return reverse ? rows.reverse() : rows;
 }
@@ -56,7 +54,9 @@ function fmtSize(n: number) {
 
 // Depth-fade: row closest to mid → opacity 1.0, farthest → 0.28
 function depthOpacity(index: number, total: number, closestIsLow: boolean) {
-  const pos = closestIsLow ? index / (total - 1) : (total - 1 - index) / (total - 1);
+  const pos = closestIsLow
+    ? index / (total - 1)
+    : (total - 1 - index) / (total - 1);
   return 0.28 + 0.72 * pos;
 }
 
@@ -65,7 +65,9 @@ function depthOpacity(index: number, total: number, closestIsLow: boolean) {
 export function TerminalOrderBook(props: { market: string }) {
   const [book, setBook] = useState<hl.Book | null>(null);
   const [trades, setTrades] = useState<FormattedTrade[]>([]);
-  const [changedRows, setChangedRows] = useState<Record<string, "up" | "down">>({});
+  const [changedRows, setChangedRows] = useState<Record<string, "up" | "down">>(
+    {},
+  );
   const [spreadPulse, setSpreadPulse] = useState<"up" | "down" | null>(null);
   const lastSizesRef = useRef<Map<string, number>>(new Map());
   const lastSpreadRef = useRef<number | null>(null);
@@ -118,7 +120,11 @@ export function TerminalOrderBook(props: { market: string }) {
   const bestAsk = asks.at(-1)?.price ?? 0;
   const bestBid = bids.at(0)?.price ?? 0;
   const spread = bestAsk && bestBid ? bestAsk - bestBid : 0;
-  const maxTotal = Math.max(1, ...asks.map((r) => r.total), ...bids.map((r) => r.total));
+  const maxTotal = Math.max(
+    1,
+    ...asks.map((r) => r.total),
+    ...bids.map((r) => r.total),
+  );
 
   // ── Flash on size change ──────────────────────────────────────────────────
   useEffect(() => {
@@ -352,14 +358,42 @@ export function TerminalOrderBook(props: { market: string }) {
                       style={{ opacity }}
                     >
                       {/* Arrow + Price */}
-                      <span className={`flex items-center gap-1 tabular-nums font-semibold ${isBuy ? "text-emerald-400" : "text-rose-400"}`}>
+                      <span
+                        className={`flex items-center gap-1 tabular-nums font-semibold ${isBuy ? "text-emerald-400" : "text-rose-400"}`}
+                      >
                         {isBuy ? (
-                          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" className="shrink-0">
-                            <path d="M4 7V1M4 1L1.5 3.5M4 1L6.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          // biome-ignore lint/a11y/noSvgWithoutTitle: <explanation>
+                          <svg
+                            width="8"
+                            height="8"
+                            viewBox="0 0 8 8"
+                            fill="none"
+                            className="shrink-0"
+                          >
+                            <path
+                              d="M4 7V1M4 1L1.5 3.5M4 1L6.5 3.5"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
                           </svg>
                         ) : (
-                          <svg width="8" height="8" viewBox="0 0 8 8" fill="none" className="shrink-0">
-                            <path d="M4 1V7M4 7L1.5 4.5M4 7L6.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          // biome-ignore lint/a11y/noSvgWithoutTitle: <explanation>
+                          <svg
+                            width="8"
+                            height="8"
+                            viewBox="0 0 8 8"
+                            fill="none"
+                            className="shrink-0"
+                          >
+                            <path
+                              d="M4 1V7M4 7L1.5 4.5M4 7L6.5 4.5"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
                           </svg>
                         )}
                         {fmtPrice(trade.price)}

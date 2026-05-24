@@ -92,6 +92,8 @@ import { AccountManagementModal } from "./account-management-modal";
 import { BuilderSetupModal } from "./builder-setup-modal";
 import { MarketInfoBar } from "./market-info-bar";
 import { PnlShareModal, type PnlPositionData } from "./pnl-share-modal";
+import { TradingIsland } from "./trading-island";
+import { emitTradingEvent } from "~/lib/blink/island-bus";
 import { ReferralsModal } from "./referrals-modal";
 import { TerminalOrderBook } from "./terminal-order-book";
 import { TradingViewPanel } from "./trading-view-panel";
@@ -1087,9 +1089,11 @@ function OrderEntryPanel(props: {
     }
 
     setSubmitting(true);
-    const toastId = toast.loading(
-      `${side === "buy" ? "Sending long" : "Sending short"} order…`,
-    );
+    emitTradingEvent({
+      type: "loading",
+      message: `${side === "buy" ? "Sending long" : "Sending short"} order…`,
+      id: "order",
+    });
     try {
       const [exchClient, metaAndCtxs, mids] = await Promise.all([
         Promise.resolve(
@@ -1169,10 +1173,14 @@ function OrderEntryPanel(props: {
             throw err;
           }
         }
-        toast.success(
-          `${side === "buy" ? "Buy" : "Sell"} limit: ${sz} ${props.market} @ ${px}`,
-          { id: toastId },
-        );
+        emitTradingEvent({
+          type: "order_placed",
+          coin: props.market,
+          side: side === "buy" ? "Buy" : "Sell",
+          price: px.toString(),
+          size: sizeStr,
+          orderType: "limit",
+        });
       } else {
         try {
           await placeOrder();
@@ -1190,10 +1198,14 @@ function OrderEntryPanel(props: {
             throw err;
           }
         }
-        toast.success(
-          `${side === "buy" ? "Buy" : "Sell"} market: ${sz} ${props.market}`,
-          { id: toastId },
-        );
+        emitTradingEvent({
+          type: "order_placed",
+          coin: props.market,
+          side: side === "buy" ? "Buy" : "Sell",
+          price: markPrice?.toString() ?? "market",
+          size: sizeStr,
+          orderType: "market",
+        });
       }
 
       // Signal fill confirmation — triggers glow on the button
@@ -1215,14 +1227,20 @@ function OrderEntryPanel(props: {
         msgLower.includes("builder fee has not been approved")
       ) {
         props.onRequireBuilderSetup();
-        toast.error(
-          msgLower.includes("builder fee")
-            ? "Builder fee not approved — complete setup to trade."
-            : "Agent session expired — re-approve to resume trading.",
-          { id: toastId },
-        );
+        emitTradingEvent({
+          type: "error",
+          message: msgLower.includes("builder fee")
+            ? "Builder fee not approved"
+            : "Agent session expired",
+          detail: "Complete setup to resume trading",
+          id: "order",
+        });
       } else {
-        toast.error(msg || "Order failed", { id: toastId });
+        emitTradingEvent({
+          type: "error",
+          message: msg || "Order failed",
+          id: "order",
+        });
       }
     } finally {
       setSubmitting(false);
@@ -1632,11 +1650,15 @@ function AccountPanel(props: {
 }) {
   const queryClient = useQueryClient();
   const [cancellingOid, setCancellingOid] = useState<number | null>(null);
-  const [positionActionKey, setPositionActionKey] = useState<string | null>(null);
+  const [positionActionKey, setPositionActionKey] = useState<string | null>(
+    null,
+  );
   const [editingCoin, setEditingCoin] = useState<string | null>(null);
   const [editExitPrice, setEditExitPrice] = useState("");
   const [editExitSize, setEditExitSize] = useState("");
-  const [sharePosition, setSharePosition] = useState<PnlPositionData | null>(null);
+  const [sharePosition, setSharePosition] = useState<PnlPositionData | null>(
+    null,
+  );
 
   const accountQuery = useQuery({
     queryKey: ["blink", "account", props.walletAddress],
@@ -1661,6 +1683,11 @@ function AccountPanel(props: {
   const handleCancel = useCallback(
     async (coin: string, oid: number) => {
       setCancellingOid(oid);
+      emitTradingEvent({
+        type: "loading",
+        message: `Cancelling order…`,
+        id: "cancel",
+      });
       try {
         const [exchClient, assetIdx] = await Promise.all([
           Promise.resolve(
@@ -1669,12 +1696,16 @@ function AccountPanel(props: {
           getAssetIndex(coin),
         ]);
         await exchClient.cancel({ cancels: [{ a: assetIdx, o: oid }] });
-        toast.success(`Order #${oid} cancelled`);
+        emitTradingEvent({ type: "order_cancelled", coin });
         void queryClient.invalidateQueries({
           queryKey: ["blink", "account", props.walletAddress],
         });
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Cancel failed");
+        emitTradingEvent({
+          type: "error",
+          message: err instanceof Error ? err.message : "Cancel failed",
+          id: "cancel",
+        });
       } finally {
         setCancellingOid(null);
       }
@@ -1689,6 +1720,33 @@ function AccountPanel(props: {
     accountQuery.data?.state?.marginSummary?.accountValue ?? 0,
   );
 
+  // ── Fill detection — emit island event for each new fill ──────────────────
+  const seenFillsRef = useRef<Set<number>>(new Set());
+  const isFirstLoadRef = useRef(true);
+  useEffect(() => {
+    if (!recentFills.length) return;
+    // On first load, seed the seen set without emitting
+    if (isFirstLoadRef.current) {
+      recentFills.forEach((f) => seenFillsRef.current.add(f.tid as number));
+      isFirstLoadRef.current = false;
+      return;
+    }
+    recentFills.forEach((fill) => {
+      const tid = fill.tid as number;
+      if (seenFillsRef.current.has(tid)) return;
+      seenFillsRef.current.add(tid);
+      const isBuy = fill.side === "B";
+      emitTradingEvent({
+        type: "fill",
+        coin: fill.coin,
+        side: isBuy ? "Long" : "Short",
+        size: fill.sz,
+        price: `$${Number(fill.px).toLocaleString()}`,
+        closedPnl: Number(fill.closedPnl ?? 0) || undefined,
+      });
+    });
+  }, [recentFills]);
+
   const runPositionOrder = useCallback(
     async (params: {
       coin: string;
@@ -1698,7 +1756,11 @@ function AccountPanel(props: {
       tif: "Gtc" | "Ioc";
       limitPrice?: number;
     }) => {
-      const actionToast = toast.loading("Submitting position action…");
+      emitTradingEvent({
+        type: "loading",
+        message: "Submitting position action…",
+        id: "pos-action",
+      });
       setPositionActionKey(
         `${params.coin}-${params.isBuy ? "buy" : "sell"}-${params.tif}`,
       );
@@ -1748,15 +1810,21 @@ function AccountPanel(props: {
           builder: { b: BUILDER_ADDRESS, f: props.builderFeeUnits },
         });
 
-        toast.success("Position action submitted", { id: actionToast });
+        emitTradingEvent({
+          type: "success",
+          message: "Position action submitted",
+          id: "pos-action",
+        });
         await queryClient.invalidateQueries({
           queryKey: ["blink", "account", props.walletAddress],
         });
       } catch (err) {
-        toast.error(
-          err instanceof Error ? err.message : "Position action failed",
-          { id: actionToast },
-        );
+        emitTradingEvent({
+          type: "error",
+          message:
+            err instanceof Error ? err.message : "Position action failed",
+          id: "pos-action",
+        });
       } finally {
         setPositionActionKey(null);
       }
@@ -1767,11 +1835,12 @@ function AccountPanel(props: {
   const cancelCoinOrders = useCallback(
     async (coin: string) => {
       const coinOrders = openOrders.filter((order) => order.coin === coin);
-      if (coinOrders.length === 0) {
-        toast.message(`No open orders for ${coin}`);
-        return;
-      }
-      const toastId = toast.loading(`Cancelling ${coinOrders.length} orders…`);
+      if (coinOrders.length === 0) return;
+      emitTradingEvent({
+        type: "loading",
+        message: `Cancelling ${coinOrders.length} ${coin} order${coinOrders.length > 1 ? "s" : ""}…`,
+        id: "cancel-all",
+      });
       setPositionActionKey(`${coin}-cancel`);
       try {
         const [exchClient, assetIdx] = await Promise.all([
@@ -1783,15 +1852,19 @@ function AccountPanel(props: {
         await exchClient.cancel({
           cancels: coinOrders.map((order) => ({ a: assetIdx, o: order.oid })),
         });
-        toast.success(`Cancelled ${coinOrders.length} ${coin} orders`, {
-          id: toastId,
+        emitTradingEvent({
+          type: "order_cancelled",
+          coin,
+          count: coinOrders.length,
         });
         await queryClient.invalidateQueries({
           queryKey: ["blink", "account", props.walletAddress],
         });
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Cancel failed", {
-          id: toastId,
+        emitTradingEvent({
+          type: "error",
+          message: err instanceof Error ? err.message : "Cancel failed",
+          id: "cancel-all",
         });
       } finally {
         setPositionActionKey(null);
@@ -1835,9 +1908,22 @@ function AccountPanel(props: {
           <TabsList className="h-auto gap-0 rounded-none border-none bg-transparent p-0">
             {(
               [
-                { value: "positions", label: "Positions", count: positions.filter(p => Number(p.position.szi) !== 0).length },
-                { value: "orders", label: "Open Orders", count: openOrders.length },
-                { value: "history", label: "Recent Fills", count: recentFills.length },
+                {
+                  value: "positions",
+                  label: "Positions",
+                  count: positions.filter((p) => Number(p.position.szi) !== 0)
+                    .length,
+                },
+                {
+                  value: "orders",
+                  label: "Open Orders",
+                  count: openOrders.length,
+                },
+                {
+                  value: "history",
+                  label: "Recent Fills",
+                  count: recentFills.length,
+                },
               ] as const
             ).map(({ value, label, count }) => (
               <TabsTrigger
@@ -2040,7 +2126,10 @@ function AccountPanel(props: {
                             initial={{ height: 0, opacity: 0 }}
                             animate={{ height: "auto", opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+                            transition={{
+                              duration: 0.18,
+                              ease: [0.4, 0, 0.2, 1],
+                            }}
                             className="overflow-hidden"
                           >
                             <div className="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2 border-t border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
@@ -2067,8 +2156,7 @@ function AccountPanel(props: {
                                   void runPositionOrder({
                                     coin: position.coin,
                                     isBuy: !isLong,
-                                    size:
-                                      Number.parseFloat(editExitSize) || 0,
+                                    size: Number.parseFloat(editExitSize) || 0,
                                     limitPrice:
                                       Number.parseFloat(editExitPrice) || 0,
                                     reduceOnly: true,
@@ -2156,9 +2244,7 @@ function AccountPanel(props: {
                       </span>
                       <button
                         type="button"
-                        onClick={() =>
-                          void handleCancel(order.coin, order.oid)
-                        }
+                        onClick={() => void handleCancel(order.coin, order.oid)}
                         disabled={isCancelling}
                         className="flex size-6 items-center justify-center rounded-full border border-white/[0.07] bg-white/[0.03] text-foreground/38 transition hover:border-rose-400/30 hover:bg-rose-400/10 hover:text-rose-300 disabled:opacity-40"
                         title="Cancel"
@@ -2481,6 +2567,9 @@ export function TerminalShell(props: { market: string }) {
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-background px-3 pb-14 pt-3 text-foreground">
+      {/* ── Dynamic Island — primary feedback loop ───────────────────────── */}
+      <TradingIsland />
+
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(58,102,255,0.24),transparent_44%),radial-gradient(circle_at_78%_14%,rgba(39,198,181,0.2),transparent_42%),radial-gradient(circle_at_50%_78%,rgba(35,73,168,0.16),transparent_48%)] blur-3xl" />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,8,24,0.18)_0%,rgba(2,8,24,0.4)_100%)]" />
@@ -2767,9 +2856,6 @@ export function TerminalShell(props: { market: string }) {
               </span>
             </div>
             <div className="flex items-center gap-4">
-              <span>Desktop-first v1</span>
-              <span>Google + embedded wallet</span>
-              <span>Perps execution first</span>
               {/* commit SHA */}
               {process.env.NEXT_PUBLIC_COMMIT_SHA &&
                 process.env.NEXT_PUBLIC_COMMIT_SHA !== "dev" && (

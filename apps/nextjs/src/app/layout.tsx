@@ -13,11 +13,7 @@ import { env } from "~/env";
 import { ContextProviders } from "~/lib/providers";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    env.VERCEL_ENV === "production"
-      ? "https://blink.lat"
-      : "http://localhost:3000",
-  ),
+  metadataBase: new URL("https://blink.lat"),
   title: "Blink — Hyperliquid Terminal",
   description:
     "All-in-one Hyperliquid terminal for serious traders. Live order book, real execution, routed through Blink.",
@@ -27,14 +23,6 @@ export const metadata: Metadata = {
     description: "All-in-one Hyperliquid terminal for serious traders.",
     url: "https://blink.lat",
     siteName: "Blink",
-    images: [
-      {
-        url: "/og-image",
-        width: 1200,
-        height: 630,
-        alt: "Blink — Hyperliquid Terminal",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
@@ -42,7 +30,6 @@ export const metadata: Metadata = {
     creator: "@rokitdotgg",
     title: "Blink — Hyperliquid Terminal",
     description: "All-in-one Hyperliquid terminal for serious traders.",
-    images: ["/twitter-image"],
   },
 };
 

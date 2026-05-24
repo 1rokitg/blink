@@ -164,16 +164,16 @@ export function TerminalOrderBook(props: { market: string }) {
   }, [spread]);
 
   return (
-    <section className="glass-panel min-h-[640px] overflow-hidden p-3">
-      <div className="mb-2">
+    <section className="glass-panel flex h-[640px] flex-col overflow-hidden p-3">
+      <div className="mb-2 shrink-0">
         <p className="terminal-label">Order book</p>
         <h2 className="mt-2 text-xl font-semibold text-white">
           {props.market} live depth
         </h2>
       </div>
 
-      <Tabs defaultValue="orderbook" className="rounded-[12px] border border-[#88b3ff2e] bg-[#060c18]">
-        <div className="border-b border-white/10 px-2 pt-2">
+      <Tabs defaultValue="orderbook" className="flex min-h-0 flex-1 flex-col rounded-[12px] border border-[#88b3ff2e] bg-[#060c18]">
+        <div className="shrink-0 border-b border-white/10 px-2 pt-2">
           <TabsList className="grid h-9 w-full grid-cols-2 rounded-[10px] bg-white/[0.02] p-1">
             <TabsTrigger
               value="orderbook"
@@ -190,14 +190,14 @@ export function TerminalOrderBook(props: { market: string }) {
           </TabsList>
         </div>
 
-        <TabsContent value="orderbook" className="mt-0">
-          <div className="grid grid-cols-3 px-4 py-2 text-[11px] uppercase tracking-[0.14em] text-foreground/35">
+        <TabsContent value="orderbook" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="shrink-0 grid grid-cols-3 px-4 py-2 text-[11px] uppercase tracking-[0.14em] text-foreground/35">
             <span>Price</span>
             <span className="text-right">Size</span>
             <span className="text-right">Total</span>
           </div>
 
-          <div className="space-y-0.5 px-2 pb-2">
+          <div className="flex-1 overflow-y-auto space-y-0.5 px-2 pb-2">
             {asks.map((ask) => {
               const key = `ask-${ask.price}`;
               const width = (ask.total / maxTotal) * 100;
@@ -294,13 +294,13 @@ export function TerminalOrderBook(props: { market: string }) {
           </div>
         </TabsContent>
 
-        <TabsContent value="trades" className="mt-0">
-          <div className="grid grid-cols-3 px-4 py-2 text-[11px] uppercase tracking-[0.14em] text-foreground/35">
+        <TabsContent value="trades" className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="shrink-0 grid grid-cols-3 px-4 py-2 text-[11px] uppercase tracking-[0.14em] text-foreground/35">
             <span>Price</span>
             <span className="text-right">Size</span>
             <span className="text-right">Time</span>
           </div>
-          <div className="space-y-0.5 px-2 pb-2">
+          <div className="flex-1 overflow-y-auto space-y-0.5 px-2 pb-2">
             {formattedTrades.length === 0 ? (
               <div className="rounded-[8px] border border-white/8 bg-white/[0.02] px-3 py-4 text-center text-sm text-foreground/45">
                 Waiting for trades stream…

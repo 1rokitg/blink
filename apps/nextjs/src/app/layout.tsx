@@ -93,7 +93,7 @@ export default function RootLayout(props: { children: React.ReactNode }) {
       >
         <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark">
           <ContextProviders>{props.children}</ContextProviders>
-          <Toaster position="bottom-center" richColors />
+          <Toaster position="top-right" />
         </ThemeProvider>
         <SpeedInsights />
         <Analytics />

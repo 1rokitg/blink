@@ -85,7 +85,7 @@ export async function POST(request: Request) {
           price_data: {
             currency: "usd",
             product_data: {
-              name: `Blink Pro ${tier[0]!.toUpperCase()}${tier.slice(1)}`,
+              name: `Blink Pro ${tier.charAt(0).toUpperCase()}${tier.slice(1)}`,
               description: "Blink Pro membership for Hyperliquid perp traders",
             },
             unit_amount: amount * 100,

@@ -23,6 +23,10 @@ export type TradingEvent =
       pnl?: number;
       /** Closed PnL if this was a closing fill */
       closedPnl?: number;
+      /** Hyperliquid transaction hash — links to the block explorer */
+      txHash?: string;
+      /** Whether this was a market (taker) or limit (maker) fill */
+      orderType?: "market" | "limit";
     }
   /** An order was successfully placed */
   | {

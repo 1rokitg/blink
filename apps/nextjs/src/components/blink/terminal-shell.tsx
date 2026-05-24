@@ -1736,6 +1736,7 @@ function AccountPanel(props: {
       if (seenFillsRef.current.has(tid)) return;
       seenFillsRef.current.add(tid);
       const isBuy = fill.side === "B";
+      const fillData = fill as { hash?: string; crossed?: boolean };
       emitTradingEvent({
         type: "fill",
         coin: fill.coin,
@@ -1743,6 +1744,8 @@ function AccountPanel(props: {
         size: fill.sz,
         price: `$${Number(fill.px).toLocaleString()}`,
         closedPnl: Number(fill.closedPnl ?? 0) || undefined,
+        txHash: fillData.hash ?? undefined,
+        orderType: fillData.crossed ? "market" : "limit",
       });
     });
   }, [recentFills]);
@@ -2724,14 +2727,13 @@ export function TerminalShell(props: { market: string }) {
                           </span>
                         </DropdownMenuItem>
                         <DropdownMenuItem
+                          asChild
                           className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
-                          onClick={() => {
-                            setProfileMenuOpen(false);
-                            setReferralsModalOpen(true);
-                          }}
                         >
-                          <Gift className="size-4" />
-                          Referrals
+                          <Link href="/rewards" onClick={() => setProfileMenuOpen(false)}>
+                            <Gift className="size-4" />
+                            Rewards
+                          </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="rounded-[10px] px-3 py-2 text-sm text-rose-200 focus:bg-rose-400/10 focus:text-rose-100"

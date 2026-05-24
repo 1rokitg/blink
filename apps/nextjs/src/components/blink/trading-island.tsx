@@ -7,6 +7,7 @@ import {
   ArrowDownRight,
   ArrowUpRight,
   Check,
+  ExternalLink,
   Loader2,
   TrendingDown,
   TrendingUp,
@@ -209,50 +210,62 @@ function IslandContent({
     case "fill": {
       const isLong = event.side === "Long";
       const Icon = isLong ? ArrowUpRight : ArrowDownRight;
+      const accent = isLong ? "#3be1ba" : "#f87171";
       const pnlPositive = (event.pnl ?? 0) >= 0;
+      const explorerUrl = event.txHash
+        ? `https://app.hyperliquid.xyz/explorer/tx/${event.txHash}`
+        : null;
+      const orderLabel = event.orderType === "limit" ? "Limit" : "Market";
+      const sideLabel = isLong ? "long" : "short";
       return (
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-3">
+          {/* Direction icon */}
           <span
-            className="flex size-6 shrink-0 items-center justify-center rounded-full"
-            style={{
-              background: isLong ? "rgba(59,225,186,0.18)" : "rgba(248,113,113,0.18)",
-            }}
+            className="flex size-7 shrink-0 items-center justify-center rounded-full"
+            style={{ background: isLong ? "rgba(59,225,186,0.15)" : "rgba(248,113,113,0.15)" }}
           >
-            <Icon
-              className="size-3.5"
-              style={{ color: isLong ? "#3be1ba" : "#f87171" }}
-            />
+            <Icon className="size-4" style={{ color: accent }} />
           </span>
-          <div className="flex items-baseline gap-1.5">
-            <span className="font-semibold text-white">{event.coin}</span>
-            <span
-              className="text-[11px] font-medium"
-              style={{ color: isLong ? "#3be1ba" : "#f87171" }}
-            >
-              {event.side}
-            </span>
-            <span className="font-mono text-xs text-white/55">
-              {event.size} @ {event.price}
-            </span>
+
+          {/* Two-line label */}
+          <div className="min-w-0">
+            <p className="text-sm font-semibold leading-tight text-white">
+              <span style={{ color: accent }}>{orderLabel} {sideLabel}</span>
+              {" "}{event.size} {event.coin}
+            </p>
+            <p className="mt-0.5 font-mono text-[11px] text-white/45">
+              filled @{" "}
+              <span className="text-white/70">{event.price}</span>
+              {event.closedPnl !== undefined && (
+                <span className={`ml-2 ${event.closedPnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+                  {event.closedPnl >= 0 ? "+" : ""}
+                  {formatUsd(event.closedPnl)}
+                </span>
+              )}
+            </p>
           </div>
+
+          {/* Unrealized PnL badge */}
           {event.pnl !== undefined && (
             <span
-              className={`ml-1 font-mono text-sm font-semibold ${pnlPositive ? "text-emerald-300" : "text-rose-300"}`}
+              className={`ml-auto shrink-0 font-mono text-sm font-semibold ${pnlPositive ? "text-emerald-300" : "text-rose-300"}`}
             >
-              {pnlPositive ? "+" : ""}
-              {formatUsd(event.pnl)}
+              {pnlPositive ? "+" : ""}{formatUsd(event.pnl)}
             </span>
           )}
-          {event.closedPnl !== undefined && expanded && (
-            <span className="ml-auto text-[11px] text-white/40">
-              Closed PnL:{" "}
-              <span
-                className={event.closedPnl >= 0 ? "text-emerald-300" : "text-rose-300"}
-              >
-                {event.closedPnl >= 0 ? "+" : ""}
-                {formatUsd(event.closedPnl)}
-              </span>
-            </span>
+
+          {/* Explorer link */}
+          {explorerUrl && (
+            <a
+              href={explorerUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex shrink-0 items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white/30 transition hover:bg-white/[0.07] hover:text-white/65"
+            >
+              <ExternalLink className="size-2.5" />
+              tx
+            </a>
           )}
         </div>
       );

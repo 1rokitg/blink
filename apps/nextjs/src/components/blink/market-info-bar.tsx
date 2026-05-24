@@ -3,9 +3,110 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useQuery } from "@tanstack/react-query";
+import { Check, Copy, Megaphone, Twitter } from "lucide-react";
+
+import { Popover, PopoverContent, PopoverTrigger } from "@acme/ui/popover";
 
 import { createSubscriptionClient, infoClient } from "~/lib/blink/hyperliquid";
 import { formatCompactNumber, formatUsd } from "~/lib/blink/markets";
+
+// ─── Shill popover ─────────────────────────────────────────────────────────────
+
+function ShillButton({
+  market,
+  price,
+  changePct,
+}: {
+  market: string;
+  price: number;
+  changePct: number;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  const positive = changePct >= 0;
+  const changeStr = `${positive ? "+" : ""}${changePct.toFixed(2)}%`;
+  const priceStr = price > 0 ? formatUsd(price) : "—";
+
+  const shillText = `$${market} ${changeStr} 24h — trading on blink with 0 fees 🔥\n\nblink.lat/trade/${market}`;
+  const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shillText)}`;
+
+  function handleCopy() {
+    void navigator.clipboard.writeText(shillText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1.5 rounded-[10px] border border-white/[0.09] bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-white/70 transition hover:border-[#a78bfa55] hover:bg-[#a78bfa12] hover:text-[#c4b5fd]"
+        >
+          <Megaphone className="size-3.5" />
+          Shill
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="end"
+        sideOffset={8}
+        className="w-[300px] overflow-hidden rounded-[18px] border border-white/[0.09] bg-[#080d1ad4] p-0 shadow-[0_16px_56px_rgba(0,0,0,0.6)] backdrop-blur-2xl"
+      >
+        {/* Header */}
+        <div className="border-b border-white/[0.07] px-4 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-baseline gap-2">
+              <span className="text-base font-bold text-white">${market}</span>
+              <span className="font-mono text-sm text-white/55">{priceStr}</span>
+            </div>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                positive
+                  ? "bg-emerald-400/15 text-emerald-300"
+                  : "bg-rose-400/15 text-rose-300"
+              }`}
+            >
+              {changeStr}
+            </span>
+          </div>
+        </div>
+
+        {/* Tweet preview */}
+        <div className="px-4 py-3">
+          <p className="whitespace-pre-line rounded-[10px] border border-white/[0.06] bg-white/[0.03] px-3 py-2.5 text-sm leading-relaxed text-white/75">
+            {shillText}
+          </p>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 px-4 pb-4">
+          <button
+            type="button"
+            onClick={handleCopy}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-white/[0.09] bg-white/[0.04] py-2 text-xs font-semibold text-white/65 transition hover:bg-white/[0.09] hover:text-white"
+          >
+            {copied ? (
+              <><Check className="size-3.5 text-emerald-400" /> Copied</>
+            ) : (
+              <><Copy className="size-3.5" /> Copy</>
+            )}
+          </button>
+          <a
+            href={twitterUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => setOpen(false)}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-[10px] bg-black py-2 text-xs font-semibold text-white transition hover:bg-black/80"
+          >
+            <Twitter className="size-3.5" />
+            Post on X
+          </a>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 type MarketCtx = {
   markPx: number;
@@ -166,8 +267,17 @@ export function MarketInfoBar(props: { market: string; rightSlot?: ReactNode }) 
         ))}
       </div>
 
+      {/* Shill button — always visible, uses live price from this component */}
+      <div className="ml-auto shrink-0">
+        <ShillButton
+          market={props.market}
+          price={displayPrice}
+          changePct={changePct}
+        />
+      </div>
+
       {props.rightSlot ? (
-        <div className="ml-auto shrink-0">{props.rightSlot}</div>
+        <div className="shrink-0">{props.rightSlot}</div>
       ) : null}
     </div>
   );

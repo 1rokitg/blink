@@ -264,7 +264,6 @@ function OrderEntryPanel(props: {
   tradeEnabled: boolean;
   onRequireBuilderSetup: () => void;
 }) {
-  const { wallets } = useWallets();
   const queryClient = useQueryClient();
 
   const [side, setSide] = useState<"buy" | "sell">("buy");
@@ -372,7 +371,7 @@ function OrderEntryPanel(props: {
         setUpdatingLeverage(false);
       }
     },
-    [wallets, props.market, props.walletAddress],
+    [props.market, props.walletAddress],
   );
 
   const handleSubmit = useCallback(async () => {
@@ -457,7 +456,6 @@ function OrderEntryPanel(props: {
       setSubmitting(false);
     }
   }, [
-    wallets,
     side,
     orderType,
     price,
@@ -770,7 +768,6 @@ function OrderEntryPanel(props: {
 }
 
 function AccountPanel(props: { walletAddress: string }) {
-  const { wallets } = useWallets();
   const queryClient = useQueryClient();
   const [cancellingOid, setCancellingOid] = useState<number | null>(null);
 

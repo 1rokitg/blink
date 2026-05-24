@@ -20,9 +20,16 @@ export function createSubscriptionClient() {
  */
 export async function createExchangeClient(wallet: ConnectedWallet) {
   const provider = await wallet.getEthereumProvider();
-  // EIP-55 checksum — Rabby compares `from` byte-for-byte against the current
-  // account and will reject the popup if the casing doesn't match exactly.
-  const address = getAddress(wallet.address);
+
+  // Fetch the address directly from the provider — the authoritative source.
+  // wallet.address from Privy SDK may differ in casing or may lag behind the
+  // provider's internal account state. Both Rabby and Privy's own EIP-1193
+  // wrapper validate that params[0] matches the provider's current account,
+  // so we must use exactly what eth_accounts returns.
+  const accounts = (await provider.request({ method: "eth_accounts" })) as string[];
+  const address = getAddress(accounts[0] ?? wallet.address);
+
+  console.info("[exchange] signer address:", address);
 
   const signer = {
     async signTypedData(params: {

@@ -395,6 +395,9 @@ function OrderEntryPanel(props: {
     }
 
     setSubmitting(true);
+    const toastId = toast.loading(
+      `${side === "buy" ? "Sending long" : "Sending short"} order…`,
+    );
     try {
       const [exchClient, assetIdx] = await Promise.all([
         Promise.resolve(
@@ -464,6 +467,7 @@ function OrderEntryPanel(props: {
         }
         toast.success(
           `${side === "buy" ? "Buy" : "Sell"} limit: ${sz} ${props.market} @ ${px}`,
+          { id: toastId },
         );
       } else {
         try {
@@ -484,6 +488,7 @@ function OrderEntryPanel(props: {
         }
         toast.success(
           `${side === "buy" ? "Buy" : "Sell"} market: ${sz} ${props.market}`,
+          { id: toastId },
         );
       }
 
@@ -498,9 +503,11 @@ function OrderEntryPanel(props: {
       // Agent key not approved yet — re-trigger setup automatically
       if (msg.toLowerCase().includes("does not exist")) {
         props.onRequireBuilderSetup();
-        toast.error("Agent session expired — re-approve to resume trading.");
+        toast.error("Agent session expired — re-approve to resume trading.", {
+          id: toastId,
+        });
       } else {
-        toast.error(msg || "Order failed");
+        toast.error(msg || "Order failed", { id: toastId });
       }
     } finally {
       setSubmitting(false);

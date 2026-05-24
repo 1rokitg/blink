@@ -177,3 +177,32 @@ export const UserProfile = pgTable("user_profile", (t) => ({
     .timestamp({ mode: "date", withTimezone: true })
     .$onUpdateFn(() => sql`now()`),
 }));
+
+/**
+ * Referral codes — one unique slug per wallet.
+ * Defaults to ENS name or the first 8 chars of the wallet address.
+ * Powers blink.lat/r/{code} links.
+ */
+export const ReferralCode = pgTable("referral_code", (t) => ({
+  id: t.uuid().notNull().primaryKey().defaultRandom(),
+  /** Wallet address of the referrer (lower-cased). */
+  walletAddress: t.varchar({ length: 42 }).notNull().unique(),
+  /** Unique URL-safe slug, e.g. "rokitg" or "0xabc123". */
+  code: t.varchar({ length: 64 }).notNull().unique(),
+  createdAt: t.timestamp().defaultNow().notNull(),
+}));
+
+/**
+ * Referral relationships — tracks who referred whom.
+ * referredAddress is unique: a user can only be referred once.
+ */
+export const Referral = pgTable("referral", (t) => ({
+  id: t.uuid().notNull().primaryKey().defaultRandom(),
+  /** Wallet address of the person who sent the referral. */
+  referrerAddress: t.varchar({ length: 42 }).notNull(),
+  /** Wallet address of the person who joined via the referral. */
+  referredAddress: t.varchar({ length: 42 }).notNull().unique(),
+  /** The code that was used (for audit / leaderboard). */
+  code: t.varchar({ length: 64 }).notNull(),
+  createdAt: t.timestamp().defaultNow().notNull(),
+}));

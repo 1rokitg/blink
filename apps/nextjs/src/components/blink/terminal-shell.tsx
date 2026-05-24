@@ -93,6 +93,7 @@ import { BuilderSetupModal } from "./builder-setup-modal";
 import { MarketInfoBar } from "./market-info-bar";
 import { PnlShareModal, type PnlPositionData } from "./pnl-share-modal";
 import { TradingIsland } from "./trading-island";
+import { ReferralWelcomeBanner } from "./referral-welcome-banner";
 import { emitTradingEvent } from "~/lib/blink/island-bus";
 import { ReferralsModal } from "./referrals-modal";
 import { TerminalOrderBook } from "./terminal-order-book";
@@ -2429,6 +2430,33 @@ export function TerminalShell(props: { market: string }) {
         search.get("wallet") ?? "0x1111111111111111111111111111111111111111",
     });
   }, [e2eModeEnabled]);
+
+  // ── Auto-claim referral on wallet connect ──────────────────────────────────
+  // When a user lands via /r/[code], a `blink_ref` cookie is set.
+  // As soon as their wallet address resolves, we silently claim the referral.
+  const referralClaimedRef = useRef(false);
+  useEffect(() => {
+    if (!walletAddress || referralClaimedRef.current) return;
+    const refCode = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("blink_ref="))
+      ?.split("=")[1];
+    if (!refCode) return;
+    referralClaimedRef.current = true;
+    fetch("/api/referrals/claim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ referredAddress: walletAddress, code: refCode }),
+    })
+      .then(() => {
+        // Clear the cookie so we don't retry
+        document.cookie = "blink_ref=; Max-Age=0; path=/";
+      })
+      .catch(() => {
+        // Non-critical — silently ignore
+        referralClaimedRef.current = false;
+      });
+  }, [walletAddress]);
   const builderFeeQuery = useQuery({
     queryKey: ["blink", "builder-fee", effectiveWalletAddress],
     queryFn: async () => {
@@ -2572,6 +2600,11 @@ export function TerminalShell(props: { market: string }) {
     <main className="relative min-h-screen overflow-hidden bg-background px-3 pb-14 pt-3 text-foreground">
       {/* ── Dynamic Island — primary feedback loop ───────────────────────── */}
       <TradingIsland />
+
+      {/* ── Referral welcome banner — shown once to users from /r/[code] ── */}
+      <div className="relative z-50 mx-3 mt-2">
+        <ReferralWelcomeBanner />
+      </div>
 
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_16%_18%,rgba(58,102,255,0.24),transparent_44%),radial-gradient(circle_at_78%_14%,rgba(39,198,181,0.2),transparent_42%),radial-gradient(circle_at_50%_78%,rgba(35,73,168,0.16),transparent_48%)] blur-3xl" />
@@ -2730,7 +2763,10 @@ export function TerminalShell(props: { market: string }) {
                           asChild
                           className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
                         >
-                          <Link href="/rewards" onClick={() => setProfileMenuOpen(false)}>
+                          <Link
+                            href="/rewards"
+                            onClick={() => setProfileMenuOpen(false)}
+                          >
                             <Gift className="size-4" />
                             Rewards
                           </Link>
@@ -2888,12 +2924,32 @@ export function TerminalShell(props: { market: string }) {
 
         <nav className="glass-panel hidden w-[82px] flex-col items-center gap-2 p-2 xl:flex">
           {[
-            { icon: Star, label: "Core" },
+            { icon: Star, label: "Rewards" },
             { icon: Settings2, label: "Setup" },
           ].map((item) => (
             <div
               key={item.label}
-              className="flex w-full flex-col items-center rounded-[14px] border border-white/8 bg-white/[0.04] px-2 py-3 text-center"
+              className="flex w-full flex-col items-center rounded-[14px] border border-white/[0.08] bg-white/[0.04] px-2 py-3 text-center"
+              as={
+                item.label === "Rewards"
+                  ? "a"
+                  : item.label === "Setup"
+                    ? "a"
+                    : "div"
+              }
+              href={
+                item.label === "Rewards"
+                  ? "/rewards"
+                  : item.label === "Setup"
+                    ? "/profile"
+                    : undefined
+              }
+              style={{
+                cursor:
+                  item.label === "Rewards" || item.label === "Setup"
+                    ? "pointer"
+                    : undefined,
+              }}
             >
               <item.icon className="size-4 text-white" />
               <span className="mt-2 text-[11px] text-foreground/48">

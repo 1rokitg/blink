@@ -32,18 +32,33 @@ export function builderMaxFeeRate(): `${string}%` {
 export const BUILDER_FEE_UNITS = env.NEXT_PUBLIC_BUILDER_FEE_BPS;
 
 /**
- * Check how much builder fee the user has already approved for Blink.
- * Returns 0 if none, or the approved fee in percentage (e.g. 0.01).
+ * Hyperliquid's maxBuilderFee can be returned in different forms depending on client/runtime.
+ * We normalize to builder fee units (0.1 bps units), where 100 = 0.01%.
  */
-export async function getApprovedBuilderFee(
+function normalizeToBuilderFeeUnits(raw: number): number {
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  // If value is fractional (< 1), treat as percent and convert:
+  // 0.01 (%) => 100 units
+  if (raw < 1) {
+    return Math.max(0, Math.round(raw / 0.0001));
+  }
+  // Otherwise treat as already being units.
+  return Math.max(0, Math.round(raw));
+}
+
+/**
+ * Check how much builder fee the user has already approved for Blink.
+ * Returns 0 if none, or approved fee in 0.1 bps units.
+ */
+export async function getApprovedBuilderFeeUnits(
   userAddress: `0x${string}`,
 ): Promise<number> {
   try {
-    const approved = await infoClient.maxBuilderFee({
+    const approvedRaw = await infoClient.maxBuilderFee({
       user: userAddress,
       builder: BUILDER_ADDRESS,
     });
-    return approved;
+    return normalizeToBuilderFeeUnits(Number(approvedRaw ?? 0));
   } catch {
     return 0;
   }
@@ -51,12 +66,12 @@ export async function getApprovedBuilderFee(
 
 /**
  * Returns true if the user already has a sufficient builder fee approval.
- * Considers the approval valid if the stored rate ≥ our configured fee rate.
+ * Considers the approval valid if approved units ≥ required units.
  */
 export async function isBuilderApproved(
   userAddress: `0x${string}`,
+  requiredFeeUnits: number = BUILDER_FEE_UNITS,
 ): Promise<boolean> {
-  const approved = await getApprovedBuilderFee(userAddress);
-  const requiredPct = BUILDER_FEE_UNITS * 0.0001; // convert 0.1bps units → %
-  return approved >= requiredPct;
+  const approvedUnits = await getApprovedBuilderFeeUnits(userAddress);
+  return approvedUnits >= Math.max(0, Math.round(requiredFeeUnits));
 }

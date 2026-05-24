@@ -2763,7 +2763,10 @@ export function TerminalShell(props: { market: string }) {
                           asChild
                           className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
                         >
-                          <Link href="/rewards" onClick={() => setProfileMenuOpen(false)}>
+                          <Link
+                            href="/rewards"
+                            onClick={() => setProfileMenuOpen(false)}
+                          >
                             <Gift className="size-4" />
                             Rewards
                           </Link>
@@ -2921,12 +2924,32 @@ export function TerminalShell(props: { market: string }) {
 
         <nav className="glass-panel hidden w-[82px] flex-col items-center gap-2 p-2 xl:flex">
           {[
-            { icon: Star, label: "Core" },
+            { icon: Star, label: "Rewards" },
             { icon: Settings2, label: "Setup" },
           ].map((item) => (
             <div
               key={item.label}
-              className="flex w-full flex-col items-center rounded-[14px] border border-white/8 bg-white/[0.04] px-2 py-3 text-center"
+              className="flex w-full flex-col items-center rounded-[14px] border border-white/[0.08] bg-white/[0.04] px-2 py-3 text-center"
+              as={
+                item.label === "Rewards"
+                  ? "a"
+                  : item.label === "Setup"
+                    ? "a"
+                    : "div"
+              }
+              href={
+                item.label === "Rewards"
+                  ? "/rewards"
+                  : item.label === "Setup"
+                    ? "/profile"
+                    : undefined
+              }
+              style={{
+                cursor:
+                  item.label === "Rewards" || item.label === "Setup"
+                    ? "pointer"
+                    : undefined,
+              }}
             >
               <item.icon className="size-4 text-white" />
               <span className="mt-2 text-[11px] text-foreground/48">

@@ -32,27 +32,31 @@ export function ReferralWelcomeBanner() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    try {
+      if (typeof window === "undefined") return;
 
-    // Already dismissed — never show again
-    if (localStorage.getItem(STORAGE_KEY_DISMISSED)) return;
+      // Already dismissed — never show again
+      if (localStorage.getItem(STORAGE_KEY_DISMISSED)) return;
 
-    // Check cookie first (user just arrived via /r/[code])
-    const cookieCode = document.cookie
-      .split("; ")
-      .find((row) => row.startsWith("blink_ref="))
-      ?.split("=")[1];
+      // Check cookie first (user just arrived via /r/[code])
+      const cookieCode = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("blink_ref="))
+        ?.split("=")[1];
 
-    if (cookieCode) {
-      // Persist to localStorage BEFORE the claim flow clears the cookie
-      localStorage.setItem(STORAGE_KEY_BY, cookieCode);
-    }
+      if (cookieCode) {
+        // Persist to localStorage BEFORE the claim flow clears the cookie
+        localStorage.setItem(STORAGE_KEY_BY, cookieCode);
+      }
 
-    // Read from localStorage (covers both fresh arrivals and return visits)
-    const storedCode = localStorage.getItem(STORAGE_KEY_BY);
-    if (storedCode) {
-      setInvitedBy(storedCode);
-      setVisible(true);
+      // Read from localStorage (covers both fresh arrivals and return visits)
+      const storedCode = localStorage.getItem(STORAGE_KEY_BY);
+      if (storedCode) {
+        setInvitedBy(storedCode);
+        setVisible(true);
+      }
+    } catch {
+      // Non-critical UI — silently fail if storage is unavailable
     }
   }, []);
 

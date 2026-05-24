@@ -357,9 +357,10 @@ function LeaderboardPanel() {
 
 type MarketRow = {
   coin: string;
+  slug: string;
   markPx: number;
   changePct: number;
-  volume: number;
+  dailyVolume: number;
 };
 
 const DISCOVER_TRADERS = [
@@ -369,8 +370,6 @@ const DISCOVER_TRADERS = [
   { handle: "X Ventures", pnl: 9_870, rank: 4 },
   { handle: "allheart", pnl: 7_640, rank: 5 },
 ];
-
-const RANK_MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
 
 function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
   const sorted = [...markets].sort((a, b) => b.changePct - a.changePct);
@@ -493,7 +492,7 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
               className="flex items-center gap-2 rounded-[8px] px-2 py-1.5"
             >
               <span className="w-5 text-center text-sm leading-none">
-                {RANK_MEDAL[t.rank] ?? `${t.rank}`}
+                {RANK_MEDAL[t.rank]?.emoji ?? `${t.rank}`}
               </span>
               <img
                 src={`https://avatar.vercel.sh/${encodeURIComponent(t.handle)}.png?size=48`}
@@ -2255,6 +2254,7 @@ export function TerminalShell(props: { market: string }) {
     : approvalQuery.data === true;
   const [builderModalOpen, setBuilderModalOpen] = useState(false);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [accountModalTab, setAccountModalTab] = useState<"Account" | "Connections">("Account");
   const [referralsModalOpen, setReferralsModalOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
@@ -2269,6 +2269,38 @@ export function TerminalShell(props: { market: string }) {
       setProfileMenuOpen(false);
     }
   }, [accountModalOpen, referralsModalOpen, builderModalOpen]);
+
+  // ── Deploy-refresh polling ──────────────────────────────────────────────────
+  // Poll /api/version every 90s. When the SHA changes from the one we booted
+  // with, show a "New version available" toast with a reload button.
+  useEffect(() => {
+    const bootSha = process.env.NEXT_PUBLIC_COMMIT_SHA ?? "dev";
+    if (bootSha === "dev") return; // skip in local dev
+
+    const check = async () => {
+      try {
+        const res = await fetch("/api/version", { cache: "no-store" });
+        if (!res.ok) return;
+        const { sha } = (await res.json()) as { sha: string };
+        if (sha !== bootSha) {
+          toast("New version available", {
+            description: `Deploy ${sha} is live. Reload to update.`,
+            duration: Number.POSITIVE_INFINITY,
+            action: {
+              label: "Reload",
+              onClick: () => window.location.reload(),
+            },
+          });
+          clearInterval(timer);
+        }
+      } catch {
+        // swallow — network hiccup
+      }
+    };
+
+    const timer = setInterval(() => void check(), 90_000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -2449,11 +2481,23 @@ export function TerminalShell(props: { market: string }) {
                           className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
                           onClick={() => {
                             setProfileMenuOpen(false);
+                            setAccountModalTab("Account");
                             setAccountModalOpen(true);
                           }}
                         >
                           <UserCog className="size-4" />
                           Manage account
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
+                          onClick={() => {
+                            setProfileMenuOpen(false);
+                            setAccountModalTab("Connections");
+                            setAccountModalOpen(true);
+                          }}
+                        >
+                          <Wallet className="size-4" />
+                          Import HL account
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
@@ -2603,6 +2647,15 @@ export function TerminalShell(props: { market: string }) {
               <span>Desktop-first v1</span>
               <span>Google + embedded wallet</span>
               <span>Perps execution first</span>
+              {/* commit SHA */}
+              {process.env.NEXT_PUBLIC_COMMIT_SHA && process.env.NEXT_PUBLIC_COMMIT_SHA !== "dev" && (
+                <span
+                  className="font-mono text-[10px] text-foreground/30 select-all"
+                  title="Build commit"
+                >
+                  {process.env.NEXT_PUBLIC_COMMIT_SHA}
+                </span>
+              )}
               {/* HL network status indicator */}
               <a
                 href="https://hyperliquid.statuspage.io/"
@@ -2713,6 +2766,7 @@ export function TerminalShell(props: { market: string }) {
       <AccountManagementModal
         open={accountModalOpen}
         walletAddress={effectiveWalletAddress}
+        initialTab={accountModalTab}
         onClose={() => {
           setAccountModalOpen(false);
           setProfileMenuOpen(false);

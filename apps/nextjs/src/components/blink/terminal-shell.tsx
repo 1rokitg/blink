@@ -1226,6 +1226,29 @@ function OrderEntryPanel(props: {
       setOrderResult("success");
       setTimeout(() => setOrderResult("idle"), 1800);
 
+      // First successful trade marker for funnel analytics
+      if (typeof window !== "undefined") {
+        const firstTradeKey = `blink:first-trade:${props.walletAddress.toLowerCase()}`;
+        if (!window.localStorage.getItem(firstTradeKey)) {
+          window.localStorage.setItem(firstTradeKey, "1");
+          void fetch("/api/metrics/event", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              eventType: "first_trade",
+              walletAddress: props.walletAddress,
+              source: "terminal",
+              metadata: {
+                market: props.market,
+                side,
+                orderType,
+                size: sizeStr,
+              },
+            }),
+          });
+        }
+      }
+
       setSize("");
       setPrice("");
       void queryClient.invalidateQueries({
@@ -2493,6 +2516,24 @@ export function TerminalShell(props: { market: string }) {
         referralClaimedRef.current = false;
       });
   }, [walletAddress]);
+
+  // ── Signup marker (first wallet connect in this browser profile) ──────────
+  useEffect(() => {
+    if (!walletAddress || typeof window === "undefined") return;
+    const key = `blink:signup:${walletAddress.toLowerCase()}`;
+    if (window.localStorage.getItem(key)) return;
+    window.localStorage.setItem(key, "1");
+    void fetch("/api/metrics/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventType: "signup",
+        walletAddress,
+        source: "terminal",
+      }),
+    });
+  }, [walletAddress]);
+
   const builderFeeQuery = useQuery({
     queryKey: ["blink", "builder-fee", effectiveWalletAddress, props.market],
     queryFn: async () => {

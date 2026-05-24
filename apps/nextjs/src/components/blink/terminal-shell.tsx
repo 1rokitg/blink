@@ -570,7 +570,7 @@ function LeftRail(props: {
 
   return (
     <aside className="flex min-h-[calc(100vh-7rem)] w-[366px] flex-col gap-2.5">
-      <div className="flex h-[68px] items-end px-1 py-1">
+      <div className="flex h-[68px] items-end gap-2.5 px-1 py-1">
         <motion.div
           aria-hidden="true"
           className="text-4xl md:text-5xl"
@@ -587,6 +587,9 @@ function LeftRail(props: {
         >
           👀
         </motion.div>
+        <span className="mb-1 inline-flex items-center rounded-md border border-[#3be1ba30] bg-[#3be1ba0f] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[#3be1ba80]">
+          beta
+        </span>
       </div>
 
       {/* Onboarding CTA for new users */}
@@ -982,7 +985,7 @@ function OrderEntryPanel(props: {
     return (asset as { szDecimals?: number } | undefined)?.szDecimals ?? 4;
   }, [metaQuery.data, props.market]);
 
-  const minSize = useMemo(() => Math.pow(10, -szDecimals), [szDecimals]);
+  const minSize = useMemo(() => 10 ** -szDecimals, [szDecimals]);
 
   const markPrice = markQuery.data ?? 0;
   const accountValue = Number(
@@ -1225,6 +1228,29 @@ function OrderEntryPanel(props: {
       // Signal fill confirmation — triggers glow on the button
       setOrderResult("success");
       setTimeout(() => setOrderResult("idle"), 1800);
+
+      // First successful trade marker for funnel analytics
+      if (typeof window !== "undefined") {
+        const firstTradeKey = `blink:first-trade:${props.walletAddress.toLowerCase()}`;
+        if (!window.localStorage.getItem(firstTradeKey)) {
+          window.localStorage.setItem(firstTradeKey, "1");
+          void fetch("/api/metrics/event", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              eventType: "first_trade",
+              walletAddress: props.walletAddress,
+              source: "terminal",
+              metadata: {
+                market: props.market,
+                side,
+                orderType,
+                size: sizeStr,
+              },
+            }),
+          });
+        }
+      }
 
       setSize("");
       setPrice("");
@@ -1704,7 +1730,7 @@ function AccountPanel(props: {
       setCancellingOid(oid);
       emitTradingEvent({
         type: "loading",
-        message: `Cancelling order…`,
+        message: "Cancelling order…",
         id: "cancel",
       });
       try {
@@ -1746,10 +1772,12 @@ function AccountPanel(props: {
     if (!recentFills.length) return;
     // On first load, seed the seen set without emitting
     if (isFirstLoadRef.current) {
+      // biome-ignore lint/complexity/noForEach: <explanation>
       recentFills.forEach((f) => seenFillsRef.current.add(f.tid as number));
       isFirstLoadRef.current = false;
       return;
     }
+    // biome-ignore lint/complexity/noForEach: <explanation>
     recentFills.forEach((fill) => {
       const tid = fill.tid as number;
       if (seenFillsRef.current.has(tid)) return;
@@ -2039,7 +2067,11 @@ function AccountPanel(props: {
                         {/* liq */}
                         <span className="text-right font-mono text-xs text-rose-300/60">
                           {posLiq
-                            ? maskNumberish(posLiq, formatUsd, props.hideBalances)
+                            ? maskNumberish(
+                                posLiq,
+                                formatUsd,
+                                props.hideBalances,
+                              )
                             : "—"}
                         </span>
                         {/* value */}
@@ -2493,6 +2525,86 @@ export function TerminalShell(props: { market: string }) {
         referralClaimedRef.current = false;
       });
   }, [walletAddress]);
+
+  // ── Signup marker (first wallet connect in this browser profile) ──────────
+  useEffect(() => {
+    if (!walletAddress || typeof window === "undefined") return;
+    const key = `blink:signup:${walletAddress.toLowerCase()}`;
+    if (window.localStorage.getItem(key)) return;
+    window.localStorage.setItem(key, "1");
+
+    // ── Collect rich client-side context ──────────────────────────────────
+    // Referral code from cookie set by /r/[code] middleware
+    const refCode =
+      document.cookie
+        .split(";")
+        .map((c) => c.trim())
+        .find((c) => c.startsWith("blink_ref="))
+        ?.split("=")[1] ?? null;
+
+    // UTM params from landing URL (stored in sessionStorage on first load)
+    let utmSource: string | null = null;
+    let utmMedium: string | null = null;
+    let utmCampaign: string | null = null;
+    try {
+      const storedUtm = sessionStorage.getItem("blink:utm");
+      if (storedUtm) {
+        const utm = JSON.parse(storedUtm) as Record<string, string>;
+        utmSource = utm.source ?? null;
+        utmMedium = utm.medium ?? null;
+        utmCampaign = utm.campaign ?? null;
+      }
+    } catch {
+      /* ignore */
+    }
+
+    // Session duration — time since first page load
+    const sessionStart = Number(
+      sessionStorage.getItem("blink:session_start") ?? Date.now(),
+    );
+    const sessionDurationSec = Math.round((Date.now() - sessionStart) / 1000);
+
+    // Wallet connector type (MetaMask, Coinbase, embedded, etc.)
+    const connectorType =
+      wallets[0]?.walletClientType ?? wallets[0]?.connectorType ?? "unknown";
+
+    // Device + screen
+    const screenW = window.screen.width;
+    const screenH = window.screen.height;
+    const pixelRatio = window.devicePixelRatio ?? 1;
+    const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+
+    void fetch("/api/metrics/event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        eventType: "signup",
+        walletAddress,
+        source: utmSource ?? "terminal",
+        metadata: {
+          // Acquisition
+          ...(refCode ? { referralCode: refCode } : {}),
+          ...(utmSource ? { utmSource } : {}),
+          ...(utmMedium ? { utmMedium } : {}),
+          ...(utmCampaign ? { utmCampaign } : {}),
+          landingPath: window.location.pathname,
+          // Trading context
+          firstMarket: props.market,
+          // Auth
+          connectorType,
+          // Session
+          sessionDurationSec,
+          // Device
+          screen: `${screenW}x${screenH}`,
+          pixelRatio,
+          isMobile,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          language: navigator.language,
+        },
+      }),
+    });
+  }, [walletAddress, wallets, props.market]);
+
   const builderFeeQuery = useQuery({
     queryKey: ["blink", "builder-fee", effectiveWalletAddress, props.market],
     queryFn: async () => {
@@ -2535,6 +2647,12 @@ export function TerminalShell(props: { market: string }) {
   const [referralsModalOpen, setReferralsModalOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const topMarketsQuery = useQuery({
+    queryKey: ["blink", "top-markets-search"],
+    queryFn: () => fetchTopMarketsByVolume(50),
+    staleTime: 60_000,
+  });
   const { hideBalances: blurBalances, setHideBalances: setBlurBalances } =
     useHideBalances();
   const [autoPromptDismissed, setAutoPromptDismissed] = useState(false);
@@ -2582,14 +2700,26 @@ export function TerminalShell(props: { market: string }) {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      // ⌘K / Ctrl+K — toggle
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
         setGlobalSearchOpen((prev) => !prev);
+        return;
+      }
+      // "/" — open (only when no input/textarea is focused)
+      if (
+        event.key === "/" &&
+        !globalSearchOpen &&
+        document.activeElement?.tagName !== "INPUT" &&
+        document.activeElement?.tagName !== "TEXTAREA"
+      ) {
+        event.preventDefault();
+        setGlobalSearchOpen(true);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [globalSearchOpen]);
 
   useEffect(() => {
     if (!effectiveWalletAddress) return;
@@ -2656,23 +2786,54 @@ export function TerminalShell(props: { market: string }) {
         />
 
         <div className="min-w-0 flex-1">
-          <div className="mb-3 flex h-[68px] items-center justify-center">
+          {/* ── Top header row — chips left · island zone · search right ── */}
+          <div className="mb-3 flex h-[68px] items-center gap-2 px-0.5">
+            {/* Quick market chips */}
+            <div className="flex items-center gap-1.5 overflow-hidden">
+              {(topMarketsQuery.data ?? []).slice(0, 5).map((m) => {
+                const pos = m.changePct >= 0;
+                return (
+                  <Link
+                    key={m.coin}
+                    href={`/trade/${m.coin}`}
+                    className={`group inline-flex items-center gap-1.5 rounded-[10px] border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                      m.coin === props.market
+                        ? "border-[#8fc2ff40] bg-[#111d3cad] text-white"
+                        : "border-white/[0.06] bg-white/[0.025] text-foreground/60 hover:border-white/[0.12] hover:bg-white/[0.05] hover:text-white"
+                    }`}
+                  >
+                    <span>{m.coin}</span>
+                    <span
+                      className={
+                        pos ? "text-emerald-400/80" : "text-rose-400/80"
+                      }
+                    >
+                      {pos ? "+" : ""}
+                      {m.changePct.toFixed(1)}%
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+
+            {/* Island zone — keeps center clear */}
+            <div className="flex-1" />
+
+            {/* Search trigger — right-aligned */}
             <button
               type="button"
               onClick={() => setGlobalSearchOpen(true)}
-              className="inline-flex h-12 w-full max-w-lg items-center justify-between rounded-[14px] border border-white/10 bg-[#0c101c] px-4 text-sm text-foreground/60 transition hover:border-white/20 hover:text-foreground/80"
+              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[11px] border border-[#8fc2ff3d] bg-[#111d3cad] pl-3 pr-2 text-sm text-foreground/50 transition hover:border-[#8fc2ff60] hover:bg-[#111d3cd0] hover:text-foreground/80"
             >
-              <span className="inline-flex items-center gap-2">
-                <Search className="size-4" />
-                Search for tokens or traders...
-              </span>
-              <span className="inline-flex items-center gap-2">
-                <span className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] text-foreground/50">
-                  Paste
-                </span>
-                <span className="rounded-md border border-white/10 bg-white/[0.03] px-2 py-0.5 text-[11px] text-foreground/50">
-                  ESC
-                </span>
+              <Search className="size-3.5 shrink-0" />
+              <span className="hidden text-xs sm:inline">Search markets</span>
+              <span className="ml-1 inline-flex items-center gap-1">
+                <kbd className="rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-foreground/35">
+                  /
+                </kbd>
+                <kbd className="rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-foreground/35">
+                  ⌘K
+                </kbd>
               </span>
             </button>
           </div>
@@ -3071,29 +3232,109 @@ export function TerminalShell(props: { market: string }) {
           setProfileMenuOpen(false);
         }}
       />
-      <CommandDialog open={globalSearchOpen} onOpenChange={setGlobalSearchOpen}>
-        <CommandInput placeholder="Search markets, traders, wallets..." />
+      <CommandDialog
+        open={globalSearchOpen}
+        onOpenChange={(open) => {
+          setGlobalSearchOpen(open);
+          if (!open) setGlobalSearchQuery("");
+        }}
+      >
+        <CommandInput
+          placeholder="Search perps or paste a wallet address..."
+          value={globalSearchQuery}
+          onValueChange={setGlobalSearchQuery}
+        />
         <CommandList>
-          <CommandEmpty>No results found.</CommandEmpty>
-          <CommandGroup heading="Markets">
-            {["BTC", "ETH", "SOL", "HYPE", "NEAR", "DOGE"].map((coin) => (
+          <CommandEmpty>
+            <span className="text-foreground/40">No markets found</span>
+          </CommandEmpty>
+
+          {/* Wallet / profile detection */}
+          {/^0x[0-9a-fA-F]{10,}/.test(globalSearchQuery.trim()) && (
+            <CommandGroup heading="Wallet">
               <CommandItem
-                key={coin}
                 onSelect={() => {
-                  window.location.href = `/trade/${coin}`;
+                  setGlobalSearchOpen(false);
+                  router.push(`/profile/${globalSearchQuery.trim()}`);
                 }}
+                className="flex items-center gap-3 px-3 py-2.5"
               >
-                {coin} Perps
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#1a2340] text-xs text-foreground/50">
+                  <User className="size-3.5" />
+                </div>
+                <div className="flex flex-col">
+                  <span className="font-mono text-sm text-white">
+                    {globalSearchQuery.trim().slice(0, 8)}…
+                    {globalSearchQuery.trim().slice(-6)}
+                  </span>
+                  <span className="text-xs text-foreground/40">
+                    View profile
+                  </span>
+                </div>
+                <ArrowRight className="ml-auto size-3.5 text-foreground/30" />
               </CommandItem>
-            ))}
-          </CommandGroup>
-          <CommandGroup heading="Actions">
-            <CommandItem onSelect={() => setBuilderModalOpen(true)}>
-              Open Builder Setup
-            </CommandItem>
-            <CommandItem onSelect={() => setAccountModalOpen(true)}>
-              Open Account Settings
-            </CommandItem>
+            </CommandGroup>
+          )}
+
+          {/* Markets */}
+          <CommandGroup heading="Perpetuals">
+            {(topMarketsQuery.data ?? [])
+              .filter(
+                (m) =>
+                  !globalSearchQuery.trim() ||
+                  m.coin
+                    .toLowerCase()
+                    .includes(globalSearchQuery.trim().toLowerCase()),
+              )
+              .slice(0, 12)
+              .map((m) => {
+                const pos = m.changePct >= 0;
+                return (
+                  <CommandItem
+                    key={m.coin}
+                    value={m.coin}
+                    onSelect={() => {
+                      setGlobalSearchOpen(false);
+                      router.push(`/trade/${m.coin}`);
+                    }}
+                    className="flex items-center gap-3 px-3 py-2.5"
+                  >
+                    {/* Coin circle */}
+                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#1a2340] text-[11px] font-bold text-foreground/70">
+                      {m.coin.slice(0, 2)}
+                    </div>
+                    {/* Name */}
+                    <div className="flex flex-col">
+                      <span className="text-sm font-semibold text-white">
+                        {m.coin}
+                      </span>
+                      <span className="text-xs text-foreground/40">
+                        Perpetual
+                      </span>
+                    </div>
+                    {/* Price + change */}
+                    <div className="ml-auto flex items-center gap-3 text-right">
+                      <span className="text-sm tabular-nums text-foreground/70">
+                        {m.markPx < 0.01
+                          ? `$${m.markPx.toFixed(5)}`
+                          : m.markPx < 1
+                            ? `$${m.markPx.toFixed(4)}`
+                            : `$${m.markPx.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}
+                      </span>
+                      <span
+                        className={`w-[58px] rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold tabular-nums ${
+                          pos
+                            ? "bg-emerald-500/10 text-emerald-400"
+                            : "bg-rose-500/10 text-rose-400"
+                        }`}
+                      >
+                        {pos ? "+" : ""}
+                        {m.changePct.toFixed(2)}%
+                      </span>
+                    </div>
+                  </CommandItem>
+                );
+              })}
           </CommandGroup>
         </CommandList>
       </CommandDialog>

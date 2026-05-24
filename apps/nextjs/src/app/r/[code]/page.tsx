@@ -1,5 +1,3 @@
-import { cookies } from "next/headers";
-
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -41,14 +39,6 @@ export default async function ReferralLandingPage(props: {
 }) {
   const { code } = await props.params;
   const slug = decodeURIComponent(code).toLowerCase();
-
-  // Set ref cookie (30 days) — no DB needed, validation happens at claim time
-  const cookieStore = await cookies();
-  cookieStore.set("blink_ref", slug, {
-    maxAge: 60 * 60 * 24 * 30,
-    path: "/",
-    sameSite: "lax",
-  });
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-[#060510] px-4 text-[#f2f4f7]">

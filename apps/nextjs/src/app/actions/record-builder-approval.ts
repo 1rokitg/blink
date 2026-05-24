@@ -2,6 +2,7 @@
 
 import { db } from "@acme/db/client";
 import { BuilderApproval } from "@acme/db/schema";
+import { trackMetricEvent } from "~/lib/blink/internal-metrics.server";
 
 /**
  * Persists a successful builder fee approval to the database.
@@ -18,6 +19,12 @@ export async function recordBuilderApproval(
       builderAddress: builderAddress.toLowerCase(),
       maxFeeRate,
       status: "approved",
+    });
+    await trackMetricEvent({
+      eventType: "builder_approved",
+      walletAddress,
+      source: "builder-setup",
+      metadata: { builderAddress, maxFeeRate },
     });
   } catch (err) {
     // Non-critical — don't surface DB errors to the user.

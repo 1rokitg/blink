@@ -1,6 +1,3 @@
-// This file is intentionally left as a stub.
-// The real OG image is at opengraph-image.tsx (Next.js convention).
-// This file is kept to avoid 404s from any cached references to /og-image.
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";

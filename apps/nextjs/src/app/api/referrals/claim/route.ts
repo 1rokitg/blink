@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { db } from "@acme/db/client";
 import { Referral, ReferralCode } from "@acme/db/schema";
+import { trackMetricEvent } from "~/lib/blink/internal-metrics.server";
 
 export const runtime = "nodejs";
 
@@ -75,6 +76,16 @@ export async function POST(request: Request) {
     referrerAddress: referrer,
     referredAddress: referred,
     code: slug,
+  });
+
+  await trackMetricEvent({
+    eventType: "referral_claimed",
+    walletAddress: referred,
+    source: "referral",
+    metadata: {
+      referrerAddress: referrer,
+      code: slug,
+    },
   });
 
   return NextResponse.json({ status: "claimed", referrer });

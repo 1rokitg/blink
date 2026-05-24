@@ -47,6 +47,7 @@ export const env = createEnv({
     NEXT_PUBLIC_BUILDER_ADDRESS: z
       .string()
       .regex(/^0x[0-9a-fA-F]{40}$/, "Must be a valid EVM address")
+      .default("0xc7BcB2EeE9BbFbf875499960746Bc52B2E1A75C6")
       .transform((addr) => getAddress(addr)),
     /** Builder fee in HL units (1 unit = 0.1bps = 0.001%). 10 = 0.01%, 100 = 0.1% (max). */
     NEXT_PUBLIC_BUILDER_FEE_BPS: z.coerce.number().int().min(0).default(10),

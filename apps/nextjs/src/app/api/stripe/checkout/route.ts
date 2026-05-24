@@ -8,6 +8,7 @@ import {
   getGrowthProDiscountRate,
   isGrowthModeEnabled,
 } from "~/lib/blink/growth-mode";
+import { trackMetricEvent } from "~/lib/blink/internal-metrics.server";
 
 export const runtime = "nodejs";
 
@@ -121,6 +122,19 @@ export async function POST(request: Request) {
           walletAddress: walletAddress ?? "",
           growthMode: isGrowthModeEnabled() ? "1" : "0",
         },
+      },
+    });
+
+    await trackMetricEvent({
+      eventType: "pro_checkout_started",
+      walletAddress,
+      source: "pro-page",
+      metadata: {
+        tier,
+        billing,
+        paymentMethod,
+        growthMode: isGrowthModeEnabled(),
+        amountUsd: amount,
       },
     });
 

@@ -72,15 +72,25 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@acme/ui/tabs";
 
 import {
   BUILDER_ADDRESS,
+  BUILDER_FEE_UNITS,
   getApprovedBuilderFeeUnits,
   isBuilderApproved,
 } from "~/lib/blink/builder";
+import {
+  GROWTH_ZERO_FEE_MARKETS,
+  isGrowthModeEnabled,
+} from "~/lib/blink/growth-mode";
 import {
   getAssetIndex,
   getAssetIndexSync,
   infoClient,
 } from "~/lib/blink/hyperliquid";
 import { createAgentExchangeClient } from "~/lib/blink/agent-wallet";
+import {
+  maskNumberish,
+  maskValue,
+  useHideBalances,
+} from "~/lib/blink/hide-balances";
 import {
   fetchTopMarketsByVolume,
   formatCompactNumber,
@@ -735,7 +745,9 @@ function LeftRail(props: {
  * HIP-3 native markets — zero maker fee on Hyperliquid.
  * Blink passes the benefit through: no builder fee on these assets.
  */
-const ZERO_FEE_MARKETS = new Set(["BTC", "ETH", "SOL", "HYPE"]);
+const ZERO_FEE_MARKETS = new Set(
+  isGrowthModeEnabled() ? GROWTH_ZERO_FEE_MARKETS : [],
+);
 
 const LEVERAGE_PRESETS = [1, 2, 5, 10, 20] as const;
 
@@ -911,6 +923,7 @@ function OrderEntryPanel(props: {
   walletAddress: string;
   builderFeeUnits: number;
   tradeEnabled: boolean;
+  hideBalances: boolean;
   onRequireBuilderSetup: () => void;
 }) {
   const queryClient = useQueryClient();
@@ -1294,7 +1307,9 @@ function OrderEntryPanel(props: {
             Available
           </p>
           <p className="mt-0.5 font-mono text-sm font-medium text-white">
-            {accountValue > 0 ? formatUsd(availableMargin) : "—"}
+            {accountValue > 0
+              ? maskNumberish(availableMargin, formatUsd, props.hideBalances)
+              : "—"}
           </p>
         </div>
         <div className="rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-2">
@@ -1302,7 +1317,9 @@ function OrderEntryPanel(props: {
             Mark price
           </p>
           <p className="mt-0.5 font-mono text-sm font-medium text-white">
-            {markPrice > 0 ? formatUsd(markPrice) : "—"}
+            {markPrice > 0
+              ? maskNumberish(markPrice, formatUsd, props.hideBalances)
+              : "—"}
           </p>
         </div>
       </div>
@@ -1392,7 +1409,7 @@ function OrderEntryPanel(props: {
               <p className="px-1 text-[11px] text-foreground/38">
                 {sizeMode === "usd"
                   ? `≈ ${coinSize.toFixed(6)} ${props.market}`
-                  : `≈ ${formatUsd(notional)} notional`}
+                  : `≈ ${maskNumberish(notional, formatUsd, props.hideBalances)} notional`}
               </p>
             )}
             {coinSize > 0 && coinSize < minSize && (
@@ -1460,7 +1477,7 @@ function OrderEntryPanel(props: {
               <p className="px-1 text-[11px] text-foreground/38">
                 {sizeMode === "usd"
                   ? `≈ ${coinSize.toFixed(6)} ${props.market}`
-                  : `≈ ${formatUsd(notional)} notional`}
+                  : `≈ ${maskNumberish(notional, formatUsd, props.hideBalances)} notional`}
               </p>
             )}
             {coinSize > 0 && coinSize < minSize && (
@@ -1574,14 +1591,14 @@ function OrderEntryPanel(props: {
           <div className="flex items-center justify-between px-3 py-2">
             <span className="text-xs text-foreground/40">Notional</span>
             <span className="font-mono text-xs text-foreground/72">
-              {formatUsd(notional)}
+              {maskNumberish(notional, formatUsd, props.hideBalances)}
             </span>
           </div>
           {marginRequired !== null && (
             <div className="flex items-center justify-between px-3 py-2">
               <span className="text-xs text-foreground/40">Margin req.</span>
               <span className="font-mono text-xs text-foreground/72">
-                {formatUsd(marginRequired)}
+                {maskNumberish(marginRequired, formatUsd, props.hideBalances)}
               </span>
             </div>
           )}
@@ -1593,7 +1610,7 @@ function OrderEntryPanel(props: {
               <span
                 className={`font-mono text-xs font-medium ${side === "buy" ? "text-rose-300" : "text-emerald-300"}`}
               >
-                {formatUsd(liqPrice)}
+                {maskNumberish(liqPrice, formatUsd, props.hideBalances)}
               </span>
             </div>
           )}
@@ -1601,7 +1618,7 @@ function OrderEntryPanel(props: {
             <div className="flex items-center justify-between bg-amber-300/8 px-3 py-2">
               <span className="text-xs text-amber-100/90">You are saving</span>
               <span className="font-mono text-xs font-semibold text-amber-200">
-                {formatUsd(savingsUsd)}
+                {maskNumberish(savingsUsd, formatUsd, props.hideBalances)}
               </span>
             </div>
           )}
@@ -1648,6 +1665,7 @@ function OrderEntryPanel(props: {
 function AccountPanel(props: {
   walletAddress: string;
   builderFeeUnits: number;
+  hideBalances: boolean;
 }) {
   const queryClient = useQueryClient();
   const [cancellingOid, setCancellingOid] = useState<number | null>(null);
@@ -1887,7 +1905,7 @@ function AccountPanel(props: {
           </p>
           {accountValue > 0 && (
             <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 font-mono text-[11px] text-white/70">
-              {formatUsd(accountValue)}
+              {maskNumberish(accountValue, formatUsd, props.hideBalances)}
             </span>
           )}
         </div>
@@ -2016,15 +2034,21 @@ function AccountPanel(props: {
                         </div>
                         {/* entry */}
                         <span className="text-right font-mono text-xs text-foreground/65">
-                          {formatUsd(entry)}
+                          {maskNumberish(entry, formatUsd, props.hideBalances)}
                         </span>
                         {/* liq */}
                         <span className="text-right font-mono text-xs text-rose-300/60">
-                          {posLiq ? formatUsd(posLiq) : "—"}
+                          {posLiq
+                            ? maskNumberish(posLiq, formatUsd, props.hideBalances)
+                            : "—"}
                         </span>
                         {/* value */}
                         <span className="text-right font-mono text-xs text-foreground/75">
-                          {formatUsd(posValue)}
+                          {maskNumberish(
+                            posValue,
+                            formatUsd,
+                            props.hideBalances,
+                          )}
                         </span>
                         {/* pnl */}
                         <div className="flex flex-col items-end">
@@ -2032,13 +2056,16 @@ function AccountPanel(props: {
                             className={`font-mono text-sm font-semibold leading-none ${pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
                           >
                             {pnl >= 0 ? "+" : ""}
-                            {formatUsd(pnl)}
+                            {maskNumberish(pnl, formatUsd, props.hideBalances)}
                           </span>
                           <span
                             className={`mt-0.5 text-[10px] ${pnl >= 0 ? "text-emerald-400/60" : "text-rose-400/60"}`}
                           >
                             {pnlPct >= 0 ? "+" : ""}
-                            {pnlPct.toFixed(2)}%
+                            {maskValue(
+                              `${pnlPct.toFixed(2)}%`,
+                              props.hideBalances,
+                            )}
                           </span>
                         </div>
                         {/* actions */}
@@ -2238,7 +2265,11 @@ function AccountPanel(props: {
                         </span>
                       </div>
                       <span className="text-right font-mono text-foreground/70">
-                        {formatUsd(Number(order.limitPx))}
+                        {maskNumberish(
+                          Number(order.limitPx),
+                          formatUsd,
+                          props.hideBalances,
+                        )}
                       </span>
                       <span className="text-right font-mono text-foreground/60">
                         {order.sz}
@@ -2322,7 +2353,11 @@ function AccountPanel(props: {
                         </span>
                       </div>
                       <span className="text-right font-mono text-foreground/70">
-                        {formatUsd(Number(fill.px))}
+                        {maskNumberish(
+                          Number(fill.px),
+                          formatUsd,
+                          props.hideBalances,
+                        )}
                       </span>
                       <span className="text-right font-mono text-foreground/58">
                         {fill.sz}
@@ -2360,6 +2395,7 @@ function AccountPanel(props: {
           type="position"
           open={!!sharePosition}
           onClose={() => setSharePosition(null)}
+          hideBalances={props.hideBalances}
           data={sharePosition}
         />
       )}
@@ -2458,10 +2494,10 @@ export function TerminalShell(props: { market: string }) {
       });
   }, [walletAddress]);
   const builderFeeQuery = useQuery({
-    queryKey: ["blink", "builder-fee", effectiveWalletAddress],
+    queryKey: ["blink", "builder-fee", effectiveWalletAddress, props.market],
     queryFn: async () => {
       const response = await fetch(
-        `/api/builder/fee?wallet=${encodeURIComponent(effectiveWalletAddress)}`,
+        `/api/builder/fee?wallet=${encodeURIComponent(effectiveWalletAddress)}&market=${encodeURIComponent(props.market)}`,
       );
       if (!response.ok) throw new Error("Failed to resolve builder fee");
       return (await response.json()) as { feeUnits: number; isPro: boolean };
@@ -2470,7 +2506,8 @@ export function TerminalShell(props: { market: string }) {
     staleTime: 30_000,
     refetchInterval: 60_000,
   });
-  const resolvedBuilderFeeUnits = builderFeeQuery.data?.feeUnits ?? 10;
+  const resolvedBuilderFeeUnits =
+    builderFeeQuery.data?.feeUnits ?? BUILDER_FEE_UNITS;
   const approvalQuery = useQuery({
     queryKey: [
       "blink",
@@ -2498,7 +2535,8 @@ export function TerminalShell(props: { market: string }) {
   const [referralsModalOpen, setReferralsModalOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
-  const [blurBalances, setBlurBalances] = useState(false);
+  const { hideBalances: blurBalances, setHideBalances: setBlurBalances } =
+    useHideBalances();
   const [autoPromptDismissed, setAutoPromptDismissed] = useState(false);
   const [showProPromo, setShowProPromo] = useState(false);
   const accountAvatar = `https://avatar.vercel.sh/${effectiveWalletAddress || "blink-user"}.png?size=56`;
@@ -2749,7 +2787,7 @@ export function TerminalShell(props: { market: string }) {
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
-                          onClick={() => setBlurBalances((prev) => !prev)}
+                          onClick={() => setBlurBalances(!blurBalances)}
                         >
                           <EyeOff className="size-4" />
                           Blur balances
@@ -2872,6 +2910,7 @@ export function TerminalShell(props: { market: string }) {
               walletAddress={effectiveWalletAddress}
               builderFeeUnits={resolvedBuilderFeeUnits}
               tradeEnabled={tradeEnabled}
+              hideBalances={blurBalances}
               onRequireBuilderSetup={() => setBuilderModalOpen(true)}
             />
           </div>
@@ -2880,6 +2919,7 @@ export function TerminalShell(props: { market: string }) {
             <AccountPanel
               walletAddress={effectiveWalletAddress}
               builderFeeUnits={resolvedBuilderFeeUnits}
+              hideBalances={blurBalances}
             />
           )}
 
@@ -2924,38 +2964,19 @@ export function TerminalShell(props: { market: string }) {
 
         <nav className="glass-panel hidden w-[82px] flex-col items-center gap-2 p-2 xl:flex">
           {[
-            { icon: Star, label: "Rewards" },
-            { icon: Settings2, label: "Setup" },
+            { icon: Star, label: "Rewards", href: "/rewards" },
+            { icon: Settings2, label: "Setup", href: "/profile" },
           ].map((item) => (
-            <div
+            <Link
               key={item.label}
-              className="flex w-full flex-col items-center rounded-[14px] border border-white/[0.08] bg-white/[0.04] px-2 py-3 text-center"
-              as={
-                item.label === "Rewards"
-                  ? "a"
-                  : item.label === "Setup"
-                    ? "a"
-                    : "div"
-              }
-              href={
-                item.label === "Rewards"
-                  ? "/rewards"
-                  : item.label === "Setup"
-                    ? "/profile"
-                    : undefined
-              }
-              style={{
-                cursor:
-                  item.label === "Rewards" || item.label === "Setup"
-                    ? "pointer"
-                    : undefined,
-              }}
+              href={item.href}
+              className="flex w-full cursor-pointer flex-col items-center rounded-[14px] border border-white/[0.08] bg-white/[0.04] px-2 py-3 text-center"
             >
               <item.icon className="size-4 text-white" />
               <span className="mt-2 text-[11px] text-foreground/48">
                 {item.label}
               </span>
-            </div>
+            </Link>
           ))}
         </nav>
       </div>
@@ -3022,6 +3043,7 @@ export function TerminalShell(props: { market: string }) {
         open={builderModalOpen}
         walletAddress={effectiveWalletAddress}
         market={props.market}
+        requiredFeeUnits={resolvedBuilderFeeUnits}
         onClose={() => {
           setBuilderModalOpen(false);
           setAutoPromptDismissed(true);

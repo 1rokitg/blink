@@ -10,6 +10,7 @@ import { Share2, Users } from "lucide-react";
 
 import { Button } from "@acme/ui/button";
 
+import { maskNumberish, useHideBalances } from "~/lib/blink/hide-balances";
 import { infoClient } from "~/lib/blink/hyperliquid";
 import { formatUsd } from "~/lib/blink/markets";
 
@@ -60,6 +61,7 @@ export function ProfileEquitySection({
 
   const [period, setPeriod] = useState<Period>("24H");
   const [shareOpen, setShareOpen] = useState(false);
+  const { hideBalances } = useHideBalances();
 
   // ── Account state ─────────────────────────────────────────────────────────
   const accountQuery = useQuery({
@@ -185,13 +187,14 @@ export function ProfileEquitySection({
           ) : (
             <>
               <h2 className="mt-1 text-6xl font-semibold">
-                {formatUsd(accountValue)}
+                {maskNumberish(accountValue, formatUsd, hideBalances)}
               </h2>
               <p
                 className={`mt-1 text-2xl ${totalRealizedPnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
               >
                 {totalRealizedPnl >= 0 ? "+" : ""}
-                {formatUsd(totalRealizedPnl)} realized PnL
+                {maskNumberish(totalRealizedPnl, formatUsd, hideBalances)}{" "}
+                realized PnL
               </p>
             </>
           )}
@@ -323,22 +326,22 @@ export function ProfileEquitySection({
       <div className="mt-4 space-y-2.5">
         <StatRow
           label="Spot wallet"
-          value={formatUsd(spotWalletValue)}
+          value={maskNumberish(spotWalletValue, formatUsd, hideBalances)}
           color="#2c6bff"
         />
         <StatRow
           label="Perps margin"
-          value={formatUsd(perpsValue)}
+          value={maskNumberish(perpsValue, formatUsd, hideBalances)}
           color="#41d38f"
         />
         <StatRow
           label="Staking / vaults"
-          value={formatUsd(stakingValue)}
+          value={maskNumberish(stakingValue, formatUsd, hideBalances)}
           color="#2b8dcc"
         />
         <StatRow
           label="Pending orders (notional)"
-          value={formatUsd(pendingOrderNotional)}
+          value={maskNumberish(pendingOrderNotional, formatUsd, hideBalances)}
           color="#788395"
         />
       </div>
@@ -367,14 +370,15 @@ export function ProfileEquitySection({
                     <p className="font-medium text-white">{position.coin}</p>
                     <p className="text-sm text-white/50">
                       {size > 0 ? "Long" : "Short"}{" "}
-                      {Math.abs(size).toFixed(4)} @ {position.entryPx}
+                      {Math.abs(size).toFixed(4)} @{" "}
+                      {hideBalances ? "••••" : position.entryPx}
                     </p>
                   </div>
                   <p
                     className={`text-sm font-medium ${pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
                   >
                     {pnl >= 0 ? "+" : ""}
-                    {formatUsd(pnl)}
+                    {maskNumberish(pnl, formatUsd, hideBalances)}
                   </p>
                 </div>
               );
@@ -395,6 +399,7 @@ export function ProfileEquitySection({
           type="portfolio"
           open={shareOpen}
           onClose={() => setShareOpen(false)}
+          hideBalances={hideBalances}
           data={{
             walletAddress,
             accountValue,

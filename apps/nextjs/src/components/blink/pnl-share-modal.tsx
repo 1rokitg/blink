@@ -14,6 +14,7 @@ import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
 
+import { maskNumberish, maskValue } from "~/lib/blink/hide-balances";
 import { formatUsd } from "~/lib/blink/markets";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -38,8 +39,20 @@ export type PnlPortfolioData = {
 };
 
 type ModalProps =
-  | { type: "position"; data: PnlPositionData; open: boolean; onClose: () => void }
-  | { type: "portfolio"; data: PnlPortfolioData; open: boolean; onClose: () => void };
+  | {
+      type: "position";
+      data: PnlPositionData;
+      open: boolean;
+      onClose: () => void;
+      hideBalances?: boolean;
+    }
+  | {
+      type: "portfolio";
+      data: PnlPortfolioData;
+      open: boolean;
+      onClose: () => void;
+      hideBalances?: boolean;
+    };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -54,7 +67,13 @@ function truncateAddr(addr: string) {
 
 // ─── Card components (these are what get screenshot'd) ────────────────────
 
-function PositionCard({ data }: { data: PnlPositionData }) {
+function PositionCard({
+  data,
+  hideBalances,
+}: {
+  data: PnlPositionData;
+  hideBalances: boolean;
+}) {
   const isProfit = data.pnl >= 0;
   const color = isProfit ? "#3be1ba" : "#f87171";
   const glowColor = isProfit ? "#3be1ba14" : "#f8717114";
@@ -157,9 +176,13 @@ function PositionCard({ data }: { data: PnlPositionData }) {
             </span>
           </div>
           <div style={{ color: "#ffffff55", fontSize: 13, marginTop: 4, display: "flex", gap: 6, alignItems: "center" }}>
-            <span>Entry {formatUsd(data.entryPx)}</span>
+            <span>
+              Entry {maskNumberish(data.entryPx, formatUsd, hideBalances)}
+            </span>
             <span style={{ color: "#ffffff30" }}>→</span>
-            <span style={{ color: "#ffffff75" }}>Mark {formatUsd(data.markPx)}</span>
+            <span style={{ color: "#ffffff75" }}>
+              Mark {maskNumberish(data.markPx, formatUsd, hideBalances)}
+            </span>
           </div>
         </div>
       </div>
@@ -176,10 +199,11 @@ function PositionCard({ data }: { data: PnlPositionData }) {
             textShadow: `0 0 60px ${color}88`,
           }}
         >
-          {data.pnl >= 0 ? "+" : ""}{formatUsd(data.pnl)}
+          {data.pnl >= 0 ? "+" : ""}
+          {maskNumberish(data.pnl, formatUsd, hideBalances)}
         </div>
         <div style={{ color: `${color}cc`, fontSize: 18, fontWeight: 600, marginTop: 4 }}>
-          {formatPct(data.pnlPct)}
+          {maskValue(formatPct(data.pnlPct), hideBalances)}
         </div>
       </div>
 
@@ -199,7 +223,13 @@ function PositionCard({ data }: { data: PnlPositionData }) {
   );
 }
 
-function PortfolioCard({ data }: { data: PnlPortfolioData }) {
+function PortfolioCard({
+  data,
+  hideBalances,
+}: {
+  data: PnlPortfolioData;
+  hideBalances: boolean;
+}) {
   const isProfit = data.totalRealizedPnl >= 0;
   const color = isProfit ? "#3be1ba" : "#f87171";
 
@@ -262,7 +292,8 @@ function PortfolioCard({ data }: { data: PnlPortfolioData }) {
               textShadow: `0 0 50px ${color}66`,
             }}
           >
-            {data.totalRealizedPnl >= 0 ? "+" : ""}{formatUsd(data.totalRealizedPnl)}
+            {data.totalRealizedPnl >= 0 ? "+" : ""}
+            {maskNumberish(data.totalRealizedPnl, formatUsd, hideBalances)}
           </div>
         </div>
         {/* Secondary stats */}
@@ -272,7 +303,7 @@ function PortfolioCard({ data }: { data: PnlPortfolioData }) {
               Account Value
             </div>
             <div style={{ color: "#ffffffcc", fontSize: 20, fontWeight: 600, letterSpacing: "-0.02em" }}>
-              {formatUsd(data.accountValue)}
+              {maskNumberish(data.accountValue, formatUsd, hideBalances)}
             </div>
           </div>
           <div style={{ display: "flex", gap: 20 }}>
@@ -423,8 +454,8 @@ export function PnlShareModal(props: ModalProps) {
 
   const shareText =
     props.type === "position"
-      ? `${props.data.pnl >= 0 ? "🟢" : "🔴"} ${props.data.side} ${props.data.coin} ${props.data.pnl >= 0 ? "+" : ""}${formatUsd(props.data.pnl)} (${formatPct(props.data.pnlPct)})`
-      : `💼 Portfolio: ${props.data.totalRealizedPnl >= 0 ? "+" : ""}${formatUsd(props.data.totalRealizedPnl)} realized PnL on Blink`;
+      ? `${props.data.pnl >= 0 ? "🟢" : "🔴"} ${props.data.side} ${props.data.coin} ${props.hideBalances ? "••••" : `${props.data.pnl >= 0 ? "+" : ""}${formatUsd(props.data.pnl)} (${formatPct(props.data.pnlPct)})`}`
+      : `💼 Portfolio: ${props.hideBalances ? "••••" : `${props.data.totalRealizedPnl >= 0 ? "+" : ""}${formatUsd(props.data.totalRealizedPnl)} realized PnL`} on Blink`;
 
   return (
     <Dialog open={props.open} onOpenChange={(open) => !open && props.onClose()}>
@@ -470,9 +501,15 @@ export function PnlShareModal(props: ModalProps) {
                   style={{ display: "inline-block" }}
                 >
                   {props.type === "position" ? (
-                    <PositionCard data={props.data} />
+                    <PositionCard
+                      data={props.data}
+                      hideBalances={props.hideBalances === true}
+                    />
                   ) : (
-                    <PortfolioCard data={props.data} />
+                    <PortfolioCard
+                      data={props.data}
+                      hideBalances={props.hideBalances === true}
+                    />
                   )}
                 </div>
               </div>

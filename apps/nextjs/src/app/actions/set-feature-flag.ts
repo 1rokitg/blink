@@ -3,6 +3,7 @@
 import { z } from "zod";
 
 import { setFeatureFlag, type BlinkFeatureFlagKey } from "~/lib/blink/feature-flags.server";
+import { isAdminWallet } from "~/lib/blink/admin-allowlist";
 
 const schema = z.object({
   key: z.enum([
@@ -15,14 +16,6 @@ const schema = z.object({
   walletAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
 });
 
-function readAdminAllowlist() {
-  const source = process.env.NEXT_PUBLIC_ADMIN_WALLET_ALLOWLIST ?? "";
-  return source
-    .split(",")
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean);
-}
-
 export async function setFeatureFlagAction(input: unknown) {
   const parsed = schema.safeParse(input);
   if (!parsed.success) {
@@ -30,7 +23,7 @@ export async function setFeatureFlagAction(input: unknown) {
   }
 
   const wallet = parsed.data.walletAddress.toLowerCase();
-  if (!readAdminAllowlist().includes(wallet)) {
+  if (!isAdminWallet(wallet)) {
     throw new Error("Unauthorized");
   }
 
@@ -42,4 +35,3 @@ export async function setFeatureFlagAction(input: unknown) {
 
   return { ok: true };
 }
-

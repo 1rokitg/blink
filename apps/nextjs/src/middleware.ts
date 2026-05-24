@@ -23,19 +23,38 @@ export function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  const referralMatch = pathname.match(/^\/r\/([^/]+)$/i);
+  const referralCode = referralMatch
+    ? decodeURIComponent(referralMatch[1] ?? "").toLowerCase()
+    : null;
+
   const country = getCountryCode(req);
   if (!US_COUNTRY_CODES.has(country)) {
-    return NextResponse.next();
+    const res = NextResponse.next();
+    if (referralCode) {
+      res.cookies.set("blink_ref", referralCode, {
+        maxAge: 60 * 60 * 24 * 30,
+        path: "/",
+        sameSite: "lax",
+      });
+    }
+    return res;
   }
 
   const redirectUrl = new URL("https://blink.us");
   redirectUrl.searchParams.set("notice", "us-restriction");
   redirectUrl.searchParams.set("from", pathname + search);
-
-  return NextResponse.redirect(redirectUrl, 307);
+  const res = NextResponse.redirect(redirectUrl, 307);
+  if (referralCode) {
+    res.cookies.set("blink_ref", referralCode, {
+      maxAge: 60 * 60 * 24 * 30,
+      path: "/",
+      sameSite: "lax",
+    });
+  }
+  return res;
 }
 
 export const config = {
   matcher: ["/((?!.*\\..*).*)"],
 };
-

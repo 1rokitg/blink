@@ -19,14 +19,7 @@ import {
 
 import { getAdminStats, type AdminStats } from "~/app/actions/get-admin-stats";
 import { setFeatureFlagAction } from "~/app/actions/set-feature-flag";
-
-function readAdminAllowlist() {
-  const source = process.env.NEXT_PUBLIC_ADMIN_WALLET_ALLOWLIST ?? "";
-  return source
-    .split(",")
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean);
-}
+import { isAdminWallet } from "~/lib/blink/admin-allowlist";
 
 function truncateAddress(address: string) {
   if (!address) return "—";
@@ -69,9 +62,7 @@ function formatLabel(input: string) {
 export function AdminDashboard() {
   const { wallets } = useWallets();
   const walletAddress = wallets[0]?.address?.toLowerCase() ?? "";
-  const isAllowed = walletAddress
-    ? readAdminAllowlist().includes(walletAddress)
-    : false;
+  const isAllowed = isAdminWallet(walletAddress);
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);

@@ -4,9 +4,9 @@ import { useState } from "react";
 
 import { useWallets } from "@privy-io/react-auth";
 import { AnimatePresence, motion } from "motion/react";
-import { Check, ExternalLink, Loader2 } from "lucide-react";
+import { Check, ExternalLink, Loader2, ShieldCheck, Zap } from "lucide-react";
 
-import { ConnectTwitterButton, VerifiedTweetCard } from "./connect-twitter-button";
+import { ConnectTwitterButton } from "./connect-twitter-button";
 import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
@@ -27,6 +27,8 @@ function truncateAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
+type Step = "idle" | "step1-pending" | "step1-done" | "step2-pending" | "done";
+
 export function BuilderSetupModal(props: {
   open: boolean;
   walletAddress: string;
@@ -35,7 +37,7 @@ export function BuilderSetupModal(props: {
   onApproved: () => void;
 }) {
   const { wallets } = useWallets();
-  const [pending, setPending] = useState(false);
+  const [step, setStep] = useState<Step>("idle");
   const [checking, setChecking] = useState(false);
   const [successState, setSuccessState] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,37 +46,49 @@ export function BuilderSetupModal(props: {
 
   if (!props.open) return null;
 
-  const handleApprove = async () => {
+  const handleStep1 = async () => {
     const wallet = wallets[0];
     if (!wallet) return;
-    setPending(true);
+    setStep("step1-pending");
     setError(null);
     try {
       const exchClient = await createExchangeClient(wallet);
-
-      // 1. Approve builder fee routing
+      console.info("[setup] step 1 — approving builder fee...");
       await exchClient.approveBuilderFee({
         builder: BUILDER_ADDRESS,
         maxFeeRate: builderMaxFeeRate(),
       });
+      console.info("[setup] step 1 — builder fee approved ✓");
+      setStep("step1-done");
+    } catch (err) {
+      console.error("[setup] step 1 failed:", err);
+      setError(err instanceof Error ? err.message : "Builder fee approval failed");
+      setStep("idle");
+    }
+  };
 
-      // 2. Approve the persistent agent key so it can trade without wallet popups.
-      //    Keyed by wallet address — same key every session, approve once forever.
+  const handleStep2 = async () => {
+    const wallet = wallets[0];
+    if (!wallet) return;
+    setStep("step2-pending");
+    setError(null);
+    try {
+      const exchClient = await createExchangeClient(wallet);
       const { address: agentAddress } = getOrCreateAgentKey(props.walletAddress);
-      console.info("[setup] approving agent", agentAddress);
+      console.info("[setup] step 2 — approving agent key:", agentAddress);
       await exchClient.approveAgent({
         agentAddress,
         agentName: "Blink",
       });
-      console.info("[setup] agent approved ✓");
-
+      console.info("[setup] step 2 — agent approved ✓");
+      setStep("done");
       setSuccessState(true);
       props.onApproved();
       toast.success("Trading enabled — one-click orders ready.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Approval failed");
-    } finally {
-      setPending(false);
+      console.error("[setup] step 2 failed:", err);
+      setError(err instanceof Error ? err.message : "Agent approval failed");
+      setStep("step1-done");
     }
   };
 
@@ -143,9 +157,7 @@ export function BuilderSetupModal(props: {
                         You can trade now. Share your setup and bring your desk in.
                       </p>
 
-                      {/* ── Share cards ── */}
                       <div className="mt-5 w-full max-w-[420px] space-y-3">
-                        {/* Card 1 — builder routing */}
                         <motion.a
                           href={shareUrl}
                           target="_blank"
@@ -169,8 +181,6 @@ export function BuilderSetupModal(props: {
                             </p>
                           </div>
                         </motion.a>
-
-                        {/* Card 2 — verification (shown once twitter is connected) */}
                         <ConnectTwitterButton showSuccessCard={false} className="w-full justify-center" />
                       </div>
 
@@ -185,43 +195,120 @@ export function BuilderSetupModal(props: {
                   ) : (
                     <motion.div key="setup">
                       <DialogTitle className="text-4xl font-semibold tracking-[-0.03em] text-white">
-                        Builder Fee
+                        2 signatures needed
                       </DialogTitle>
-                      <p className="mt-3 text-base text-foreground/72">
-                        We provide a dynamic, volume-tiered fee that’s prorated
-                        per fill, so your effective rate trends lower as your
-                        executed notional scales.
+                      <p className="mt-2 text-sm text-foreground/55">
+                        Wallet: {truncateAddress(props.walletAddress)} · Market: {props.market}
                       </p>
-                      <p className="mt-3 text-xs text-foreground/45">
-                        Wallet: {truncateAddress(props.walletAddress)} · Market:{" "}
-                        {props.market}
-                      </p>
+
+                      {/* ── Step list ── */}
+                      <div className="mt-5 space-y-3">
+
+                        {/* Step 1 */}
+                        <div className={`rounded-xl border p-4 transition-colors ${
+                          step === "step1-done" || step === "step2-pending" || step === "done"
+                            ? "border-[#39d6a57a] bg-[#0e2a20]"
+                            : "border-white/10 bg-white/[0.03]"
+                        }`}>
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                              step === "step1-done" || step === "step2-pending" || step === "done"
+                                ? "bg-[#1b3d32] text-[#9df2d9]"
+                                : "bg-white/10 text-white/60"
+                            }`}>
+                              {step === "step1-done" || step === "step2-pending" || step === "done"
+                                ? <Check className="size-4" />
+                                : "1"}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <ShieldCheck className="size-4 text-[#7fa8ff]" />
+                                <p className="text-sm font-semibold text-white">Approve Builder Fee</p>
+                              </div>
+                              <p className="mt-1 text-xs text-foreground/50">
+                                Routes your trades through Blink's builder code. Volume-tiered, prorated per fill.
+                              </p>
+                              {(step === "idle" || step === "step1-pending") && (
+                                <button
+                                  type="button"
+                                  className="whop-blue-btn mt-3 text-xs"
+                                  onClick={() => void handleStep1()}
+                                  disabled={step === "step1-pending"}
+                                >
+                                  {step === "step1-pending" ? (
+                                    <><Loader2 className="size-3.5 animate-spin" /> Waiting for wallet…</>
+                                  ) : (
+                                    "Sign in wallet →"
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Step 2 */}
+                        <div className={`rounded-xl border p-4 transition-colors ${
+                          step === "step1-done" || step === "step2-pending"
+                            ? "border-[#79a7ff57] bg-[#0d1428]"
+                            : step === "done"
+                              ? "border-[#39d6a57a] bg-[#0e2a20]"
+                              : "border-white/[0.06] bg-white/[0.01] opacity-50"
+                        }`}>
+                          <div className="flex items-start gap-3">
+                            <div className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                              step === "done"
+                                ? "bg-[#1b3d32] text-[#9df2d9]"
+                                : step === "step1-done" || step === "step2-pending"
+                                  ? "bg-[#1a2540] text-[#7fa8ff]"
+                                  : "bg-white/10 text-white/30"
+                            }`}>
+                              {step === "done" ? <Check className="size-4" /> : "2"}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <Zap className="size-4 text-[#fee440]" />
+                                <p className="text-sm font-semibold text-white">Approve Agent Key</p>
+                              </div>
+                              <p className="mt-1 text-xs text-foreground/50">
+                                Authorises a local key to sign orders instantly — no wallet popup per trade.
+                              </p>
+                              {(step === "step1-done" || step === "step2-pending") && (
+                                <button
+                                  type="button"
+                                  className="whop-blue-btn mt-3 text-xs"
+                                  onClick={() => void handleStep2()}
+                                  disabled={step === "step2-pending"}
+                                >
+                                  {step === "step2-pending" ? (
+                                    <><Loader2 className="size-3.5 animate-spin" /> Waiting for wallet…</>
+                                  ) : (
+                                    "Sign in wallet →"
+                                  )}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                      </div>
+
                       {error ? (
                         <p className="mt-3 text-sm text-rose-300">{error}</p>
                       ) : null}
-                      <div className="mt-6 flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="whop-blue-btn"
-                          onClick={() => void handleApprove()}
-                          disabled={pending || checking}
-                        >
-                          {pending ? (
-                            <Loader2 className="size-4 animate-spin" />
-                          ) : null}
-                          Enable
-                        </button>
+
+                      <div className="mt-5 flex items-center gap-2">
                         <button
                           type="button"
                           className="whop-secondary-btn border-[#39d6a57a] bg-[#173d2f] text-[#9ef0d2] hover:bg-[#1f4b3a]"
                           onClick={() => void handleRecheck()}
-                          disabled={pending || checking}
+                          disabled={checking || step === "step1-pending" || step === "step2-pending"}
                         >
-                          {!checking ? <Check className="size-3.5" /> : null}
                           {checking ? (
-                            <Loader2 className="mr-1 size-3.5 animate-spin" />
-                          ) : null}
-                          Check Approval
+                            <Loader2 className="size-3.5 animate-spin" />
+                          ) : (
+                            <Check className="size-3.5" />
+                          )}
+                          Already approved
                         </button>
                         <button
                           type="button"

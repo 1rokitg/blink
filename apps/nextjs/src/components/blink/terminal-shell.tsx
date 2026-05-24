@@ -357,7 +357,9 @@ function OrderEntryPanel(props: {
       setUpdatingLeverage(true);
       try {
         const [exchClient, assetIdx] = await Promise.all([
-          Promise.resolve(createAgentExchangeClient(props.walletAddress as `0x${string}`)),
+          Promise.resolve(
+            createAgentExchangeClient(props.walletAddress as `0x${string}`),
+          ),
           getAssetIndex(props.market),
         ]);
         await exchClient.updateLeverage({
@@ -395,29 +397,31 @@ function OrderEntryPanel(props: {
     setSubmitting(true);
     try {
       const [exchClient, assetIdx] = await Promise.all([
-        Promise.resolve(createAgentExchangeClient(props.walletAddress as `0x${string}`)),
+        Promise.resolve(
+          createAgentExchangeClient(props.walletAddress as `0x${string}`),
+        ),
         getAssetIndex(props.market),
       ]);
 
-      if (orderType === "limit") {
-        await exchClient.order({
-          orders: [
-            {
-              a: assetIdx,
-              b: side === "buy",
-              p: px.toString(),
-              s: sz.toString(),
-              r: false,
-              t: { limit: { tif: "Gtc" } },
-            },
-          ],
-          grouping: "na",
-          builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_UNITS },
-        });
-        toast.success(
-          `${side === "buy" ? "Buy" : "Sell"} limit: ${sz} ${props.market} @ ${px}`,
-        );
-      } else {
+      const placeOrder = async () => {
+        if (orderType === "limit") {
+          await exchClient.order({
+            orders: [
+              {
+                a: assetIdx,
+                b: side === "buy",
+                p: px.toString(),
+                s: sz.toString(),
+                r: false,
+                t: { limit: { tif: "Gtc" } },
+              },
+            ],
+            grouping: "na",
+            builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_UNITS },
+          });
+          return;
+        }
+
         const mid =
           markPrice ||
           (await infoClient
@@ -439,6 +443,45 @@ function OrderEntryPanel(props: {
           grouping: "na",
           builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_UNITS },
         });
+      };
+
+      if (orderType === "limit") {
+        try {
+          await placeOrder();
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.toLowerCase().includes("duplicate nonce")) {
+            console.warn("[order] duplicate nonce detected, retrying once", {
+              market: props.market,
+              side,
+              type: orderType,
+              size: sz,
+            });
+            await placeOrder();
+          } else {
+            throw err;
+          }
+        }
+        toast.success(
+          `${side === "buy" ? "Buy" : "Sell"} limit: ${sz} ${props.market} @ ${px}`,
+        );
+      } else {
+        try {
+          await placeOrder();
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.toLowerCase().includes("duplicate nonce")) {
+            console.warn("[order] duplicate nonce detected, retrying once", {
+              market: props.market,
+              side,
+              type: orderType,
+              size: sz,
+            });
+            await placeOrder();
+          } else {
+            throw err;
+          }
+        }
         toast.success(
           `${side === "buy" ? "Buy" : "Sell"} market: ${sz} ${props.market}`,
         );
@@ -800,7 +843,9 @@ function AccountPanel(props: { walletAddress: string }) {
       setCancellingOid(oid);
       try {
         const [exchClient, assetIdx] = await Promise.all([
-          Promise.resolve(createAgentExchangeClient(props.walletAddress as `0x${string}`)),
+          Promise.resolve(
+            createAgentExchangeClient(props.walletAddress as `0x${string}`),
+          ),
           getAssetIndex(coin),
         ]);
         await exchClient.cancel({ cancels: [{ a: assetIdx, o: oid }] });

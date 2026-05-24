@@ -53,7 +53,9 @@ export function BuilderSetupModal(props: {
     setError(null);
     try {
       const provider = await wallet.getEthereumProvider();
-      const accounts = (await provider.request({ method: "eth_accounts" })) as string[];
+      const accounts = (await provider.request({
+        method: "eth_accounts",
+      })) as string[];
       console.info("[setup] step 1 context", {
         modalWalletAddress: props.walletAddress,
         privyWalletAddress: wallet.address,
@@ -70,7 +72,9 @@ export function BuilderSetupModal(props: {
       setStep("step1-done");
     } catch (err) {
       console.error("[setup] step 1 failed:", err);
-      setError(err instanceof Error ? err.message : "Builder fee approval failed");
+      setError(
+        err instanceof Error ? err.message : "Builder fee approval failed",
+      );
       setStep("idle");
     }
   };
@@ -82,9 +86,13 @@ export function BuilderSetupModal(props: {
     setError(null);
     try {
       const provider = await wallet.getEthereumProvider();
-      const accounts = (await provider.request({ method: "eth_accounts" })) as string[];
+      const accounts = (await provider.request({
+        method: "eth_accounts",
+      })) as string[];
       const exchClient = await createExchangeClient(wallet);
-      const { address: agentAddress } = getOrCreateAgentKey(props.walletAddress);
+      const { address: agentAddress } = getOrCreateAgentKey(
+        props.walletAddress,
+      );
       console.info("[setup] step 2 context", {
         modalWalletAddress: props.walletAddress,
         privyWalletAddress: wallet.address,
@@ -153,7 +161,7 @@ export function BuilderSetupModal(props: {
                     Hyperliquid Docs
                   </p>
                   <p className="text-6xl font-semibold tracking-[-0.04em] text-[#8af2df]">
-                    Enable Trading
+                    Blink!
                   </p>
                 </div>
               </div>
@@ -171,7 +179,8 @@ export function BuilderSetupModal(props: {
                         Trading Enabled
                       </DialogTitle>
                       <p className="mt-2 text-sm text-foreground/65">
-                        You can trade now. Share your setup and bring your desk in.
+                        You can trade now. Share your setup and bring your desk
+                        in.
                       </p>
 
                       <div className="mt-5 w-full max-w-[420px] space-y-3">
@@ -180,7 +189,11 @@ export function BuilderSetupModal(props: {
                           target="_blank"
                           rel="noreferrer"
                           whileHover={{ rotateX: 6, rotateY: -6, y: -3 }}
-                          transition={{ type: "spring", stiffness: 280, damping: 20 }}
+                          transition={{
+                            type: "spring",
+                            stiffness: 280,
+                            damping: 20,
+                          }}
                           className="group block w-full [transform-style:preserve-3d]"
                         >
                           <div className="rounded-2xl border border-[#79a7ff57] bg-[linear-gradient(145deg,#0f1b35,#111728)] p-4 text-left shadow-[0_16px_40px_rgba(0,0,0,0.45)]">
@@ -194,11 +207,15 @@ export function BuilderSetupModal(props: {
                               DO NOT BLINK! Builder routing is enabled.
                             </p>
                             <p className="mt-1 text-xs text-foreground/55">
-                              Post to X and invite your crew to trade perps with your link.
+                              Post to X and invite your crew to trade perps with
+                              your link.
                             </p>
                           </div>
                         </motion.a>
-                        <ConnectTwitterButton showSuccessCard={false} className="w-full justify-center" />
+                        <ConnectTwitterButton
+                          showSuccessCard={false}
+                          className="w-full justify-center"
+                        />
                       </div>
 
                       <button
@@ -215,37 +232,53 @@ export function BuilderSetupModal(props: {
                         2 signatures needed
                       </DialogTitle>
                       <p className="mt-2 text-sm text-foreground/55">
-                        Wallet: {truncateAddress(props.walletAddress)} · Market: {props.market}
+                        Wallet: {truncateAddress(props.walletAddress)} · Market:{" "}
+                        {props.market}
                       </p>
 
                       {/* ── Step list ── */}
                       <div className="mt-5 space-y-3">
-
                         {/* Step 1 */}
-                        <div className={`rounded-xl border p-4 transition-colors ${
-                          step === "step1-done" || step === "step2-pending" || step === "done"
-                            ? "border-[#39d6a57a] bg-[#0e2a20]"
-                            : "border-white/10 bg-white/[0.03]"
-                        }`}>
+                        <div
+                          className={`rounded-xl border p-4 transition-colors ${
+                            step === "step1-done" ||
+                            step === "step2-pending" ||
+                            step === "done"
+                              ? "border-[#39d6a57a] bg-[#0e2a20]"
+                              : "border-white/10 bg-white/[0.03]"
+                          }`}
+                        >
                           <div className="flex items-start gap-3">
-                            <div className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
-                              step === "step1-done" || step === "step2-pending" || step === "done"
-                                ? "bg-[#1b3d32] text-[#9df2d9]"
-                                : "bg-white/10 text-white/60"
-                            }`}>
-                              {step === "step1-done" || step === "step2-pending" || step === "done"
-                                ? <Check className="size-4" />
-                                : "1"}
+                            <div
+                              className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                                step === "step1-done" ||
+                                step === "step2-pending" ||
+                                step === "done"
+                                  ? "bg-[#1b3d32] text-[#9df2d9]"
+                                  : "bg-white/10 text-white/60"
+                              }`}
+                            >
+                              {step === "step1-done" ||
+                              step === "step2-pending" ||
+                              step === "done" ? (
+                                <Check className="size-4" />
+                              ) : (
+                                "1"
+                              )}
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <ShieldCheck className="size-4 text-[#7fa8ff]" />
-                                <p className="text-sm font-semibold text-white">Approve Builder Fee</p>
+                                <p className="text-sm font-semibold text-white">
+                                  Approve Builder Fee
+                                </p>
                               </div>
                               <p className="mt-1 text-xs text-foreground/50">
-                                Routes your trades through Blink's builder code. Volume-tiered, prorated per fill.
+                                Routes your trades through Blink's builder code.
+                                Volume-tiered, prorated per fill.
                               </p>
-                              {(step === "idle" || step === "step1-pending") && (
+                              {(step === "idle" ||
+                                step === "step1-pending") && (
                                 <button
                                   type="button"
                                   className="whop-blue-btn mt-3 text-xs"
@@ -253,7 +286,10 @@ export function BuilderSetupModal(props: {
                                   disabled={step === "step1-pending"}
                                 >
                                   {step === "step1-pending" ? (
-                                    <><Loader2 className="size-3.5 animate-spin" /> Waiting for wallet…</>
+                                    <>
+                                      <Loader2 className="size-3.5 animate-spin" />{" "}
+                                      Waiting for wallet…
+                                    </>
                                   ) : (
                                     "Sign in wallet →"
                                   )}
@@ -264,32 +300,45 @@ export function BuilderSetupModal(props: {
                         </div>
 
                         {/* Step 2 */}
-                        <div className={`rounded-xl border p-4 transition-colors ${
-                          step === "step1-done" || step === "step2-pending"
-                            ? "border-[#79a7ff57] bg-[#0d1428]"
-                            : step === "done"
-                              ? "border-[#39d6a57a] bg-[#0e2a20]"
-                              : "border-white/[0.06] bg-white/[0.01] opacity-50"
-                        }`}>
+                        <div
+                          className={`rounded-xl border p-4 transition-colors ${
+                            step === "step1-done" || step === "step2-pending"
+                              ? "border-[#79a7ff57] bg-[#0d1428]"
+                              : step === "done"
+                                ? "border-[#39d6a57a] bg-[#0e2a20]"
+                                : "border-white/[0.06] bg-white/[0.01] opacity-50"
+                          }`}
+                        >
                           <div className="flex items-start gap-3">
-                            <div className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
-                              step === "done"
-                                ? "bg-[#1b3d32] text-[#9df2d9]"
-                                : step === "step1-done" || step === "step2-pending"
-                                  ? "bg-[#1a2540] text-[#7fa8ff]"
-                                  : "bg-white/10 text-white/30"
-                            }`}>
-                              {step === "done" ? <Check className="size-4" /> : "2"}
+                            <div
+                              className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${
+                                step === "done"
+                                  ? "bg-[#1b3d32] text-[#9df2d9]"
+                                  : step === "step1-done" ||
+                                      step === "step2-pending"
+                                    ? "bg-[#1a2540] text-[#7fa8ff]"
+                                    : "bg-white/10 text-white/30"
+                              }`}
+                            >
+                              {step === "done" ? (
+                                <Check className="size-4" />
+                              ) : (
+                                "2"
+                              )}
                             </div>
                             <div className="flex-1">
                               <div className="flex items-center gap-2">
                                 <Zap className="size-4 text-[#fee440]" />
-                                <p className="text-sm font-semibold text-white">Approve Agent Key</p>
+                                <p className="text-sm font-semibold text-white">
+                                  Approve Agent Key
+                                </p>
                               </div>
                               <p className="mt-1 text-xs text-foreground/50">
-                                Authorises a local key to sign orders instantly — no wallet popup per trade.
+                                Authorises a local key to sign orders instantly
+                                — no wallet popup per trade.
                               </p>
-                              {(step === "step1-done" || step === "step2-pending") && (
+                              {(step === "step1-done" ||
+                                step === "step2-pending") && (
                                 <button
                                   type="button"
                                   className="whop-blue-btn mt-3 text-xs"
@@ -297,7 +346,10 @@ export function BuilderSetupModal(props: {
                                   disabled={step === "step2-pending"}
                                 >
                                   {step === "step2-pending" ? (
-                                    <><Loader2 className="size-3.5 animate-spin" /> Waiting for wallet…</>
+                                    <>
+                                      <Loader2 className="size-3.5 animate-spin" />{" "}
+                                      Waiting for wallet…
+                                    </>
                                   ) : (
                                     "Sign in wallet →"
                                   )}
@@ -306,7 +358,6 @@ export function BuilderSetupModal(props: {
                             </div>
                           </div>
                         </div>
-
                       </div>
 
                       {error ? (
@@ -318,14 +369,18 @@ export function BuilderSetupModal(props: {
                           type="button"
                           className="whop-secondary-btn border-[#39d6a57a] bg-[#173d2f] text-[#9ef0d2] hover:bg-[#1f4b3a]"
                           onClick={() => void handleRecheck()}
-                          disabled={checking || step === "step1-pending" || step === "step2-pending"}
+                          disabled={
+                            checking ||
+                            step === "step1-pending" ||
+                            step === "step2-pending"
+                          }
                         >
                           {checking ? (
                             <Loader2 className="size-3.5 animate-spin" />
                           ) : (
                             <Check className="size-3.5" />
                           )}
-                          Already approved
+                          Check
                         </button>
                         <button
                           type="button"

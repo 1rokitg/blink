@@ -111,7 +111,7 @@ export function BuilderSetupScreen(props: { market: string | null }) {
 
         <section className="glass-card noise-mask mt-4 p-8 md:p-10">
           <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
-            Enable Trading
+            Blink!
           </Badge>
 
           <h1 className="mt-5 text-4xl font-semibold tracking-[-0.04em] text-white md:text-5xl">

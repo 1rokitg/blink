@@ -620,9 +620,6 @@ function LeftRail(props: {
       <section className="glass-panel flex min-h-[392px] flex-col overflow-hidden p-0">
         <div className="border-b border-white/10 px-2.5 pb-1.5 pt-1.5">
           <div className="mb-1.5 flex items-center gap-1 text-sm">
-            <span className="rounded-md px-2 py-1 text-foreground/40 cursor-not-allowed text-xs">
-              Alerts
-            </span>
             <button
               type="button"
               onClick={() => setActiveTab("watchlist")}
@@ -648,7 +645,7 @@ function LeftRail(props: {
             <button
               type="button"
               onClick={() => setActiveTab("discover")}
-              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs transition ${
+              className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition ${
                 activeTab === "discover"
                   ? "border border-[#c084fc50] bg-[#c084fc18] text-white"
                   : "text-foreground/50 hover:text-white"
@@ -656,6 +653,9 @@ function LeftRail(props: {
             >
               <Compass className="size-3" />
               Discover
+              <span className="rounded-full border border-[#c084fc50] bg-[#c084fc20] px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-[#d8b4fe]">
+                new
+              </span>
             </button>
           </div>
 

@@ -1,27 +1,28 @@
-// This file is intentionally left as a stub.
-// The real OG image is at opengraph-image.tsx (Next.js convention).
-// This file is kept to avoid 404s from any cached references to /og-image.
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
-export const size = {
-  width: 1200,
-  height: 630,
-};
+export const alt = "Trade on Blink";
+export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OgImage() {
+export default async function OGImage(props: {
+  params: Promise<{ market: string }>;
+}) {
+  const { market } = await props.params;
+  const coin = decodeURIComponent(market).toUpperCase();
+
   return new ImageResponse(
     (
       <div
         style={{
-          height: "100%",
           width: "100%",
+          height: "100%",
           display: "flex",
           background:
             "radial-gradient(circle at 8% 10%, rgba(60,100,255,0.35) 0%, transparent 40%), linear-gradient(180deg, #060c1e 0%, #08101f 100%)",
           color: "#f2f4f7",
           fontFamily: "sans-serif",
+          position: "relative",
         }}
       >
         {/* Grid lines */}
@@ -46,7 +47,6 @@ export default function OgImage() {
             gap: 0,
           }}
         >
-          <div style={{ fontSize: 80, display: "flex", marginBottom: 8 }}>👀</div>
           <div
             style={{
               fontSize: 86,
@@ -68,7 +68,7 @@ export default function OgImage() {
               display: "flex",
             }}
           >
-            All-in-one Hyperliquid Terminal
+            Trade {coin} on Hyperliquid
           </div>
           <div
             style={{
@@ -80,7 +80,7 @@ export default function OgImage() {
             }}
           />
           <div style={{ fontSize: 26, color: "#4a5f99", display: "flex" }}>
-            For serious traders.
+            Zero fees · Up to 50× leverage
           </div>
         </div>
 
@@ -117,13 +117,19 @@ export default function OgImage() {
                 borderBottom: "1px solid #1e3a80",
               }}
             >
-              {/* BTC circle */}
               <div
                 style={{
                   width: 52,
                   height: 52,
                   borderRadius: "50%",
-                  background: "#f29f27",
+                  background:
+                    coin === "BTC"
+                      ? "#f29f27"
+                      : coin === "ETH"
+                        ? "#627eea"
+                        : coin === "SOL"
+                          ? "#9945ff"
+                          : "#2c6bff",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
@@ -132,20 +138,21 @@ export default function OgImage() {
                   color: "#fff",
                 }}
               >
-                B
+                {coin[0]}
               </div>
               <div
                 style={{
-                  fontSize: 30,
+                  fontSize: 34,
                   fontWeight: 700,
                   color: "#fff",
                   display: "flex",
                 }}
               >
-                BTC
+                {coin}-PERP
               </div>
               <div
                 style={{
+                  marginLeft: "auto",
                   padding: "6px 14px",
                   borderRadius: 8,
                   background: "#0f2250",
@@ -155,37 +162,11 @@ export default function OgImage() {
                   display: "flex",
                 }}
               >
-                LONG
-              </div>
-              <div
-                style={{
-                  padding: "6px 12px",
-                  borderRadius: 8,
-                  background: "#111b35",
-                  border: "1px solid #253360",
-                  fontSize: 18,
-                  color: "#6677aa",
-                  display: "flex",
-                }}
-              >
-                20×
+                Perpetual
               </div>
             </div>
 
-            {/* Entry → Mark */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "center",
-                padding: "22px 28px 0",
-                fontSize: 25,
-                color: "#6677aa",
-              }}
-            >
-              Entry $76,437&nbsp;&nbsp;→&nbsp;&nbsp;Mark $76,632
-            </div>
-
-            {/* PnL */}
+            {/* Body */}
             <div
               style={{
                 display: "flex",
@@ -193,29 +174,44 @@ export default function OgImage() {
                 alignItems: "center",
                 justifyContent: "center",
                 flex: 1,
-                gap: 8,
+                gap: 16,
+                padding: "32px 28px",
               }}
             >
               <div
                 style={{
-                  fontSize: 112,
-                  fontWeight: 700,
-                  letterSpacing: "-0.03em",
-                  color: "#6baeff",
+                  fontSize: 26,
+                  color: "#6677aa",
                   display: "flex",
+                  textAlign: "center",
                 }}
               >
-                +$5.72
+                Trade {coin} perpetuals with zero maker fees
               </div>
               <div
                 style={{
-                  fontSize: 48,
-                  fontWeight: 700,
-                  color: "#4a88dd",
                   display: "flex",
+                  gap: 16,
                 }}
               >
-                +5.09%
+                {["Zero Fees", "50× Leverage", "Self-Custody", "Instant Fills"].map(
+                  (feat) => (
+                    <div
+                      key={feat}
+                      style={{
+                        padding: "8px 16px",
+                        borderRadius: 10,
+                        background: "#0c1632",
+                        border: "1px solid #1e3a80",
+                        fontSize: 18,
+                        color: "#6ba3ff",
+                        display: "flex",
+                      }}
+                    >
+                      {feat}
+                    </div>
+                  ),
+                )}
               </div>
             </div>
 
@@ -230,8 +226,8 @@ export default function OgImage() {
                 color: "#3a5090",
               }}
             >
-              <span>blink.lat</span>
-              <span>Trade perps on Hyperliquid</span>
+              <span>blink.lat/trade/{coin}</span>
+              <span>Powered by Hyperliquid</span>
             </div>
           </div>
         </div>
@@ -255,7 +251,7 @@ export default function OgImage() {
           }}
         >
           <span>blink.lat</span>
-          <span>Powered by Hyperliquid</span>
+          <span>Trade {coin} Perps</span>
           <span>Trade. Track. Win.</span>
         </div>
       </div>

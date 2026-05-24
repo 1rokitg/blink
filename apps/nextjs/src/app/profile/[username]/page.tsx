@@ -1,4 +1,26 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+
+export async function generateMetadata(props: {
+  params: Promise<{ username: string }>;
+}): Promise<Metadata> {
+  const { username } = await props.params;
+  const handle = decodeURIComponent(username);
+  return {
+    title: `${handle} · Blink`,
+    description: `View ${handle}'s trading activity and performance on Blink — the social trading terminal for Hyperliquid.`,
+    openGraph: {
+      title: `${handle} on Blink`,
+      description: `Check out ${handle}'s trades and performance on Hyperliquid.`,
+      url: `https://blink.lat/profile/${handle}`,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${handle} on Blink`,
+      description: `Check out ${handle}'s trades and performance on Hyperliquid.`,
+    },
+  };
+}
 
 import {
   CalendarDays,

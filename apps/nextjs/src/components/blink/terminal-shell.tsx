@@ -60,8 +60,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@acme/ui/tabs";
 
 import {
   BUILDER_ADDRESS,
-  builderMaxFeeRate,
-  getApprovedBuilderFee,
+  getApprovedBuilderFeeUnits,
   isBuilderApproved,
 } from "~/lib/blink/builder";
 import { getAssetIndex, getAssetIndexSync, infoClient } from "~/lib/blink/hyperliquid";
@@ -195,6 +194,7 @@ function ConnectGate() {
 function LeftRail(props: {
   market: string;
 }) {
+  const zeroFeeCoins = new Set(["BTC", "ETH", "SOL", "HYPE"]);
   const marketsQuery = useQuery({
     queryKey: ["blink", "watchlist"],
     queryFn: () => fetchTopMarketsByVolume(25),
@@ -258,8 +258,13 @@ function LeftRail(props: {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-white">
+                    <p className="flex items-center gap-1.5 text-sm font-medium text-white">
                       {item.coin}
+                      {zeroFeeCoins.has(item.coin) ? (
+                        <span className="rounded-full border border-amber-300/35 bg-amber-300/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-200">
+                          0% fee
+                        </span>
+                      ) : null}
                     </p>
                     <p className="mt-0.5 text-xs text-foreground/45">
                       {formatUsd(item.markPx)}
@@ -417,12 +422,13 @@ function OrderEntryPanel(props: {
       props.onRequireBuilderSetup();
       return;
     }
-    const liveApprovedFee = await getApprovedBuilderFee(
+    const liveApprovedFeeUnits = await getApprovedBuilderFeeUnits(
       asHexAddress(props.walletAddress),
     );
-    const liveRequiredFee = props.builderFeeUnits * 0.0001;
-    if (liveApprovedFee < liveRequiredFee) {
-      toast.error("Builder fee has not been approved.");
+    if (liveApprovedFeeUnits < props.builderFeeUnits) {
+      toast.error(
+        `Builder fee has not been approved (${liveApprovedFeeUnits}/${props.builderFeeUnits}).`,
+      );
       props.onRequireBuilderSetup();
       return;
     }
@@ -1524,13 +1530,6 @@ export function TerminalShell(props: { market: string }) {
         search.get("wallet") ?? "0x1111111111111111111111111111111111111111",
     });
   }, [e2eModeEnabled]);
-  const approvalQuery = useQuery({
-    queryKey: ["blink", "builder-approval", effectiveWalletAddress],
-    queryFn: () => isBuilderApproved(asHexAddress(effectiveWalletAddress)),
-    enabled: Boolean(effectiveWalletAddress) && !e2eConfig.enabled,
-    staleTime: 30_000,
-    refetchInterval: 30_000,
-  });
   const builderFeeQuery = useQuery({
     queryKey: ["blink", "builder-fee", effectiveWalletAddress],
     queryFn: async () => {
@@ -1545,6 +1544,22 @@ export function TerminalShell(props: { market: string }) {
     refetchInterval: 60_000,
   });
   const resolvedBuilderFeeUnits = builderFeeQuery.data?.feeUnits ?? 100;
+  const approvalQuery = useQuery({
+    queryKey: [
+      "blink",
+      "builder-approval",
+      effectiveWalletAddress,
+      resolvedBuilderFeeUnits,
+    ],
+    queryFn: () =>
+      isBuilderApproved(
+        asHexAddress(effectiveWalletAddress),
+        resolvedBuilderFeeUnits,
+      ),
+    enabled: Boolean(effectiveWalletAddress) && !e2eConfig.enabled,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
   const tradeEnabled = e2eConfig.enabled
     ? e2eConfig.approved
     : approvalQuery.data === true;

@@ -7,8 +7,11 @@
     "build": "pnpm with-env next build",
     "clean": "git clean -xdf .cache .next .turbo node_modules",
     "dev": "pnpm with-env next dev --turbopack",
+    "test": "pnpm with-env playwright test",
     "format": "biome format --write .",
     "lint": "biome lint",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
     "start": "pnpm with-env next start",
     "typecheck": "tsc --noEmit",
     "with-env": "dotenv -e ../../.env --"
@@ -49,6 +52,7 @@
   "devDependencies": {
     "@acme/tailwind-config": "workspace:*",
     "@acme/tsconfig": "workspace:*",
+    "@playwright/test": "^1.54.2",
     "@types/node": "^22.13.11",
     "@types/react": "catalog:react19",
     "@types/react-dom": "catalog:react19",

@@ -11,6 +11,7 @@ import { ORPCContext } from "../context/orpc";
 export function ContextProviders({ children }: { children: React.ReactNode }) {
   const privyAppId =
     process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "cmgimeoko00a9jp0b2vbodvqa";
+  const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === "1";
   const [mounted, setMounted] = useState(false);
   const [queryClient] = useState(
     () =>
@@ -35,24 +36,28 @@ export function ContextProviders({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <ORPCContext.Provider value={orpc}>
-        <PrivyProvider
-          appId={privyAppId}
-          config={{
-            appearance: {
-              theme: "dark",
-              showWalletLoginFirst: true,
-            },
-            embeddedWallets: {
-              ethereum: {
-                createOnLogin: "off",
+        {isE2EMode ? (
+          children
+        ) : (
+          <PrivyProvider
+            appId={privyAppId}
+            config={{
+              appearance: {
+                theme: "dark",
+                showWalletLoginFirst: true,
               },
-              showWalletUIs: false,
-            },
-            loginMethods: ["wallet"],
-          }}
-        >
-          {children}
-        </PrivyProvider>
+              embeddedWallets: {
+                ethereum: {
+                  createOnLogin: "off",
+                },
+                showWalletUIs: false,
+              },
+              loginMethods: ["wallet"],
+            }}
+          >
+            {children}
+          </PrivyProvider>
+        )}
       </ORPCContext.Provider>
     </QueryClientProvider>
   );

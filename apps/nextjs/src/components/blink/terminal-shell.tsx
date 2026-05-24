@@ -1175,20 +1175,48 @@ export function TerminalShell(props: { market: string }) {
   const router = useRouter();
   const { wallets } = useWallets();
   const { logout } = useLogout();
+  const e2eModeEnabled = process.env.NEXT_PUBLIC_E2E_MODE === "1";
+  const [e2eConfig, setE2eConfig] = useState<{
+    enabled: boolean;
+    approved: boolean;
+    walletAddress: string;
+  }>({
+    enabled: false,
+    approved: false,
+    walletAddress: "",
+  });
 
   const walletAddress = wallets[0]?.address ?? "";
+  const effectiveWalletAddress = e2eConfig.enabled
+    ? e2eConfig.walletAddress
+    : walletAddress;
+  const effectiveReady = e2eConfig.enabled ? true : ready;
+  const effectiveAuthenticated = e2eConfig.enabled ? true : authenticated;
   const allowlist = useMemo(() => readAdminAllowlist(), []);
-  const isAdmin = walletAddress
-    ? allowlist.includes(walletAddress.toLowerCase())
+  const isAdmin = effectiveWalletAddress
+    ? allowlist.includes(effectiveWalletAddress.toLowerCase())
     : false;
+  useEffect(() => {
+    if (!e2eModeEnabled || typeof window === "undefined") return;
+    const search = new URLSearchParams(window.location.search);
+    if (search.get("e2e") !== "1") return;
+    setE2eConfig({
+      enabled: true,
+      approved: search.get("approved") === "1",
+      walletAddress:
+        search.get("wallet") ?? "0x1111111111111111111111111111111111111111",
+    });
+  }, [e2eModeEnabled]);
   const approvalQuery = useQuery({
-    queryKey: ["blink", "builder-approval", walletAddress],
-    queryFn: () => isBuilderApproved(asHexAddress(walletAddress)),
-    enabled: Boolean(walletAddress),
+    queryKey: ["blink", "builder-approval", effectiveWalletAddress],
+    queryFn: () => isBuilderApproved(asHexAddress(effectiveWalletAddress)),
+    enabled: Boolean(effectiveWalletAddress) && !e2eConfig.enabled,
     staleTime: 30_000,
     refetchInterval: 30_000,
   });
-  const tradeEnabled = approvalQuery.data === true;
+  const tradeEnabled = e2eConfig.enabled
+    ? e2eConfig.approved
+    : approvalQuery.data === true;
   const [builderModalOpen, setBuilderModalOpen] = useState(false);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [referralsModalOpen, setReferralsModalOpen] = useState(false);
@@ -1196,7 +1224,7 @@ export function TerminalShell(props: { market: string }) {
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [blurBalances, setBlurBalances] = useState(false);
   const [autoPromptDismissed, setAutoPromptDismissed] = useState(false);
-  const accountAvatar = `https://avatar.vercel.sh/${walletAddress || "blink-user"}.png?size=56`;
+  const accountAvatar = `https://avatar.vercel.sh/${effectiveWalletAddress || "blink-user"}.png?size=56`;
 
   useEffect(() => {
     if (accountModalOpen || referralsModalOpen || builderModalOpen) {
@@ -1216,23 +1244,23 @@ export function TerminalShell(props: { market: string }) {
   }, []);
 
   useEffect(() => {
-    if (!walletAddress) return;
+    if (!effectiveWalletAddress) return;
     if (approvalQuery.isLoading) return;
     if (tradeEnabled) return;
     if (autoPromptDismissed) return;
     setBuilderModalOpen(true);
   }, [
-    walletAddress,
+    effectiveWalletAddress,
     approvalQuery.isLoading,
     tradeEnabled,
     autoPromptDismissed,
   ]);
 
-  if (!ready) {
+  if (!effectiveReady) {
     return <TerminalLoader />;
   }
 
-  if (!authenticated || wallets.length === 0) {
+  if (!effectiveAuthenticated || (!e2eConfig.enabled && wallets.length === 0)) {
     return <ConnectGate />;
   }
 
@@ -1440,17 +1468,35 @@ export function TerminalShell(props: { market: string }) {
           ) : null}
 
           <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_300px_340px]">
-            <TradingViewPanel market={props.market} />
-            <TerminalOrderBook market={props.market} />
+            {e2eConfig.enabled ? (
+              <section className="glass-panel flex h-[520px] items-center justify-center">
+                <p className="text-sm text-foreground/50">
+                  E2E mode: chart widget disabled
+                </p>
+              </section>
+            ) : (
+              <TradingViewPanel market={props.market} />
+            )}
+            {e2eConfig.enabled ? (
+              <section className="glass-panel flex h-[520px] items-center justify-center">
+                <p className="text-sm text-foreground/50">
+                  E2E mode: order book widget disabled
+                </p>
+              </section>
+            ) : (
+              <TerminalOrderBook market={props.market} />
+            )}
             <OrderEntryPanel
               market={props.market}
-              walletAddress={walletAddress}
+              walletAddress={effectiveWalletAddress}
               tradeEnabled={tradeEnabled}
               onRequireBuilderSetup={() => setBuilderModalOpen(true)}
             />
           </div>
 
-          <AccountPanel walletAddress={walletAddress} />
+          {e2eConfig.enabled ? null : (
+            <AccountPanel walletAddress={effectiveWalletAddress} />
+          )}
 
           <footer className="mt-3 flex items-center justify-between px-2 text-xs text-foreground/38">
             <div className="flex items-center gap-4">
@@ -1458,7 +1504,9 @@ export function TerminalShell(props: { market: string }) {
                 {user?.wallet?.address ? "Wallet connected" : "Connected"}
               </span>
               <span>
-                {formatCompactNumber(wallets.length)} linked wallet session
+                {formatCompactNumber(
+                  e2eConfig.enabled ? 1 : wallets.length,
+                )} linked wallet session
               </span>
             </div>
             <div className="flex items-center gap-4">
@@ -1547,7 +1595,7 @@ export function TerminalShell(props: { market: string }) {
       </div>
       <BuilderSetupModal
         open={builderModalOpen}
-        walletAddress={walletAddress}
+        walletAddress={effectiveWalletAddress}
         market={props.market}
         onClose={() => {
           setBuilderModalOpen(false);
@@ -1560,7 +1608,7 @@ export function TerminalShell(props: { market: string }) {
       />
       <AccountManagementModal
         open={accountModalOpen}
-        walletAddress={walletAddress}
+        walletAddress={effectiveWalletAddress}
         onClose={() => {
           setAccountModalOpen(false);
           setProfileMenuOpen(false);
@@ -1568,7 +1616,7 @@ export function TerminalShell(props: { market: string }) {
       />
       <ReferralsModal
         open={referralsModalOpen}
-        walletAddress={walletAddress}
+        walletAddress={effectiveWalletAddress}
         alias="rokitg"
         onClose={() => {
           setReferralsModalOpen(false);

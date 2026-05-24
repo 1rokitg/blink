@@ -97,13 +97,15 @@ function asHexAddress(address: string) {
   return address as `0x${string}`;
 }
 
-function decimalPlacesFromNumericString(value?: string) {
-  if (!value) return 2;
-  const normalized = value.toLowerCase();
-  if (normalized.includes("e")) return 2;
-  const dot = value.indexOf(".");
-  if (dot === -1) return 0;
-  return Math.max(0, value.length - dot - 1);
+function getHyperliquidPerpPriceDecimals(price: number, szDecimals: number) {
+  // Hyperliquid perp constraints:
+  // - up to 5 significant figures for price
+  // - up to (6 - szDecimals) decimal places
+  const finitePrice = Number.isFinite(price) && price > 0 ? price : 1;
+  const magnitude = Math.floor(Math.log10(Math.abs(finitePrice)));
+  const sigDecimals = Math.max(0, 5 - magnitude - 1);
+  const bySizeDecimals = Math.max(0, 6 - Math.max(0, szDecimals));
+  return Math.max(0, Math.min(sigDecimals, bySizeDecimals));
 }
 
 function roundWithMode(value: number, decimals: number, mode: "up" | "down" | "nearest") {
@@ -326,10 +328,10 @@ function OrderEntryPanel(props: {
 
   const markPrice = markQuery.data ?? 0;
   const accountValue = Number(
-    accountQuery.data?.marginSummary.accountValue ?? 0,
+    accountQuery.data?.marginSummary?.accountValue ?? 0,
   );
   const marginUsed = Number(
-    accountQuery.data?.marginSummary.totalMarginUsed ?? 0,
+    accountQuery.data?.marginSummary?.totalMarginUsed ?? 0,
   );
   const availableMargin = Math.max(0, accountValue - marginUsed);
 
@@ -434,7 +436,10 @@ function OrderEntryPanel(props: {
       const universeEntry = meta.universe[assetIdx];
       const sizeDecimals = Math.max(0, universeEntry?.szDecimals ?? 6);
       const marketMidRaw = mids[props.market];
-      const priceDecimals = Math.max(0, decimalPlacesFromNumericString(marketMidRaw));
+      const priceDecimals = getHyperliquidPerpPriceDecimals(
+        Number(marketMidRaw ?? 0),
+        sizeDecimals,
+      );
       const sizeStr = roundWithMode(sz, sizeDecimals, "down");
       const limitPxStr = roundWithMode(px, priceDecimals, "nearest");
 
@@ -942,7 +947,7 @@ function AccountPanel(props: { walletAddress: string }) {
         const szDecimals = Math.max(0, meta.universe[assetIdx]?.szDecimals ?? 6);
         const midRaw = mids[params.coin];
         const mid = Number(midRaw ?? 0);
-        const pxDecimals = Math.max(0, decimalPlacesFromNumericString(midRaw));
+        const pxDecimals = getHyperliquidPerpPriceDecimals(mid, szDecimals);
 
         if (!mid && params.tif === "Ioc") {
           throw new Error("Could not fetch mark price for market action");

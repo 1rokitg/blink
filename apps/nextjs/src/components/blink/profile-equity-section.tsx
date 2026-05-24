@@ -48,10 +48,10 @@ export function ProfileEquitySection() {
   const openOrders = accountQuery.data?.openOrders ?? [];
   const loading = accountQuery.isLoading;
 
-  const accountValue = Number(state?.marginSummary.accountValue ?? 0);
-  const totalPnl = Number(state?.marginSummary.totalRawUsd ?? 0);
+  const accountValue = Number(state?.marginSummary?.accountValue ?? 0);
+  const totalPnl = Number(state?.marginSummary?.totalRawUsd ?? 0);
   const withdrawable = Number(state?.withdrawable ?? 0);
-  const perpsMarginUsed = Number(state?.marginSummary.totalMarginUsed ?? 0);
+  const perpsMarginUsed = Number(state?.marginSummary?.totalMarginUsed ?? 0);
   const positions = state?.assetPositions ?? [];
   const activePositions = positions.filter(
     (p) => Number(p.position.szi) !== 0,

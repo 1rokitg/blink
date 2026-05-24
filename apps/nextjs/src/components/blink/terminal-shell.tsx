@@ -1028,7 +1028,7 @@ function OrderEntryPanel(props: {
           {ZERO_FEE_MARKETS.has(props.market) ? (
             <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-teal-400/30 bg-gradient-to-r from-teal-400/10 to-emerald-400/8 px-2.5 py-1 text-[10px] font-medium text-teal-300">
               <Sparkles className="size-3" />
-              Zero platform fee on {props.market}
+              Zero builder fees on {props.market}
             </div>
           ) : isProRouting ? (
             <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-gradient-to-r from-amber-300/15 to-yellow-300/10 px-2.5 py-1 text-[10px] font-medium text-amber-200">

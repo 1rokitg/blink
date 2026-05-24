@@ -38,7 +38,8 @@ type ApprovalState =
   | { status: "error"; message: string };
 
 export function BuilderSetupScreen(props: { market: string | null }) {
-  const { login } = usePrivy();
+  const { login, authenticated, linkWallet } = usePrivy();
+  const connectWallet = authenticated ? linkWallet : login;
   const { wallets } = useWallets();
 
   const marketSlug = useMemo(
@@ -199,9 +200,9 @@ export function BuilderSetupScreen(props: { market: string | null }) {
             {!walletAddress ? (
               <Button
                 className="rounded-full bg-white px-6 text-sm font-semibold text-black hover:bg-white/90"
-                onClick={() => login()}
+                onClick={() => connectWallet()}
               >
-                Continue with Google
+                Connect Wallet
               </Button>
             ) : isDone ? (
               <Button

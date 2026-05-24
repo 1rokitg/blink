@@ -31,7 +31,8 @@ function truncate(address: string) {
 // ─── component ──────────────────────────────────────────────────────────────
 
 export function DepositCard() {
-  const { login, authenticated } = usePrivy();
+  const { login, authenticated, linkWallet } = usePrivy();
+  const connectWallet = authenticated ? linkWallet : login;
   const { wallets } = useWallets();
   const walletAddress = wallets[0]?.address ?? "";
 
@@ -188,9 +189,9 @@ export function DepositCard() {
             </p>
             <Button
               className="mt-6 h-11 w-full rounded-full bg-white text-sm font-semibold text-black hover:bg-white/90"
-              onClick={() => login()}
+              onClick={() => connectWallet()}
             >
-              Continue with Google
+              Connect Wallet
             </Button>
           </div>
         )}

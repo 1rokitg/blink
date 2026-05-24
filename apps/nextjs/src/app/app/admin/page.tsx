@@ -1,5 +1,5 @@
-import { AdminDashboard } from "~/components/blink/admin-dashboard";
+import { redirect } from "next/navigation";
 
 export default function AdminPage() {
-  return <AdminDashboard />;
+  redirect("/internal");
 }

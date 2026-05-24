@@ -6,10 +6,19 @@ import Link from "next/link";
 
 import { useWallets } from "@privy-io/react-auth";
 import { Loader2, RefreshCw } from "lucide-react";
+import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 
 import { Badge } from "@acme/ui/badge";
+import { Switch } from "@acme/ui/switch";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@acme/ui/chart";
 
 import { getAdminStats, type AdminStats } from "~/app/actions/get-admin-stats";
+import { setFeatureFlagAction } from "~/app/actions/set-feature-flag";
 
 function readAdminAllowlist() {
   const source = process.env.NEXT_PUBLIC_ADMIN_WALLET_ALLOWLIST ?? "";
@@ -20,7 +29,23 @@ function readAdminAllowlist() {
 }
 
 function truncateAddress(address: string) {
+  if (!address) return "—";
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+function formatMoney(amount: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: amount < 100 ? 2 : 0,
+  }).format(amount);
+}
+
+function formatCompact(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 function timeAgo(iso: string) {
@@ -33,6 +58,14 @@ function timeAgo(iso: string) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+function formatLabel(input: string) {
+  if (!input) return "Unknown";
+  return input
+    .replaceAll("_", " ")
+    .replaceAll("-", " ")
+    .replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
 export function AdminDashboard() {
   const { wallets } = useWallets();
   const walletAddress = wallets[0]?.address?.toLowerCase() ?? "";
@@ -43,11 +76,12 @@ export function AdminDashboard() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
+  const [flagSaving, setFlagSaving] = useState<string | null>(null);
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = useCallback(async (syncHyperliquid = false) => {
     setLoading(true);
     try {
-      const data = await getAdminStats();
+      const data = await getAdminStats({ syncHyperliquid });
       setStats(data);
       setLastFetched(new Date());
     } catch (err) {
@@ -59,9 +93,20 @@ export function AdminDashboard() {
 
   useEffect(() => {
     if (isAllowed) {
-      void fetchStats();
+      void fetchStats(true);
     }
   }, [fetchStats, isAllowed]);
+
+  const chartConfig = {
+    revenue: {
+      label: "Revenue",
+      color: "#41d38f",
+    },
+    volume: {
+      label: "Volume",
+      color: "#2c6bff",
+    },
+  } satisfies ChartConfig;
 
   if (!isAllowed) {
     return (
@@ -118,7 +163,7 @@ export function AdminDashboard() {
             )}
             <button
               type="button"
-              onClick={() => void fetchStats()}
+              onClick={() => void fetchStats(true)}
               disabled={loading}
               className="inline-flex items-center gap-2 rounded-[10px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-foreground/70 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
             >
@@ -132,8 +177,9 @@ export function AdminDashboard() {
           </div>
         </div>
 
-        {/* Stat cards */}
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-4">
           {[
             {
               label: "Total approvals",
@@ -146,14 +192,18 @@ export function AdminDashboard() {
               sub: "new approvals",
             },
             {
-              label: "Last 7d",
-              value: loading ? "—" : String(stats?.approvalsSince7d ?? 0),
-              sub: "new approvals",
+              label: "Builder revenue",
+              value: loading
+                ? "—"
+                : formatMoney(stats?.builder.totalRevenueUsd ?? 0),
+              sub: "last 90d (est.)",
             },
             {
               label: "Routed volume",
-              value: "—",
-              sub: "HL query coming",
+              value: loading
+                ? "—"
+                : formatCompact(stats?.builder.totalVolumeUsd ?? 0),
+              sub: "last 90d",
             },
           ].map((card) => (
             <div key={card.label} className="glass-panel p-5">
@@ -168,7 +218,312 @@ export function AdminDashboard() {
               <p className="mt-1 text-xs text-foreground/40">{card.sub}</p>
             </div>
           ))}
+            </div>
+            <div className="grid gap-4 md:grid-cols-4">
+          {[
+            {
+              label: "Total users",
+              value: loading ? "—" : String(stats?.builder.totalUsers ?? 0),
+              sub: "approved wallets",
+            },
+            {
+              label: "Avg revenue / user",
+              value: loading
+                ? "—"
+                : formatMoney(stats?.builder.avgRevenuePerUser ?? 0),
+              sub: "90d window",
+            },
+            {
+              label: "Active Pro",
+              value: loading ? "—" : String(stats?.activeProMembers ?? 0),
+              sub: "subscriptions",
+            },
+            {
+              label: "Total referrals",
+              value: loading ? "—" : String(stats?.totalReferrals ?? 0),
+              sub: "claimed",
+            },
+          ].map((card) => (
+            <div key={card.label} className="glass-panel p-5">
+              <p className="terminal-label">{card.label}</p>
+              <p className="mt-3 text-3xl font-semibold text-white">{card.value}</p>
+              <p className="mt-1 text-xs text-foreground/40">{card.sub}</p>
+            </div>
+          ))}
+            </div>
+          </div>
+
+          <section className="glass-panel p-5">
+            <p className="terminal-label">Builder overview</p>
+            <p className="mt-3 font-mono text-sm text-white/80">
+              {truncateAddress(stats?.builder.address ?? "")}
+            </p>
+            <div className="mt-4 space-y-2 text-sm">
+              <div className="flex justify-between text-foreground/60">
+                <span>Revenue (90d)</span>
+                <span className="text-white">{formatMoney(stats?.builder.totalRevenueUsd ?? 0)}</span>
+              </div>
+              <div className="flex justify-between text-foreground/60">
+                <span>Volume (90d)</span>
+                <span className="text-white">{formatCompact(stats?.builder.totalVolumeUsd ?? 0)}</span>
+              </div>
+              <div className="flex justify-between text-foreground/60">
+                <span>Fills</span>
+                <span className="text-white">{stats?.builder.fillsCount ?? 0}</span>
+              </div>
+              <div className="flex justify-between text-foreground/60">
+                <span>Avg rev / user</span>
+                <span className="text-white">{formatMoney(stats?.builder.avgRevenuePerUser ?? 0)}</span>
+              </div>
+            </div>
+          </section>
         </div>
+
+        <section className="glass-card mt-6 p-5">
+          <h2 className="text-base font-semibold text-white">Feature flags</h2>
+          <p className="mt-1 text-xs text-foreground/45">
+            Runtime controls for growth and monetization behavior.
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {(stats?.featureFlags ?? []).map((flag) => (
+              <div
+                key={flag.key}
+                className="rounded-[12px] border border-white/10 bg-white/[0.03] p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-white">
+                      {formatLabel(flag.key)}
+                    </p>
+                    <p className="mt-1 text-xs text-foreground/45">
+                      {flag.description}
+                    </p>
+                    <p className="mt-2 text-[11px] text-foreground/35">
+                      {flag.updatedBy
+                        ? `Updated by ${truncateAddress(flag.updatedBy)}`
+                        : "Never updated"}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={flag.enabled}
+                    disabled={flagSaving === flag.key || !walletAddress}
+                    onCheckedChange={async (nextValue) => {
+                      try {
+                        setFlagSaving(flag.key);
+                        await setFeatureFlagAction({
+                          key: flag.key,
+                          enabled: nextValue,
+                          walletAddress,
+                        });
+                        setStats((prev) =>
+                          prev
+                            ? {
+                                ...prev,
+                                featureFlags: prev.featureFlags.map((f) =>
+                                  f.key === flag.key
+                                    ? {
+                                        ...f,
+                                        enabled: nextValue,
+                                        updatedBy: walletAddress,
+                                        updatedAt: new Date(),
+                                      }
+                                    : f,
+                                ),
+                              }
+                            : prev,
+                        );
+                      } catch (error) {
+                        console.error("[admin] failed to toggle flag", error);
+                      } finally {
+                        setFlagSaving(null);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="glass-card mt-6 p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-white">
+              Daily revenue + volume (Hyperliquid sync)
+            </h2>
+            <span className="text-xs text-foreground/40">90d</span>
+          </div>
+          <div className="h-[300px]">
+            <ChartContainer config={chartConfig} className="h-full w-full">
+              <AreaChart
+                accessibilityLayer
+                data={stats?.builder.series ?? []}
+                margin={{ left: 4, right: 4, top: 6, bottom: 2 }}
+              >
+                <defs>
+                  <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-revenue)" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="var(--color-revenue)" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="fillVolume" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-volume)" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="var(--color-volume)" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} stroke="#1a2437" strokeDasharray="2 8" />
+                <XAxis dataKey="day" tickLine={false} axisLine={false} tickMargin={8} />
+                <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
+                <Area
+                  dataKey="revenue"
+                  type="monotone"
+                  fill="url(#fillRevenue)"
+                  stroke="var(--color-revenue)"
+                  strokeWidth={2}
+                />
+                <Area
+                  dataKey="volume"
+                  type="monotone"
+                  fill="url(#fillVolume)"
+                  stroke="var(--color-volume)"
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ChartContainer>
+          </div>
+        </section>
+
+        <section className="glass-card mt-6 p-5">
+          <h2 className="text-base font-semibold text-white">7d conversion funnel</h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            {[
+              { label: "Signups", value: stats?.funnel.signups ?? 0 },
+              {
+                label: "Builder approved",
+                value: stats?.funnel.approvedBuilder ?? 0,
+              },
+              { label: "First trade", value: stats?.funnel.firstTrade ?? 0 },
+              { label: "Pro started", value: stats?.funnel.proStarted ?? 0 },
+            ].map((f) => (
+              <div
+                key={f.label}
+                className="rounded-[12px] border border-white/10 bg-white/[0.03] p-4"
+              >
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  {f.label}
+                </p>
+                <p className="mt-2 text-3xl font-semibold text-white">{f.value}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="glass-card mt-6 p-5">
+          <h2 className="text-base font-semibold text-white">Weekly cohorts (pipeline)</h2>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <thead className="text-left text-xs uppercase tracking-[0.12em] text-foreground/45">
+                <tr>
+                  <th className="pb-2">Week</th>
+                  <th className="pb-2">Signups</th>
+                  <th className="pb-2">Approved</th>
+                  <th className="pb-2">First trade</th>
+                  <th className="pb-2">Pro started</th>
+                  <th className="pb-2">Signup → Trade</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5">
+                {(stats?.weeklyCohorts ?? []).slice(-8).map((row) => {
+                  const conversion =
+                    row.signups > 0 ? (row.firstTrade / row.signups) * 100 : 0;
+                  return (
+                    <tr key={row.week}>
+                      <td className="py-2 font-mono text-foreground/75">{row.week}</td>
+                      <td className="py-2">{row.signups}</td>
+                      <td className="py-2">{row.approvedBuilder}</td>
+                      <td className="py-2">{row.firstTrade}</td>
+                      <td className="py-2">{row.proStarted}</td>
+                      <td className="py-2 text-emerald-300">{conversion.toFixed(1)}%</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="mt-6 grid gap-4 lg:grid-cols-3">
+          <div className="glass-card p-5">
+            <h2 className="text-base font-semibold text-white">Revenue by source</h2>
+            <div className="mt-4 space-y-2">
+              {(stats?.builder.attribution.bySource ?? []).slice(0, 8).map((row) => (
+                <div
+                  key={row.source}
+                  className="flex items-center justify-between rounded-[10px] border border-white/8 bg-white/[0.02] px-3 py-2"
+                >
+                  <div>
+                    <p className="text-sm text-white/85">{formatLabel(row.source)}</p>
+                    <p className="text-xs text-foreground/45">
+                      {row.users} users · {row.fillsCount} fills
+                    </p>
+                  </div>
+                  <p className="text-sm font-medium text-emerald-300">
+                    {formatMoney(row.revenueUsd)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="glass-card p-5">
+            <h2 className="text-base font-semibold text-white">Revenue by country</h2>
+            <div className="mt-4 space-y-2">
+              {(stats?.builder.attribution.byCountry ?? []).slice(0, 8).map((row) => (
+                <div
+                  key={row.country}
+                  className="flex items-center justify-between rounded-[10px] border border-white/8 bg-white/[0.02] px-3 py-2"
+                >
+                  <div>
+                    <p className="text-sm text-white/85">{row.country}</p>
+                    <p className="text-xs text-foreground/45">
+                      {row.users} users · {row.fillsCount} fills
+                    </p>
+                  </div>
+                  <p className="text-sm font-medium text-emerald-300">
+                    {formatMoney(row.revenueUsd)}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="glass-card p-5">
+            <h2 className="text-base font-semibold text-white">Top users</h2>
+            <div className="mt-4 space-y-2">
+              {(stats?.builder.attribution.byUser ?? []).slice(0, 8).map((row) => (
+                <div
+                  key={row.walletAddress}
+                  className="flex items-center justify-between rounded-[10px] border border-white/8 bg-white/[0.02] px-3 py-2"
+                >
+                  <div>
+                    <p className="font-mono text-xs text-white/85">
+                      {truncateAddress(row.walletAddress)}
+                    </p>
+                    <p className="text-xs text-foreground/45">
+                      {formatLabel(row.source)} · {row.country}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-medium text-emerald-300">
+                      {formatMoney(row.revenueUsd)}
+                    </p>
+                    <p className="text-xs text-foreground/45">
+                      {formatCompact(row.volumeUsd)} vol
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
 
         {/* Recent approvals table */}
         <section className="glass-card mt-6 overflow-hidden p-0">

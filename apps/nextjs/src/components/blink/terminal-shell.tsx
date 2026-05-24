@@ -347,6 +347,16 @@ function OrderEntryPanel(props: {
       : rawSizeInput;
 
   const notional = coinSize * (orderType === "limit" ? entryPrice : markPrice);
+  const standardBuilderFeeUnits = Math.max(
+    0,
+    Number.parseInt(process.env.NEXT_PUBLIC_BUILDER_FEE_BPS ?? "100", 10) || 100,
+  );
+  const isProRouting = props.builderFeeUnits < standardBuilderFeeUnits;
+  const savingsBps = Math.max(
+    0,
+    (standardBuilderFeeUnits - props.builderFeeUnits) * 0.0001,
+  );
+  const savingsUsd = Math.max(0, notional * (savingsBps / 100));
 
   // Legacy aliases used in handleSubmit
   const sizeNum = coinSize;
@@ -582,6 +592,12 @@ function OrderEntryPanel(props: {
             <AssetIcon asset={props.market} className="size-7" />
             {props.market}/USDC
           </h2>
+          {isProRouting && (
+            <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-gradient-to-r from-amber-300/15 to-yellow-300/10 px-2.5 py-1 text-[10px] font-medium text-amber-200">
+              <TicketPercent className="size-3" />
+              BLINK PRO: Lower builder fee, faster fills.
+            </div>
+          )}
         </div>
         <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] font-medium text-foreground/60">
           Live routing
@@ -842,6 +858,14 @@ function OrderEntryPanel(props: {
                 className={`font-mono text-xs font-medium ${side === "buy" ? "text-rose-300" : "text-emerald-300"}`}
               >
                 {formatUsd(liqPrice)}
+              </span>
+            </div>
+          )}
+          {isProRouting && savingsUsd > 0 && (
+            <div className="flex items-center justify-between bg-amber-300/8 px-3 py-2">
+              <span className="text-xs text-amber-100/90">You are saving</span>
+              <span className="font-mono text-xs font-semibold text-amber-200">
+                {formatUsd(savingsUsd)}
               </span>
             </div>
           )}

@@ -66,7 +66,13 @@ export default async function ProfilePage(props: {
               <div className="flex flex-wrap items-end justify-between gap-4">
                 <div className="flex items-end gap-4">
                   <BlinkAvatar />
-                  <BlinkUsername />
+                  <div>
+                    <BlinkUsername />
+                    <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-gradient-to-r from-amber-300/15 to-yellow-300/10 px-2.5 py-1 text-[10px] font-medium text-amber-200">
+                      <Gift className="size-3" />
+                      Blink Pro active: lower fees on every routed order.
+                    </div>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 pb-1">
                   <button

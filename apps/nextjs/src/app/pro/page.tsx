@@ -4,6 +4,13 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { Check, CircleHelp, Gift, Shield, Zap } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@acme/ui/select";
 
 type Tier = "basic" | "preferred" | "premium";
 type Billing = "monthly" | "yearly";
@@ -16,6 +23,7 @@ const tierMeta: Record<
     yearly: number;
     blurb: string;
     badge?: string;
+    feeDiscount: number;
   }
 > = {
   basic: {
@@ -23,6 +31,7 @@ const tierMeta: Record<
     monthly: 19,
     yearly: 190,
     blurb: "Best for active traders scaling from zero.",
+    feeDiscount: 0.2,
   },
   preferred: {
     name: "Preferred",
@@ -30,14 +39,24 @@ const tierMeta: Record<
     yearly: 790,
     blurb: "For high-frequency perps operators.",
     badge: "Most popular",
+    feeDiscount: 0.35,
   },
   premium: {
     name: "Premium",
     monthly: 249,
     yearly: 2490,
     blurb: "Desk-level package with priority everything.",
+    feeDiscount: 0.5,
   },
 };
+
+const volumePresets = [
+  { label: "$10K / month", value: 10_000 },
+  { label: "$100K / month", value: 100_000 },
+  { label: "$1M / month", value: 1_000_000 },
+  { label: "$5M / month", value: 5_000_000 },
+  { label: "$10M / month", value: 10_000_000 },
+];
 
 const allBenefits = [
   "Lower routed fees on Hyperliquid execution",
@@ -74,6 +93,7 @@ const tierBenefits: Record<Tier, string[]> = {
 export default function BlinkProPage() {
   const [billing, setBilling] = useState<Billing>("yearly");
   const [selectedTier, setSelectedTier] = useState<Tier>("basic");
+  const [monthlyVolume, setMonthlyVolume] = useState<number>(1_000_000);
 
   const selected = tierMeta[selectedTier];
   const selectedPrice =
@@ -85,6 +105,23 @@ export default function BlinkProPage() {
     const monthlyAnnualized = selected.monthly * 12;
     return Math.max(0, monthlyAnnualized - selected.yearly);
   }, [selected.monthly, selected.yearly]);
+
+  const membershipValue = useMemo(() => {
+    const baselineFeeRate = 0.0005; // 5 bps
+    const baselineMonthlyFees = monthlyVolume * baselineFeeRate;
+    const estimatedSavings = baselineMonthlyFees * selected.feeDiscount;
+    const netGain = estimatedSavings - selectedPerMonth;
+    return {
+      baselineMonthlyFees,
+      estimatedSavings,
+      membershipCost: selectedPerMonth,
+      netGain,
+      roi:
+        selectedPerMonth > 0
+          ? (estimatedSavings / selectedPerMonth) * 100
+          : 0,
+    };
+  }, [monthlyVolume, selected.feeDiscount, selectedPerMonth]);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-background px-6 py-8 text-foreground">
@@ -239,6 +276,77 @@ export default function BlinkProPage() {
                   <p className="text-lg text-white/88">{item}</p>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-2xl border border-[#7ea9ff4a] bg-[#0d1730de] p-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs uppercase tracking-[0.16em] text-[#9fc0ff]">
+                Membership value
+              </p>
+              <h3 className="mt-2 text-4xl font-semibold tracking-[-0.04em] text-white">
+                Volume in, savings out.
+              </h3>
+              <p className="mt-1 text-sm text-white/60">
+                Pick your monthly routed volume and Blink Pro shows the fee delta.
+              </p>
+            </div>
+            <div className="w-full max-w-[250px]">
+              <p className="mb-2 text-xs uppercase tracking-[0.14em] text-white/45">
+                Monthly volume
+              </p>
+              <Select
+                value={String(monthlyVolume)}
+                onValueChange={(v) => setMonthlyVolume(Number(v))}
+              >
+                <SelectTrigger className="h-11 rounded-xl border-white/12 bg-white/[0.04] text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {volumePresets.map((preset) => (
+                    <SelectItem key={preset.value} value={String(preset.value)}>
+                      {preset.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-xs text-white/50">Baseline monthly fees</p>
+              <p className="mt-1 text-2xl font-semibold text-white">
+                ${membershipValue.baselineMonthlyFees.toFixed(2)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-[#47daa97a] bg-[#1a4a3a4a] p-4">
+              <p className="text-xs text-emerald-200/80">Estimated savings</p>
+              <p className="mt-1 text-2xl font-semibold text-emerald-300">
+                ${membershipValue.estimatedSavings.toFixed(2)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4">
+              <p className="text-xs text-white/50">Membership cost / mo</p>
+              <p className="mt-1 text-2xl font-semibold text-white">
+                ${membershipValue.membershipCost.toFixed(2)}
+              </p>
+            </div>
+            <div className="rounded-xl border border-[#8fbaff63] bg-[#2d64df2e] p-4">
+              <p className="text-xs text-[#bdd6ff]">BOOM: net monthly value</p>
+              <p
+                className={`mt-1 text-2xl font-semibold ${
+                  membershipValue.netGain >= 0 ? "text-emerald-300" : "text-rose-300"
+                }`}
+              >
+                {membershipValue.netGain >= 0 ? "+" : ""}$
+                {membershipValue.netGain.toFixed(2)}
+              </p>
+              <p className="mt-1 text-xs text-[#bdd6ff]/85">
+                {membershipValue.roi.toFixed(0)}% value-to-cost ratio
+              </p>
             </div>
           </div>
         </section>

@@ -1,5 +1,6 @@
 import * as hl from "@nktkas/hyperliquid";
 import type { ConnectedWallet } from "@privy-io/react-auth";
+import { getAddress } from "viem";
 
 export const infoClient = new hl.InfoClient({
   transport: new hl.HttpTransport(),
@@ -19,7 +20,9 @@ export function createSubscriptionClient() {
  */
 export async function createExchangeClient(wallet: ConnectedWallet) {
   const provider = await wallet.getEthereumProvider();
-  const address = wallet.address as `0x${string}`;
+  // EIP-55 checksum — Rabby compares `from` byte-for-byte against the current
+  // account and will reject the popup if the casing doesn't match exactly.
+  const address = getAddress(wallet.address);
 
   const signer = {
     async signTypedData(params: {

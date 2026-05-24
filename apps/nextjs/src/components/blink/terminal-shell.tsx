@@ -358,7 +358,7 @@ function OrderEntryPanel(props: {
       setUpdatingLeverage(true);
       try {
         const [exchClient, assetIdx] = await Promise.all([
-          Promise.resolve(createAgentExchangeClient()),
+          Promise.resolve(createAgentExchangeClient(props.walletAddress as `0x${string}`)),
           getAssetIndex(props.market),
         ]);
         await exchClient.updateLeverage({
@@ -396,7 +396,7 @@ function OrderEntryPanel(props: {
     setSubmitting(true);
     try {
       const [exchClient, assetIdx] = await Promise.all([
-        Promise.resolve(createAgentExchangeClient()),
+        Promise.resolve(createAgentExchangeClient(props.walletAddress as `0x${string}`)),
         getAssetIndex(props.market),
       ]);
 
@@ -796,7 +796,7 @@ function AccountPanel(props: { walletAddress: string }) {
       setCancellingOid(oid);
       try {
         const [exchClient, assetIdx] = await Promise.all([
-          Promise.resolve(createAgentExchangeClient()),
+          Promise.resolve(createAgentExchangeClient(props.walletAddress as `0x${string}`)),
           getAssetIndex(coin),
         ]);
         await exchClient.cancel({ cancels: [{ a: assetIdx, o: oid }] });

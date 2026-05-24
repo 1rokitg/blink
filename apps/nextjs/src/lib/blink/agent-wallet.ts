@@ -43,11 +43,18 @@ export function clearAgentKey() {
 /**
  * Build an ExchangeClient that signs locally with the session agent key.
  * No provider, no chainId validation, no wallet popups — instant signing.
+ *
+ * @param vaultAddress - The main wallet address the agent is approved to trade
+ *   on behalf of. Required: without it HL rejects with "wallet does not exist"
+ *   because it would try to trade as the agent's own address (which has no funds).
  */
-export function createAgentExchangeClient(): hl.ExchangeClient {
+export function createAgentExchangeClient(
+  vaultAddress: `0x${string}`,
+): hl.ExchangeClient {
   const { privateKey } = getOrCreateAgentKey();
   return new hl.ExchangeClient({
     wallet: privateKey,
     transport: new hl.HttpTransport(),
+    defaultVaultAddress: vaultAddress,
   });
 }

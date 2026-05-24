@@ -19,6 +19,8 @@ export function createSubscriptionClient() {
  */
 export async function createExchangeClient(wallet: ConnectedWallet) {
   const provider = await wallet.getEthereumProvider();
+  const chainIdHex = (await provider.request({ method: "eth_chainId" })) as string;
+  const chainId = Number.parseInt(chainIdHex, 16);
 
   // Fetch the address directly from the provider — the authoritative source.
   // wallet.address from Privy SDK may differ in casing or may lag behind the
@@ -34,6 +36,8 @@ export async function createExchangeClient(wallet: ConnectedWallet) {
 
   console.info("[exchange] signer context", {
     walletAddress: wallet.address,
+    providerChainIdHex: chainIdHex,
+    providerChainId: chainId,
     providerAccounts: accounts,
     fromCandidates,
     selectedSigner: address,
@@ -111,8 +115,10 @@ export async function createExchangeClient(wallet: ConnectedWallet) {
       return [address];
     },
     async getChainId() {
-      // Hyperliquid L1 EIP-712 domain chain id.
-      return 1337;
+      // For user-signed admin actions (approveBuilderFee / approveAgent),
+      // wallet providers typically require the domain chain id to match
+      // the currently connected chain.
+      return chainId;
     },
   };
 

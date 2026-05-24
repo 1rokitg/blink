@@ -26,11 +26,16 @@ export async function createExchangeClient(wallet: ConnectedWallet) {
   // wrapper validate that params[0] matches the provider's current account,
   // so we must use exactly what eth_accounts returns.
   const accounts = (await provider.request({ method: "eth_accounts" })) as string[];
-  const address = accounts[0] ?? wallet.address;
+  const providerAddress = accounts[0];
+  const fromCandidates = Array.from(
+    new Set([wallet.address, providerAddress].filter(Boolean)),
+  ) as string[];
+  const address = fromCandidates[0] ?? wallet.address;
 
   console.info("[exchange] signer context", {
     walletAddress: wallet.address,
     providerAccounts: accounts,
+    fromCandidates,
     selectedSigner: address,
   });
 
@@ -58,29 +63,49 @@ export async function createExchangeClient(wallet: ConnectedWallet) {
         message: params.message,
       });
 
-      try {
-        console.info("[exchange] signTypedData_v4", {
-          from: address,
-          chainId: params.domain.chainId,
-          primaryType: params.primaryType,
-        });
-        const sig = await provider.request({
-          method: "eth_signTypedData_v4",
-          params: [address, payload],
-        });
-        return sig as `0x${string}`;
-      } catch {
-        console.warn("[exchange] signTypedData_v4 failed, falling back to eth_signTypedData", {
-          from: address,
-          chainId: params.domain.chainId,
-          primaryType: params.primaryType,
-        });
-        const sig = await provider.request({
-          method: "eth_signTypedData",
-          params: [address, payload],
-        });
-        return sig as `0x${string}`;
+      for (const from of fromCandidates) {
+        try {
+          console.info("[exchange] signTypedData_v4 attempt", {
+            from,
+            chainId: params.domain.chainId,
+            primaryType: params.primaryType,
+          });
+          const sig = await provider.request({
+            method: "eth_signTypedData_v4",
+            params: [from, payload],
+          });
+          return sig as `0x${string}`;
+        } catch (err) {
+          console.warn("[exchange] signTypedData_v4 attempt failed", {
+            from,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
+
+      for (const from of fromCandidates) {
+        try {
+          console.info("[exchange] eth_signTypedData attempt", {
+            from,
+            chainId: params.domain.chainId,
+            primaryType: params.primaryType,
+          });
+          const sig = await provider.request({
+            method: "eth_signTypedData",
+            params: [from, payload],
+          });
+          return sig as `0x${string}`;
+        } catch (err) {
+          console.warn("[exchange] eth_signTypedData attempt failed", {
+            from,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+
+      throw new Error(
+        "All typed-data signing attempts failed for current wallet account",
+      );
     },
     async getAddresses() {
       return [address];

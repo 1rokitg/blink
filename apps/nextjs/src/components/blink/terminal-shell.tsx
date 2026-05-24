@@ -2429,6 +2429,33 @@ export function TerminalShell(props: { market: string }) {
         search.get("wallet") ?? "0x1111111111111111111111111111111111111111",
     });
   }, [e2eModeEnabled]);
+
+  // ── Auto-claim referral on wallet connect ──────────────────────────────────
+  // When a user lands via /r/[code], a `blink_ref` cookie is set.
+  // As soon as their wallet address resolves, we silently claim the referral.
+  const referralClaimedRef = useRef(false);
+  useEffect(() => {
+    if (!walletAddress || referralClaimedRef.current) return;
+    const refCode = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith("blink_ref="))
+      ?.split("=")[1];
+    if (!refCode) return;
+    referralClaimedRef.current = true;
+    fetch("/api/referrals/claim", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ referredAddress: walletAddress, code: refCode }),
+    })
+      .then(() => {
+        // Clear the cookie so we don't retry
+        document.cookie = "blink_ref=; Max-Age=0; path=/";
+      })
+      .catch(() => {
+        // Non-critical — silently ignore
+        referralClaimedRef.current = false;
+      });
+  }, [walletAddress]);
   const builderFeeQuery = useQuery({
     queryKey: ["blink", "builder-fee", effectiveWalletAddress],
     queryFn: async () => {

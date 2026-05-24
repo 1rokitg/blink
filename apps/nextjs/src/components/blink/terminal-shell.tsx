@@ -564,11 +564,18 @@ function OrderEntryPanel(props: {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       // Agent key not approved yet — re-trigger setup automatically
-      if (msg.toLowerCase().includes("does not exist")) {
+      const msgLower = msg.toLowerCase();
+      if (
+        msgLower.includes("does not exist") ||
+        msgLower.includes("builder fee has not been approved")
+      ) {
         props.onRequireBuilderSetup();
-        toast.error("Agent session expired — re-approve to resume trading.", {
-          id: toastId,
-        });
+        toast.error(
+          msgLower.includes("builder fee")
+            ? "Builder fee not approved — complete setup to trade."
+            : "Agent session expired — re-approve to resume trading.",
+          { id: toastId },
+        );
       } else {
         toast.error(msg || "Order failed", { id: toastId });
       }

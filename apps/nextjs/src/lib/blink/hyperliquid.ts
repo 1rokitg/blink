@@ -1,6 +1,5 @@
 import * as hl from "@nktkas/hyperliquid";
 import type { ConnectedWallet } from "@privy-io/react-auth";
-import { getAddress } from "viem";
 
 export const infoClient = new hl.InfoClient({
   transport: new hl.HttpTransport(),
@@ -27,9 +26,13 @@ export async function createExchangeClient(wallet: ConnectedWallet) {
   // wrapper validate that params[0] matches the provider's current account,
   // so we must use exactly what eth_accounts returns.
   const accounts = (await provider.request({ method: "eth_accounts" })) as string[];
-  const address = getAddress(accounts[0] ?? wallet.address);
+  const address = accounts[0] ?? wallet.address;
 
-  console.info("[exchange] signer address:", address);
+  console.info("[exchange] signer context", {
+    walletAddress: wallet.address,
+    providerAccounts: accounts,
+    selectedSigner: address,
+  });
 
   const signer = {
     async signTypedData(params: {
@@ -56,12 +59,22 @@ export async function createExchangeClient(wallet: ConnectedWallet) {
       });
 
       try {
+        console.info("[exchange] signTypedData_v4", {
+          from: address,
+          chainId: params.domain.chainId,
+          primaryType: params.primaryType,
+        });
         const sig = await provider.request({
           method: "eth_signTypedData_v4",
           params: [address, payload],
         });
         return sig as `0x${string}`;
       } catch {
+        console.warn("[exchange] signTypedData_v4 failed, falling back to eth_signTypedData", {
+          from: address,
+          chainId: params.domain.chainId,
+          primaryType: params.primaryType,
+        });
         const sig = await provider.request({
           method: "eth_signTypedData",
           params: [address, payload],

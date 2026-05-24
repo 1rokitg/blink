@@ -52,6 +52,14 @@ export function BuilderSetupModal(props: {
     setStep("step1-pending");
     setError(null);
     try {
+      const provider = await wallet.getEthereumProvider();
+      const accounts = (await provider.request({ method: "eth_accounts" })) as string[];
+      console.info("[setup] step 1 context", {
+        modalWalletAddress: props.walletAddress,
+        privyWalletAddress: wallet.address,
+        providerAccounts: accounts,
+        market: props.market,
+      });
       const exchClient = await createExchangeClient(wallet);
       console.info("[setup] step 1 — approving builder fee...");
       await exchClient.approveBuilderFee({
@@ -73,8 +81,17 @@ export function BuilderSetupModal(props: {
     setStep("step2-pending");
     setError(null);
     try {
+      const provider = await wallet.getEthereumProvider();
+      const accounts = (await provider.request({ method: "eth_accounts" })) as string[];
       const exchClient = await createExchangeClient(wallet);
       const { address: agentAddress } = getOrCreateAgentKey(props.walletAddress);
+      console.info("[setup] step 2 context", {
+        modalWalletAddress: props.walletAddress,
+        privyWalletAddress: wallet.address,
+        providerAccounts: accounts,
+        agentAddress,
+        market: props.market,
+      });
       console.info("[setup] step 2 — approving agent key:", agentAddress);
       await exchClient.approveAgent({
         agentAddress,

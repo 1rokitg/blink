@@ -91,6 +91,7 @@ import {
 import { AccountManagementModal } from "./account-management-modal";
 import { BuilderSetupModal } from "./builder-setup-modal";
 import { MarketInfoBar } from "./market-info-bar";
+import { PnlShareModal, type PnlPositionData } from "./pnl-share-modal";
 import { ReferralsModal } from "./referrals-modal";
 import { TerminalOrderBook } from "./terminal-order-book";
 import { TradingViewPanel } from "./trading-view-panel";
@@ -1631,12 +1632,11 @@ function AccountPanel(props: {
 }) {
   const queryClient = useQueryClient();
   const [cancellingOid, setCancellingOid] = useState<number | null>(null);
-  const [positionActionKey, setPositionActionKey] = useState<string | null>(
-    null,
-  );
+  const [positionActionKey, setPositionActionKey] = useState<string | null>(null);
   const [editingCoin, setEditingCoin] = useState<string | null>(null);
   const [editExitPrice, setEditExitPrice] = useState("");
   const [editExitSize, setEditExitSize] = useState("");
+  const [sharePosition, setSharePosition] = useState<PnlPositionData | null>(null);
 
   const accountQuery = useQuery({
     queryKey: ["blink", "account", props.walletAddress],
@@ -1801,366 +1801,478 @@ function AccountPanel(props: {
   );
 
   return (
-    <section className="glass-panel mt-5 flex flex-col p-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="terminal-label mb-1">Summary</p>
+    <section className="glass-panel mt-4 overflow-hidden p-0">
+      {/* ── Header ─────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">
+        <div className="flex items-center gap-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/40">
+            Summary
+          </p>
+          {accountValue > 0 && (
+            <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 font-mono text-[11px] text-white/70">
+              {formatUsd(accountValue)}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => void accountQuery.refetch()}
-            disabled={accountQuery.isFetching}
-            className="h-7 rounded-full border-white/10 bg-white/[0.04] px-2.5 text-[10px] text-foreground/70 hover:bg-white/[0.1]"
-          >
-            {accountQuery.isFetching ? (
-              <Loader2 className="size-3 animate-spin" />
-            ) : (
-              "Refresh now"
-            )}
-          </Button>
-        </div>
+        <button
+          type="button"
+          onClick={() => void accountQuery.refetch()}
+          disabled={accountQuery.isFetching}
+          className="flex size-7 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-foreground/40 transition hover:border-white/20 hover:text-white disabled:opacity-40"
+          title="Refresh"
+        >
+          {accountQuery.isFetching ? (
+            <Loader2 className="size-3 animate-spin" />
+          ) : (
+            <ArrowDown className="size-3 rotate-45" />
+          )}
+        </button>
       </div>
 
-      <Tabs defaultValue="positions" className="mt-5">
-        <TabsList className="grid h-auto grid-cols-3 rounded-full border border-white/8 bg-white/[0.04] p-1 md:w-[420px]">
-          <TabsTrigger value="positions" className="rounded-full">
-            Positions
-          </TabsTrigger>
-          <TabsTrigger value="orders" className="rounded-full">
-            Open Orders
-          </TabsTrigger>
-          <TabsTrigger value="history" className="rounded-full">
-            Recent Fills
-          </TabsTrigger>
-        </TabsList>
+      {/* ── Tabs ───────────────────────────────────────────────────────── */}
+      <Tabs defaultValue="positions" className="flex flex-col">
+        <div className="border-b border-white/[0.06] px-4 pt-2">
+          <TabsList className="h-auto gap-0 rounded-none border-none bg-transparent p-0">
+            {(
+              [
+                { value: "positions", label: "Positions", count: positions.filter(p => Number(p.position.szi) !== 0).length },
+                { value: "orders", label: "Open Orders", count: openOrders.length },
+                { value: "history", label: "Recent Fills", count: recentFills.length },
+              ] as const
+            ).map(({ value, label, count }) => (
+              <TabsTrigger
+                key={value}
+                value={value}
+                className="relative rounded-none border-b-2 border-transparent bg-transparent px-4 pb-2 pt-1 text-xs font-medium text-foreground/45 transition hover:text-white data-[state=active]:border-[#3be1ba] data-[state=active]:bg-transparent data-[state=active]:text-white data-[state=active]:shadow-none"
+              >
+                {label}
+                {count > 0 && (
+                  <span className="ml-1.5 rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] font-semibold leading-none text-foreground/55">
+                    {count}
+                  </span>
+                )}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
-        <TabsContent value="positions" className="mt-3">
-          {/* column header */}
-          <div className="mb-1 grid grid-cols-[1fr_52px_80px_80px_88px_88px_auto] gap-2 px-3 py-1 text-[10px] uppercase tracking-[0.13em] text-foreground/35">
-            <span>Market</span>
-            <span className="text-center">Side</span>
-            <span className="text-right">Entry</span>
-            <span className="text-right">Liq.</span>
-            <span className="text-right">Value</span>
-            <span className="text-right">PnL</span>
-            <span />
-          </div>
-          <div className="space-y-1.5">
-            {positions.length > 0 ? (
-              positions.map(({ position }) => {
-                const sz = Number(position.szi);
-                const isLong = sz > 0;
-                const absSz = Math.abs(sz);
-                const entry = Number(position.entryPx);
-                const posLiq =
-                  entry > 0
-                    ? isLong
-                      ? entry *
-                        (1 - 1 / Number(position.leverage?.value ?? 10) + 0.005)
-                      : entry *
-                        (1 + 1 / Number(position.leverage?.value ?? 10) - 0.005)
-                    : null;
-                const pnl = Number(position.unrealizedPnl);
-                const accentColor = isLong ? "#3be1ba" : "#f87171";
-                return (
-                  <div
-                    key={`${position.coin}-${position.entryPx}`}
-                    className="overflow-hidden rounded-[14px] border border-white/[0.07] bg-white/[0.025]"
-                    style={{ borderLeft: `2px solid ${accentColor}44` }}
-                  >
-                    <div className="grid grid-cols-[1fr_52px_80px_80px_88px_88px_auto] items-center gap-2 px-3 py-2.5">
-                      {/* coin */}
-                      <div className="flex items-center gap-2">
-                        <CoinIcon coin={position.coin} size={22} />
-                        <div>
-                          <p className="text-sm font-semibold text-white leading-none">
-                            {position.coin}
-                          </p>
-                          <p className="mt-0.5 text-[10px] text-foreground/40">
-                            {Number(position.leverage?.value ?? 1).toFixed(0)}×
-                          </p>
+        {/* ── Positions ─────────────────────────────────────────────────── */}
+        <TabsContent value="positions" className="mt-0 p-3">
+          {positions.length > 0 ? (
+            <>
+              {/* column headers */}
+              <div className="mb-1.5 grid grid-cols-[1fr_56px_88px_80px_100px_116px_auto] items-center gap-2 px-3 py-1 text-[10px] uppercase tracking-[0.13em] text-foreground/32">
+                <span>Market</span>
+                <span className="text-center">Side</span>
+                <span className="text-right">Entry</span>
+                <span className="text-right">Liq.</span>
+                <span className="text-right">Value</span>
+                <span className="text-right">Unrealized PnL</span>
+                <span />
+              </div>
+              <div className="space-y-1.5">
+                {positions.map(({ position }) => {
+                  const sz = Number(position.szi);
+                  if (sz === 0) return null;
+                  const isLong = sz > 0;
+                  const absSz = Math.abs(sz);
+                  const entry = Number(position.entryPx);
+                  const posValue = Number(position.positionValue);
+                  const leverage = Number(position.leverage?.value ?? 1);
+                  const posLiq =
+                    entry > 0
+                      ? isLong
+                        ? entry * (1 - 1 / leverage + 0.005)
+                        : entry * (1 + 1 / leverage - 0.005)
+                      : null;
+                  const pnl = Number(position.unrealizedPnl);
+                  const pnlPct =
+                    posValue > 0 ? (pnl / (posValue / leverage)) * 100 : 0;
+                  const accentColor = isLong ? "#3be1ba" : "#f87171";
+                  const isActing =
+                    positionActionKey ===
+                    `${position.coin}-${isLong ? "sell" : "buy"}-Ioc`;
+
+                  return (
+                    <div
+                      key={`${position.coin}-${position.entryPx}`}
+                      className="group overflow-hidden rounded-[14px] border border-white/[0.07] bg-white/[0.025] transition hover:border-white/[0.12] hover:bg-white/[0.04]"
+                      style={{ borderLeft: `2px solid ${accentColor}55` }}
+                    >
+                      <div className="grid grid-cols-[1fr_56px_88px_80px_100px_116px_auto] items-center gap-2 px-3 py-3">
+                        {/* market */}
+                        <div className="flex items-center gap-2.5">
+                          <CoinIcon coin={position.coin} size={24} />
+                          <div>
+                            <p className="text-sm font-semibold leading-none text-white">
+                              {position.coin}
+                            </p>
+                            <p className="mt-0.5 text-[10px] text-foreground/38">
+                              {leverage.toFixed(0)}×
+                            </p>
+                          </div>
+                        </div>
+                        {/* side */}
+                        <div className="flex justify-center">
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                              isLong
+                                ? "bg-emerald-400/15 text-emerald-300"
+                                : "bg-rose-400/15 text-rose-300"
+                            }`}
+                          >
+                            {isLong ? "Long" : "Short"}
+                          </span>
+                        </div>
+                        {/* entry */}
+                        <span className="text-right font-mono text-xs text-foreground/65">
+                          {formatUsd(entry)}
+                        </span>
+                        {/* liq */}
+                        <span className="text-right font-mono text-xs text-rose-300/60">
+                          {posLiq ? formatUsd(posLiq) : "—"}
+                        </span>
+                        {/* value */}
+                        <span className="text-right font-mono text-xs text-foreground/75">
+                          {formatUsd(posValue)}
+                        </span>
+                        {/* pnl */}
+                        <div className="flex flex-col items-end">
+                          <span
+                            className={`font-mono text-sm font-semibold leading-none ${pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+                          >
+                            {pnl >= 0 ? "+" : ""}
+                            {formatUsd(pnl)}
+                          </span>
+                          <span
+                            className={`mt-0.5 text-[10px] ${pnl >= 0 ? "text-emerald-400/60" : "text-rose-400/60"}`}
+                          >
+                            {pnlPct >= 0 ? "+" : ""}
+                            {pnlPct.toFixed(2)}%
+                          </span>
+                        </div>
+                        {/* actions */}
+                        <div className="flex items-center justify-end gap-1">
+                          {/* Share PnL */}
+                          <button
+                            type="button"
+                            title="Share PnL"
+                            className="flex size-7 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.03] text-foreground/40 transition hover:border-white/20 hover:text-white"
+                            onClick={() =>
+                              setSharePosition({
+                                coin: position.coin,
+                                side: isLong ? "Long" : "Short",
+                                entryPx: entry,
+                                markPx: entry + pnl / absSz,
+                                pnl,
+                                pnlPct,
+                                size: absSz,
+                                leverage,
+                              })
+                            }
+                          >
+                            <Share className="size-3" />
+                          </button>
+                          {/* Edit exit */}
+                          <button
+                            type="button"
+                            className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] text-foreground/55 transition hover:border-white/20 hover:text-white"
+                            onClick={() => {
+                              setEditingCoin(
+                                editingCoin === position.coin
+                                  ? null
+                                  : position.coin,
+                              );
+                              setEditExitPrice(position.entryPx);
+                              setEditExitSize(absSz.toString());
+                            }}
+                          >
+                            Edit exit
+                          </button>
+                          {/* Close */}
+                          <button
+                            type="button"
+                            disabled={isActing}
+                            className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] text-foreground/55 transition hover:border-white/20 hover:text-white disabled:opacity-40"
+                            onClick={() =>
+                              void runPositionOrder({
+                                coin: position.coin,
+                                isBuy: !isLong,
+                                size: absSz,
+                                reduceOnly: true,
+                                tif: "Ioc",
+                              })
+                            }
+                          >
+                            {isActing ? (
+                              <Loader2 className="size-3 animate-spin" />
+                            ) : (
+                              "Close"
+                            )}
+                          </button>
+                          {/* Reverse */}
+                          <button
+                            type="button"
+                            disabled={isActing}
+                            className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-black transition active:scale-95 disabled:opacity-40"
+                            style={{
+                              background: isLong ? "#f87171" : "#34d399",
+                            }}
+                            onClick={() =>
+                              void runPositionOrder({
+                                coin: position.coin,
+                                isBuy: !isLong,
+                                size: absSz * 2,
+                                reduceOnly: false,
+                                tif: "Ioc",
+                              })
+                            }
+                          >
+                            Reverse
+                          </button>
                         </div>
                       </div>
-                      {/* side */}
+
+                      {/* Edit exit inline panel */}
+                      <AnimatePresence>
+                        {editingCoin === position.coin && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
+                            className="overflow-hidden"
+                          >
+                            <div className="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2 border-t border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                              <Input
+                                value={editExitPrice}
+                                onChange={(e) =>
+                                  setEditExitPrice(e.target.value)
+                                }
+                                placeholder="Exit price"
+                                className="h-8 rounded-lg border-white/10 bg-white/[0.04] text-xs"
+                              />
+                              <Input
+                                value={editExitSize}
+                                onChange={(e) =>
+                                  setEditExitSize(e.target.value)
+                                }
+                                placeholder="Size"
+                                className="h-8 rounded-lg border-white/10 bg-white/[0.04] text-xs"
+                              />
+                              <button
+                                type="button"
+                                className="h-8 rounded-lg bg-[#2c6bff] px-3 text-[11px] font-medium text-white transition hover:bg-[#1f5df2]"
+                                onClick={() =>
+                                  void runPositionOrder({
+                                    coin: position.coin,
+                                    isBuy: !isLong,
+                                    size:
+                                      Number.parseFloat(editExitSize) || 0,
+                                    limitPrice:
+                                      Number.parseFloat(editExitPrice) || 0,
+                                    reduceOnly: true,
+                                    tif: "Gtc",
+                                  })
+                                }
+                              >
+                                Place exit
+                              </button>
+                              <button
+                                type="button"
+                                className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-3 text-[11px] text-foreground/55 transition hover:text-white"
+                                onClick={() => setEditingCoin(null)}
+                              >
+                                Dismiss
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center rounded-[14px] border border-dashed border-white/[0.08] py-12 text-center">
+              <p className="text-sm text-foreground/35">No active positions</p>
+              <p className="mt-1 text-xs text-foreground/22">
+                Open a trade from the order panel
+              </p>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* ── Open Orders ──────────────────────────────────────────────── */}
+        <TabsContent value="orders" className="mt-0 p-3">
+          {openOrders.length > 0 ? (
+            <div className="overflow-hidden rounded-[14px] border border-white/[0.07]">
+              <div className="grid grid-cols-[1fr_56px_96px_80px_80px_36px] gap-2 border-b border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[10px] uppercase tracking-[0.13em] text-foreground/32">
+                <span>Coin</span>
+                <span className="text-center">Side</span>
+                <span className="text-right">Price</span>
+                <span className="text-right">Size</span>
+                <span className="text-right">Orig</span>
+                <span />
+              </div>
+              <div className="divide-y divide-white/[0.04]">
+                {openOrders.map((order) => {
+                  const isCancelling = cancellingOid === order.oid;
+                  const isBuy = order.side === "B";
+                  return (
+                    <div
+                      key={order.oid}
+                      className="grid grid-cols-[1fr_56px_96px_80px_80px_36px] items-center gap-2 px-3 py-2.5 text-xs transition hover:bg-white/[0.03]"
+                      style={{
+                        borderLeft: `2px solid ${isBuy ? "#3be1ba44" : "#f8717144"}`,
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <CoinIcon coin={order.coin} size={18} />
+                        <span className="font-medium text-white">
+                          {order.coin}
+                        </span>
+                      </div>
                       <div className="flex justify-center">
                         <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                            isLong
+                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                            isBuy
                               ? "bg-emerald-400/15 text-emerald-300"
                               : "bg-rose-400/15 text-rose-300"
                           }`}
                         >
-                          {isLong ? "Long" : "Short"}
+                          {isBuy ? "Buy" : "Sell"}
                         </span>
                       </div>
-                      {/* entry */}
-                      <span className="text-right font-mono text-xs text-foreground/70">
-                        {formatUsd(entry)}
+                      <span className="text-right font-mono text-foreground/70">
+                        {formatUsd(Number(order.limitPx))}
                       </span>
-                      {/* liq */}
-                      <span className="text-right font-mono text-xs text-rose-300/70">
-                        {posLiq ? formatUsd(posLiq) : "—"}
+                      <span className="text-right font-mono text-foreground/60">
+                        {order.sz}
                       </span>
-                      {/* value */}
-                      <span className="text-right font-mono text-xs text-foreground/80">
-                        {formatUsd(Number(position.positionValue))}
+                      <span className="text-right font-mono text-foreground/38">
+                        {order.origSz}
                       </span>
-                      {/* pnl */}
-                      <span
-                        className={`text-right font-mono text-sm font-semibold ${pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleCancel(order.coin, order.oid)
+                        }
+                        disabled={isCancelling}
+                        className="flex size-6 items-center justify-center rounded-full border border-white/[0.07] bg-white/[0.03] text-foreground/38 transition hover:border-rose-400/30 hover:bg-rose-400/10 hover:text-rose-300 disabled:opacity-40"
+                        title="Cancel"
                       >
-                        {pnl >= 0 ? "+" : ""}
-                        {formatUsd(pnl)}
-                      </span>
-                      {/* actions */}
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-foreground/60 transition hover:border-white/20 hover:text-white"
-                          onClick={() => {
-                            setEditingCoin(position.coin);
-                            setEditExitPrice(position.entryPx);
-                            setEditExitSize(absSz.toString());
-                          }}
-                        >
-                          Edit exit
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-foreground/60 transition hover:border-white/20 hover:text-white disabled:opacity-40"
-                          disabled={
-                            positionActionKey === `${position.coin}-cancel`
-                          }
-                          onClick={() => void cancelCoinOrders(position.coin)}
-                        >
-                          Cancel exits
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-foreground/60 transition hover:border-white/20 hover:text-white disabled:opacity-40"
-                          disabled={
-                            positionActionKey ===
-                            `${position.coin}-${isLong ? "sell" : "buy"}-Ioc`
-                          }
-                          onClick={() =>
-                            void runPositionOrder({
-                              coin: position.coin,
-                              isBuy: !isLong,
-                              size: absSz,
-                              reduceOnly: true,
-                              tif: "Ioc",
-                            })
-                          }
-                        >
-                          Close
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-full px-2.5 py-1 text-[11px] font-semibold text-black transition disabled:opacity-40"
-                          style={{ background: isLong ? "#f87171" : "#34d399" }}
-                          disabled={
-                            positionActionKey ===
-                            `${position.coin}-${isLong ? "sell" : "buy"}-Ioc`
-                          }
-                          onClick={() =>
-                            void runPositionOrder({
-                              coin: position.coin,
-                              isBuy: !isLong,
-                              size: absSz * 2,
-                              reduceOnly: false,
-                              tif: "Ioc",
-                            })
-                          }
-                        >
-                          Reverse
-                        </button>
-                      </div>
+                        {isCancelling ? (
+                          <Loader2 className="size-2.5 animate-spin" />
+                        ) : (
+                          <X className="size-2.5" />
+                        )}
+                      </button>
                     </div>
-                    {/* edit exit inline panel */}
-                    {editingCoin === position.coin && (
-                      <div className="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2 border-t border-white/[0.06] bg-white/[0.02] px-3 py-2">
-                        <Input
-                          value={editExitPrice}
-                          onChange={(e) => setEditExitPrice(e.target.value)}
-                          placeholder="Exit price"
-                          className="h-8 rounded-lg border-white/10 bg-white/[0.04] text-xs"
-                        />
-                        <Input
-                          value={editExitSize}
-                          onChange={(e) => setEditExitSize(e.target.value)}
-                          placeholder="Exit size"
-                          className="h-8 rounded-lg border-white/10 bg-white/[0.04] text-xs"
-                        />
-                        <button
-                          type="button"
-                          className="h-8 rounded-lg bg-[#2c6bff] px-3 text-[11px] font-medium text-white transition hover:bg-[#1f5df2]"
-                          onClick={() =>
-                            void runPositionOrder({
-                              coin: position.coin,
-                              isBuy: !isLong,
-                              size: Number.parseFloat(editExitSize) || 0,
-                              limitPrice: Number.parseFloat(editExitPrice) || 0,
-                              reduceOnly: true,
-                              tif: "Gtc",
-                            })
-                          }
-                        >
-                          Save
-                        </button>
-                        <button
-                          type="button"
-                          className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-3 text-[11px] text-foreground/60 transition hover:text-white"
-                          onClick={() => setEditingCoin(null)}
-                        >
-                          Dismiss
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            ) : (
-              <div className="rounded-2xl border border-dashed border-white/8 px-4 py-10 text-center text-sm text-foreground/35">
-                No active positions
+                  );
+                })}
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center rounded-[14px] border border-dashed border-white/[0.08] py-12 text-center">
+              <p className="text-sm text-foreground/35">No open orders</p>
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="orders" className="mt-4">
-          <div className="grid grid-cols-[1fr_60px_80px_80px_80px_44px] gap-3 px-3 py-2 text-[11px] uppercase tracking-[0.14em] text-foreground/38">
-            <span>Coin</span>
-            <span className="text-right">Side</span>
-            <span className="text-right">Price</span>
-            <span className="text-right">Size</span>
-            <span className="text-right">Orig size</span>
-            <span />
-          </div>
-          <div className="space-y-2">
-            {openOrders.length > 0 ? (
-              openOrders.map((order) => {
-                const isCancelling = cancellingOid === order.oid;
-                const isBuy = order.side === "B";
-                return (
-                  <div
-                    key={order.oid}
-                    className="grid grid-cols-[1fr_60px_80px_80px_80px_44px] gap-3 items-center rounded-[18px] border border-white/8 bg-white/[0.03] px-3 py-3 text-sm text-foreground/72"
-                  >
-                    <span className="font-medium text-white">{order.coin}</span>
-                    <span
-                      className={`text-right text-xs font-medium ${isBuy ? "text-emerald-300" : "text-rose-300"}`}
-                    >
-                      {isBuy ? "Buy" : "Sell"}
-                    </span>
-                    <span className="text-right font-mono text-xs">
-                      {Number(order.limitPx).toLocaleString()}
-                    </span>
-                    <span className="text-right font-mono text-xs">
-                      {order.sz}
-                    </span>
-                    <span className="text-right text-xs text-foreground/45">
-                      {order.origSz}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => void handleCancel(order.coin, order.oid)}
-                      disabled={isCancelling}
-                      className="flex items-center justify-center rounded-full border border-white/8 bg-white/[0.03] p-1.5 text-foreground/40 transition hover:border-rose-400/30 hover:bg-rose-400/10 hover:text-rose-300 disabled:opacity-40"
-                      title="Cancel order"
-                    >
-                      {isCancelling ? (
-                        <Loader2 className="size-3 animate-spin" />
-                      ) : (
-                        <X className="size-3" />
-                      )}
-                    </button>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="rounded-[20px] border border-dashed border-white/8 bg-white/[0.03] px-4 py-8 text-sm text-foreground/48">
-                No open orders.
+        {/* ── Recent Fills ─────────────────────────────────────────────── */}
+        <TabsContent value="history" className="mt-0 p-3">
+          {recentFills.length > 0 ? (
+            <div className="overflow-hidden rounded-[14px] border border-white/[0.07]">
+              <div className="grid grid-cols-[1fr_52px_96px_80px_72px_60px] gap-2 border-b border-white/[0.06] bg-white/[0.02] px-3 py-2 text-[10px] uppercase tracking-[0.13em] text-foreground/32">
+                <span>Market</span>
+                <span className="text-center">Side</span>
+                <span className="text-right">Price</span>
+                <span className="text-right">Size</span>
+                <span className="text-right">Fee</span>
+                <span className="text-right">Time</span>
               </div>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="history" className="mt-3">
-          <div className="mb-1 grid grid-cols-[1fr_52px_96px_80px_72px_60px] gap-2 px-3 py-1 text-[10px] uppercase tracking-[0.13em] text-foreground/35">
-            <span>Market</span>
-            <span className="text-center">Side</span>
-            <span className="text-right">Price</span>
-            <span className="text-right">Size</span>
-            <span className="text-right">Fee</span>
-            <span className="text-right">Time</span>
-          </div>
-          <div className="divide-y divide-white/[0.04] overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.02]">
-            {recentFills.length > 0 ? (
-              recentFills.map((fill) => {
-                const isBuy = fill.side === "B";
-                const fillTime = new Date(fill.time);
-                const now = Date.now();
-                const diffMs = now - fillTime.getTime();
-                const diffMin = Math.floor(diffMs / 60_000);
-                const timeLabel =
-                  diffMin < 1
-                    ? "just now"
-                    : diffMin < 60
-                      ? `${diffMin}m ago`
-                      : fillTime.toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        });
-                return (
-                  <div
-                    key={fill.tid}
-                    className="grid grid-cols-[1fr_52px_96px_80px_72px_60px] items-center gap-2 px-3 py-2 text-xs transition hover:bg-white/[0.03]"
-                  >
-                    <div className="flex items-center gap-2">
-                      <CoinIcon coin={fill.coin} size={18} />
-                      <span className="font-medium text-white">
-                        {fill.coin}
+              <div className="divide-y divide-white/[0.04]">
+                {recentFills.map((fill) => {
+                  const isBuy = fill.side === "B";
+                  const fillTime = new Date(fill.time);
+                  const diffMin = Math.floor(
+                    (Date.now() - fillTime.getTime()) / 60_000,
+                  );
+                  const timeLabel =
+                    diffMin < 1
+                      ? "just now"
+                      : diffMin < 60
+                        ? `${diffMin}m ago`
+                        : fillTime.toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          });
+                  return (
+                    <div
+                      key={fill.tid}
+                      className="grid grid-cols-[1fr_52px_96px_80px_72px_60px] items-center gap-2 px-3 py-2.5 text-xs transition hover:bg-white/[0.03]"
+                    >
+                      <div className="flex items-center gap-2">
+                        <CoinIcon coin={fill.coin} size={18} />
+                        <span className="font-medium text-white">
+                          {fill.coin}
+                        </span>
+                      </div>
+                      <div className="flex justify-center">
+                        <span
+                          className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                            isBuy
+                              ? "bg-emerald-400/15 text-emerald-300"
+                              : "bg-rose-400/15 text-rose-300"
+                          }`}
+                        >
+                          {isBuy ? "Buy" : "Sell"}
+                        </span>
+                      </div>
+                      <span className="text-right font-mono text-foreground/70">
+                        {formatUsd(Number(fill.px))}
                       </span>
-                    </div>
-                    <div className="flex justify-center">
+                      <span className="text-right font-mono text-foreground/58">
+                        {fill.sz}
+                      </span>
                       <span
-                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
-                          isBuy
-                            ? "bg-emerald-400/15 text-emerald-300"
-                            : "bg-rose-400/15 text-rose-300"
+                        className={`text-right font-mono ${
+                          Number(fill.fee) === 0
+                            ? "text-emerald-400/60"
+                            : "text-foreground/38"
                         }`}
                       >
-                        {isBuy ? "Buy" : "Sell"}
+                        {Number(fill.fee) !== 0
+                          ? `$${Math.abs(Number(fill.fee)).toFixed(4)}`
+                          : "free"}
+                      </span>
+                      <span className="text-right text-foreground/32">
+                        {timeLabel}
                       </span>
                     </div>
-                    <span className="text-right font-mono text-foreground/75">
-                      {formatUsd(Number(fill.px))}
-                    </span>
-                    <span className="text-right font-mono text-foreground/60">
-                      {fill.sz}
-                    </span>
-                    <span className="text-right font-mono text-foreground/40">
-                      {Number(fill.fee) !== 0
-                        ? `$${Math.abs(Number(fill.fee)).toFixed(4)}`
-                        : "free"}
-                    </span>
-                    <span className="text-right text-foreground/35">
-                      {timeLabel}
-                    </span>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="px-4 py-10 text-center text-sm text-foreground/35">
-                No recent fills
+                  );
+                })}
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center rounded-[14px] border border-dashed border-white/[0.08] py-12 text-center">
+              <p className="text-sm text-foreground/35">No recent fills</p>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
+
+      {/* ── PnL Share Modal ───────────────────────────────────────────── */}
+      {sharePosition && (
+        <PnlShareModal
+          type="position"
+          open={!!sharePosition}
+          onClose={() => setSharePosition(null)}
+          data={sharePosition}
+        />
+      )}
     </section>
   );
 }

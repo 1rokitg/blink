@@ -64,11 +64,8 @@ import {
   builderMaxFeeRate,
   isBuilderApproved,
 } from "~/lib/blink/builder";
-import {
-  createExchangeClient,
-  getAssetIndex,
-  infoClient,
-} from "~/lib/blink/hyperliquid";
+import { getAssetIndex, infoClient } from "~/lib/blink/hyperliquid";
+import { createAgentExchangeClient } from "~/lib/blink/agent-wallet";
 import {
   fetchTopMarketsByVolume,
   formatCompactNumber,
@@ -357,12 +354,11 @@ function OrderEntryPanel(props: {
   const handleLeverageChange = useCallback(
     async (newLeverage: number) => {
       setLeverage(newLeverage);
-      const wallet = wallets[0];
-      if (!wallet || !props.walletAddress) return;
+      if (!props.walletAddress) return;
       setUpdatingLeverage(true);
       try {
         const [exchClient, assetIdx] = await Promise.all([
-          createExchangeClient(wallet),
+          Promise.resolve(createAgentExchangeClient()),
           getAssetIndex(props.market),
         ]);
         await exchClient.updateLeverage({
@@ -380,8 +376,6 @@ function OrderEntryPanel(props: {
   );
 
   const handleSubmit = useCallback(async () => {
-    const wallet = wallets[0];
-    if (!wallet) return;
     if (!props.tradeEnabled) {
       props.onRequireBuilderSetup();
       return;
@@ -402,7 +396,7 @@ function OrderEntryPanel(props: {
     setSubmitting(true);
     try {
       const [exchClient, assetIdx] = await Promise.all([
-        createExchangeClient(wallet),
+        Promise.resolve(createAgentExchangeClient()),
         getAssetIndex(props.market),
       ]);
 
@@ -799,12 +793,10 @@ function AccountPanel(props: { walletAddress: string }) {
 
   const handleCancel = useCallback(
     async (coin: string, oid: number) => {
-      const wallet = wallets[0];
-      if (!wallet) return;
       setCancellingOid(oid);
       try {
         const [exchClient, assetIdx] = await Promise.all([
-          createExchangeClient(wallet),
+          Promise.resolve(createAgentExchangeClient()),
           getAssetIndex(coin),
         ]);
         await exchClient.cancel({ cancels: [{ a: assetIdx, o: oid }] });
@@ -818,7 +810,7 @@ function AccountPanel(props: { walletAddress: string }) {
         setCancellingOid(null);
       }
     },
-    [wallets, props.walletAddress, queryClient],
+    [props.walletAddress, queryClient],
   );
 
   const positions = accountQuery.data?.state?.assetPositions ?? [];

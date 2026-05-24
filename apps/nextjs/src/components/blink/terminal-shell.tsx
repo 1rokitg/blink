@@ -60,7 +60,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@acme/ui/tabs";
 
 import {
   BUILDER_ADDRESS,
-  BUILDER_FEE_UNITS,
   builderMaxFeeRate,
   getApprovedBuilderFee,
   isBuilderApproved,
@@ -287,6 +286,7 @@ const LEVERAGE_PRESETS = [1, 2, 5, 10, 20];
 function OrderEntryPanel(props: {
   market: string;
   walletAddress: string;
+  builderFeeUnits: number;
   tradeEnabled: boolean;
   onRequireBuilderSetup: () => void;
 }) {
@@ -410,7 +410,7 @@ function OrderEntryPanel(props: {
     const liveApprovedFee = await getApprovedBuilderFee(
       asHexAddress(props.walletAddress),
     );
-    const liveRequiredFee = BUILDER_FEE_UNITS * 0.0001;
+    const liveRequiredFee = props.builderFeeUnits * 0.0001;
     if (liveApprovedFee < liveRequiredFee) {
       toast.error("Builder fee has not been approved.");
       props.onRequireBuilderSetup();
@@ -467,7 +467,7 @@ function OrderEntryPanel(props: {
               },
             ],
             grouping: "na",
-            builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_UNITS },
+            builder: { b: BUILDER_ADDRESS, f: props.builderFeeUnits },
           });
           return;
         }
@@ -491,7 +491,7 @@ function OrderEntryPanel(props: {
             },
           ],
           grouping: "na",
-          builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_UNITS },
+          builder: { b: BUILDER_ADDRESS, f: props.builderFeeUnits },
         });
       };
 
@@ -567,6 +567,7 @@ function OrderEntryPanel(props: {
     markPrice,
     props.market,
     props.tradeEnabled,
+    props.builderFeeUnits,
     props.onRequireBuilderSetup,
     props.walletAddress,
     queryClient,
@@ -871,7 +872,7 @@ function OrderEntryPanel(props: {
   );
 }
 
-function AccountPanel(props: { walletAddress: string }) {
+function AccountPanel(props: { walletAddress: string; builderFeeUnits: number }) {
   const queryClient = useQueryClient();
   const [cancellingOid, setCancellingOid] = useState<number | null>(null);
   const [positionActionKey, setPositionActionKey] = useState<string | null>(
@@ -985,7 +986,7 @@ function AccountPanel(props: { walletAddress: string }) {
             },
           ],
           grouping: "na",
-          builder: { b: BUILDER_ADDRESS, f: BUILDER_FEE_UNITS },
+          builder: { b: BUILDER_ADDRESS, f: props.builderFeeUnits },
         });
 
         toast.success("Position action submitted", { id: actionToast });
@@ -1001,7 +1002,7 @@ function AccountPanel(props: { walletAddress: string }) {
         setPositionActionKey(null);
       }
     },
-    [props.walletAddress, queryClient],
+    [props.builderFeeUnits, props.walletAddress, queryClient],
   );
 
   const cancelCoinOrders = useCallback(
@@ -1506,6 +1507,20 @@ export function TerminalShell(props: { market: string }) {
     staleTime: 30_000,
     refetchInterval: 30_000,
   });
+  const builderFeeQuery = useQuery({
+    queryKey: ["blink", "builder-fee", effectiveWalletAddress],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/builder/fee?wallet=${encodeURIComponent(effectiveWalletAddress)}`,
+      );
+      if (!response.ok) throw new Error("Failed to resolve builder fee");
+      return (await response.json()) as { feeUnits: number; isPro: boolean };
+    },
+    enabled: Boolean(effectiveWalletAddress),
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+  const resolvedBuilderFeeUnits = builderFeeQuery.data?.feeUnits ?? 100;
   const tradeEnabled = e2eConfig.enabled
     ? e2eConfig.approved
     : approvalQuery.data === true;
@@ -1781,13 +1796,17 @@ export function TerminalShell(props: { market: string }) {
             <OrderEntryPanel
               market={props.market}
               walletAddress={effectiveWalletAddress}
+              builderFeeUnits={resolvedBuilderFeeUnits}
               tradeEnabled={tradeEnabled}
               onRequireBuilderSetup={() => setBuilderModalOpen(true)}
             />
           </div>
 
           {e2eConfig.enabled ? null : (
-            <AccountPanel walletAddress={effectiveWalletAddress} />
+            <AccountPanel
+              walletAddress={effectiveWalletAddress}
+              builderFeeUnits={resolvedBuilderFeeUnits}
+            />
           )}
 
           <footer className="mt-3 flex items-center justify-between px-2 text-xs text-foreground/38">

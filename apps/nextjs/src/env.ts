@@ -21,6 +21,12 @@ export const env = createEnv({
     TWITTER_CLIENT_ID: z.string().default(""),
     /** Twitter API v2 OAuth 2.0 Client Secret. */
     TWITTER_CLIENT_SECRET: z.string().default(""),
+    /** Stripe secret key used to create Blink Pro checkout sessions. */
+    STRIPE_SECRET_KEY: z.string().default(""),
+    /** Blink Pro reduced builder fee in 0.1bps units (e.g. 70 = 0.007%). */
+    BLINK_PRO_BUILDER_FEE_BPS: z.coerce.number().int().min(0).default(70),
+    /** Optional comma-separated wallet allowlist for Pro fee while webhooks are rolling out. */
+    BLINK_PRO_WALLET_ALLOWLIST: z.string().default(""),
   },
 
   /**

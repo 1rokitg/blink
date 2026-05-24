@@ -120,3 +120,22 @@ export const CreateBuilderApprovalSchema = createInsertSchema(
   id: true,
   approvedAt: true,
 });
+
+/**
+ * Wallet-level Blink Pro membership entitlements.
+ * Stripe webhooks should upsert this table so fee routing can apply instantly.
+ */
+export const BlinkMembership = pgTable("blink_membership", (t) => ({
+  id: t.uuid().notNull().primaryKey().defaultRandom(),
+  walletAddress: t.varchar({ length: 42 }).notNull().unique(),
+  tier: t.varchar({ length: 32 }).notNull().default("basic"),
+  status: t.varchar({ length: 32 }).notNull().default("active"),
+  paymentMethod: t.varchar({ length: 32 }).notNull().default("card"),
+  stripeCustomerId: t.varchar({ length: 128 }),
+  stripeSubscriptionId: t.varchar({ length: 128 }),
+  currentPeriodEnd: t.timestamp(),
+  createdAt: t.timestamp().defaultNow().notNull(),
+  updatedAt: t
+    .timestamp({ mode: "date", withTimezone: true })
+    .$onUpdateFn(() => sql`now()`),
+}));

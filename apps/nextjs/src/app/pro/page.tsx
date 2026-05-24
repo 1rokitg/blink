@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { useWallets } from "@privy-io/react-auth";
 import { Check, CircleHelp, Gift, Shield, Zap } from "lucide-react";
 import {
   Select,
@@ -11,9 +12,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@acme/ui/select";
+import { toast } from "sonner";
 
 type Tier = "basic" | "preferred" | "premium";
 type Billing = "monthly" | "yearly";
+type PaymentMethod = "card" | "crypto";
+
+const CRYPTO_DISCOUNT_RATE = 0.15;
 
 const tierMeta: Record<
   Tier,
@@ -91,15 +96,24 @@ const tierBenefits: Record<Tier, string[]> = {
 };
 
 export default function BlinkProPage() {
+  const { wallets } = useWallets();
   const [billing, setBilling] = useState<Billing>("yearly");
   const [selectedTier, setSelectedTier] = useState<Tier>("basic");
   const [monthlyVolume, setMonthlyVolume] = useState<number>(1_000_000);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("crypto");
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutTier, setCheckoutTier] = useState<Tier | null>(null);
+  const walletAddress = wallets[0]?.address;
 
   const selected = tierMeta[selectedTier];
   const selectedPrice =
     billing === "yearly" ? selected.yearly : selected.monthly;
   const selectedPerMonth =
     billing === "yearly" ? selected.yearly / 12 : selected.monthly;
+  const selectedPerMonthEffective =
+    paymentMethod === "crypto"
+      ? selectedPerMonth * (1 - CRYPTO_DISCOUNT_RATE)
+      : selectedPerMonth;
 
   const savings = useMemo(() => {
     const monthlyAnnualized = selected.monthly * 12;
@@ -110,18 +124,50 @@ export default function BlinkProPage() {
     const baselineFeeRate = 0.0005; // 5 bps
     const baselineMonthlyFees = monthlyVolume * baselineFeeRate;
     const estimatedSavings = baselineMonthlyFees * selected.feeDiscount;
-    const netGain = estimatedSavings - selectedPerMonth;
+    const netGain = estimatedSavings - selectedPerMonthEffective;
     return {
       baselineMonthlyFees,
       estimatedSavings,
-      membershipCost: selectedPerMonth,
+      membershipCost: selectedPerMonthEffective,
       netGain,
       roi:
-        selectedPerMonth > 0
-          ? (estimatedSavings / selectedPerMonth) * 100
+        selectedPerMonthEffective > 0
+          ? (estimatedSavings / selectedPerMonthEffective) * 100
           : 0,
     };
-  }, [monthlyVolume, selected.feeDiscount, selectedPerMonth]);
+  }, [monthlyVolume, selected.feeDiscount, selectedPerMonthEffective]);
+
+  const handleCheckout = async (tier: Tier) => {
+    if (checkoutLoading) return;
+    setCheckoutLoading(true);
+    setCheckoutTier(tier);
+    const toastId = toast.loading("Preparing your 7-day free trial…");
+    try {
+      const response = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          tier,
+          billing,
+          paymentMethod,
+          walletAddress,
+        }),
+      });
+      const data = (await response.json()) as { url?: string; error?: string };
+      if (!response.ok || !data.url) {
+        throw new Error(data.error ?? "Unable to launch Stripe checkout");
+      }
+      toast.success("Redirecting to Stripe checkout…", { id: toastId });
+      window.location.href = data.url;
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Checkout failed",
+        { id: toastId },
+      );
+      setCheckoutLoading(false);
+      setCheckoutTier(null);
+    }
+  };
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-background px-6 py-8 text-foreground">
@@ -241,6 +287,39 @@ export default function BlinkProPage() {
               campaigns.
             </div>
 
+            <div className="mt-4 rounded-xl border border-[#41d38f55] bg-[#163328cc] p-4">
+              <p className="text-sm font-semibold text-[#95f4cc]">
+                Crypto payment discount: 15% off
+              </p>
+              <p className="mt-1 text-xs text-[#c8f2df]">
+                Encourage payment on-chain and keep more edge per month.
+              </p>
+              <div className="mt-3 inline-flex rounded-lg border border-white/10 bg-white/[0.03] p-1">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("crypto")}
+                  className={`rounded-md px-3 py-1.5 text-xs transition ${
+                    paymentMethod === "crypto"
+                      ? "bg-[#41d38f2e] text-[#9ef1cb]"
+                      : "text-white/55 hover:text-white/85"
+                  }`}
+                >
+                  Crypto (15% off)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod("card")}
+                  className={`rounded-md px-3 py-1.5 text-xs transition ${
+                    paymentMethod === "card"
+                      ? "bg-white/12 text-white"
+                      : "text-white/55 hover:text-white/85"
+                  }`}
+                >
+                  Card
+                </button>
+              </div>
+            </div>
+
             <p className="mt-5 text-sm text-white/55">
               By clicking Join now, you accept terms and authorize recurring
               charges.
@@ -248,10 +327,16 @@ export default function BlinkProPage() {
 
             <div className="mt-6 flex items-center gap-3">
               <Link
-                href="/trade/BTC"
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault();
+                  void handleCheckout(selectedTier);
+                }}
                 className="inline-flex h-12 flex-1 items-center justify-center rounded-xl border border-[#8fbaff80] bg-[linear-gradient(180deg,#3c76ff,#2457db)] px-6 text-base font-semibold text-white shadow-[0_16px_52px_rgba(37,90,224,0.45)] transition hover:brightness-110"
               >
-                Join now
+                {checkoutLoading && checkoutTier === selectedTier
+                  ? "Loading trial…"
+                  : "Start 7-day free trial"}
               </Link>
               <button
                 type="button"
@@ -333,6 +418,11 @@ export default function BlinkProPage() {
               <p className="mt-1 text-2xl font-semibold text-white">
                 ${membershipValue.membershipCost.toFixed(2)}
               </p>
+              {paymentMethod === "crypto" ? (
+                <p className="mt-1 text-xs text-emerald-300">
+                  15% discount applied
+                </p>
+              ) : null}
             </div>
             <div className="rounded-xl border border-[#8fbaff63] bg-[#2d64df2e] p-4">
               <p className="text-xs text-[#bdd6ff]">BOOM: net monthly value</p>
@@ -406,12 +496,16 @@ export default function BlinkProPage() {
                   </div>
                   <p className="mt-3 text-sm text-white/60">{meta.blurb}</p>
 
-                  <Link
-                    href="/trade/BTC"
-                    className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-xl border border-[#8fbaff80] bg-[linear-gradient(180deg,#3c76ff,#2457db)] text-sm font-semibold text-white transition hover:brightness-110"
+                  <button
+                    type="button"
+                    onClick={() => void handleCheckout(tier)}
+                    disabled={checkoutLoading}
+                    className="mt-5 inline-flex h-11 w-full items-center justify-center rounded-xl border border-[#8fbaff80] bg-[linear-gradient(180deg,#3c76ff,#2457db)] text-sm font-semibold text-white transition hover:brightness-110 disabled:opacity-60"
                   >
-                    Join now
-                  </Link>
+                    {checkoutLoading && checkoutTier === tier
+                      ? "Loading trial…"
+                      : "Start 7-day free trial"}
+                  </button>
 
                   <div className="mt-5 space-y-3 border-t border-white/10 pt-5">
                     {tierBenefits[tier].map((benefit) => (

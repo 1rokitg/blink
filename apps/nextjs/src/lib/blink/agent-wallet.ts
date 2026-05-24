@@ -63,9 +63,11 @@ export function createAgentExchangeClient(
   walletAddress: `0x${string}`,
 ): hl.ExchangeClient {
   const { privateKey } = getOrCreateAgentKey(walletAddress);
+  // No defaultVaultAddress — for approved agent wallets HL resolves the user
+  // account from the on-chain approveAgent mapping automatically.
+  // defaultVaultAddress is only for HL vault/fund operations, not agent keys.
   return new hl.ExchangeClient({
     wallet: privateKey,
     transport: new hl.HttpTransport(),
-    defaultVaultAddress: walletAddress,
   });
 }

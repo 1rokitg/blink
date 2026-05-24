@@ -451,7 +451,14 @@ function OrderEntryPanel(props: {
         queryKey: ["blink", "account", props.walletAddress],
       });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Order failed");
+      const msg = err instanceof Error ? err.message : String(err);
+      // Agent key not approved yet — re-trigger setup automatically
+      if (msg.toLowerCase().includes("does not exist")) {
+        props.onRequireBuilderSetup();
+        toast.error("Agent session expired — re-approve to resume trading.");
+      } else {
+        toast.error(msg || "Order failed");
+      }
     } finally {
       setSubmitting(false);
     }

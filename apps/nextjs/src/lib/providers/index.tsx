@@ -44,14 +44,14 @@ export function ContextProviders({ children }: { children: React.ReactNode }) {
             embeddedWallets: {
               ethereum: {
                 // auto-create an embedded EVM wallet for every Google user on first login
-                createOnLogin: "users-without-wallets",
+                createOnLogin: "off",
               },
               showWalletUIs: false,
             },
             // Keep Google-first UX but allow wallet fallback when OAuth is restricted.
             // Google-only: embedded wallet is auto-created on first sign-in.
             // Keep email as a fallback for when OAuth is restricted (e.g. corp networks).
-            loginMethods: ["email", "github"],
+            loginMethods: ["wallet"],
           }}
         >
           {children}

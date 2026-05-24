@@ -160,10 +160,9 @@ export default function BlinkProPage() {
       toast.success("Redirecting to Stripe checkout…", { id: toastId });
       window.location.href = data.url;
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Checkout failed",
-        { id: toastId },
-      );
+      toast.error(error instanceof Error ? error.message : "Checkout failed", {
+        id: toastId,
+      });
       setCheckoutLoading(false);
       setCheckoutTier(null);
     }
@@ -199,7 +198,7 @@ export default function BlinkProPage() {
               href="/trade/BTC"
               className="rounded-lg border border-white/12 bg-white/[0.05] px-3 py-2 text-sm text-white/80 transition hover:bg-white/[0.1]"
             >
-              Back to terminal
+              Launch Terminal
             </Link>
           </div>
         </header>
@@ -375,7 +374,8 @@ export default function BlinkProPage() {
                 Volume in, savings out.
               </h3>
               <p className="mt-1 text-sm text-white/60">
-                Pick your monthly routed volume and Blink Pro shows the fee delta.
+                Pick your monthly routed volume and Blink Pro shows the fee
+                delta.
               </p>
             </div>
             <div className="w-full max-w-[250px]">
@@ -425,10 +425,12 @@ export default function BlinkProPage() {
               ) : null}
             </div>
             <div className="rounded-xl border border-[#8fbaff63] bg-[#2d64df2e] p-4">
-              <p className="text-xs text-[#bdd6ff]">BOOM: net monthly value</p>
+              <p className="text-xs text-[#bdd6ff]">Net Monthly Savings</p>
               <p
                 className={`mt-1 text-2xl font-semibold ${
-                  membershipValue.netGain >= 0 ? "text-emerald-300" : "text-rose-300"
+                  membershipValue.netGain >= 0
+                    ? "text-emerald-300"
+                    : "text-rose-300"
                 }`}
               >
                 {membershipValue.netGain >= 0 ? "+" : ""}$

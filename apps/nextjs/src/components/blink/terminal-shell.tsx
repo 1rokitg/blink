@@ -570,7 +570,7 @@ function LeftRail(props: {
 
   return (
     <aside className="flex min-h-[calc(100vh-7rem)] w-[366px] flex-col gap-2.5">
-      <div className="flex h-[68px] items-end px-1 py-1">
+      <div className="flex h-[68px] items-end gap-2.5 px-1 py-1">
         <motion.div
           aria-hidden="true"
           className="text-4xl md:text-5xl"
@@ -587,6 +587,9 @@ function LeftRail(props: {
         >
           👀
         </motion.div>
+        <span className="mb-1 inline-flex items-center rounded-md border border-[#3be1ba30] bg-[#3be1ba0f] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[#3be1ba80]">
+          beta
+        </span>
       </div>
 
       {/* Onboarding CTA for new users */}

@@ -1587,7 +1587,7 @@ function OrderEntryPanel(props: {
         orderResult={orderResult}
       />
 
-      {/* Inline order status feedback */}
+      {/* Inline order status feedback
       <AnimatePresence>
         {submitting && (
           <motion.p
@@ -1602,7 +1602,7 @@ function OrderEntryPanel(props: {
             Sending {side === "buy" ? "long" : "short"} order…
           </motion.p>
         )}
-      </AnimatePresence>
+      </AnimatePresence> */}
 
       <button
         type="button"
@@ -2254,7 +2254,9 @@ export function TerminalShell(props: { market: string }) {
     : approvalQuery.data === true;
   const [builderModalOpen, setBuilderModalOpen] = useState(false);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
-  const [accountModalTab, setAccountModalTab] = useState<"Account" | "Connections">("Account");
+  const [accountModalTab, setAccountModalTab] = useState<
+    "Account" | "Connections"
+  >("Account");
   const [referralsModalOpen, setReferralsModalOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
@@ -2648,14 +2650,15 @@ export function TerminalShell(props: { market: string }) {
               <span>Google + embedded wallet</span>
               <span>Perps execution first</span>
               {/* commit SHA */}
-              {process.env.NEXT_PUBLIC_COMMIT_SHA && process.env.NEXT_PUBLIC_COMMIT_SHA !== "dev" && (
-                <span
-                  className="font-mono text-[10px] text-foreground/30 select-all"
-                  title="Build commit"
-                >
-                  {process.env.NEXT_PUBLIC_COMMIT_SHA}
-                </span>
-              )}
+              {process.env.NEXT_PUBLIC_COMMIT_SHA &&
+                process.env.NEXT_PUBLIC_COMMIT_SHA !== "dev" && (
+                  <span
+                    className="font-mono text-[10px] text-foreground/30 select-all"
+                    title="Build commit"
+                  >
+                    {process.env.NEXT_PUBLIC_COMMIT_SHA}
+                  </span>
+                )}
               {/* HL network status indicator */}
               <a
                 href="https://hyperliquid.statuspage.io/"
@@ -2712,7 +2715,7 @@ export function TerminalShell(props: { market: string }) {
               <ArrowUpRight className="size-3" />
             </a>
             <Link
-              href="https://status.hyperliquid.xyz"
+              href="https://hyperliquid.statuspage.io/"
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1.5 text-foreground/72 transition hover:text-white"

@@ -20,15 +20,20 @@ import {
   ArrowUp,
   Check,
   CircleDot,
+  Compass,
   Disc,
   ExternalLink,
   EyeOff,
+  Flame,
   Gift,
   LayoutDashboard,
   Loader2,
   LogOut,
+  TrendingDown,
+  TrendingUp,
   User,
   UserCog,
+  Users,
   PlayCircle,
   Search,
   Settings2,
@@ -348,15 +353,182 @@ function LeaderboardPanel() {
   );
 }
 
+// ─── Discover Panel ──────────────────────────────────────────────────────────
+
+type MarketRow = {
+  coin: string;
+  markPx: number;
+  changePct: number;
+  volume: number;
+};
+
+const DISCOVER_TRADERS = [
+  { handle: "rokitg.eth", pnl: 21_420, rank: 1 },
+  { handle: "RUNE", pnl: 18_302, rank: 2 },
+  { handle: "Marcell", pnl: 12_190, rank: 3 },
+  { handle: "X Ventures", pnl: 9_870, rank: 4 },
+  { handle: "allheart", pnl: 7_640, rank: 5 },
+];
+
+const RANK_MEDAL: Record<number, string> = { 1: "🥇", 2: "🥈", 3: "🥉" };
+
+function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
+  const sorted = [...markets].sort((a, b) => b.changePct - a.changePct);
+  const gainers = sorted.slice(0, 4);
+  const losers = [...markets]
+    .sort((a, b) => a.changePct - b.changePct)
+    .slice(0, 4);
+
+  return (
+    <div className="flex flex-col gap-4 p-3">
+      {/* ── Trending gainers ───────────────────────────────── */}
+      <div>
+        <div className="mb-2 flex items-center gap-1.5">
+          <TrendingUp className="size-3.5 text-emerald-400" />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-400/80">
+            Top Gainers
+          </span>
+        </div>
+        <div className="space-y-0.5">
+          {gainers.map((m) => (
+            <Link
+              key={m.coin}
+              href={`/trade/${marketToSlug(m.coin)}`}
+              className="flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-white/[0.04]"
+            >
+              <CoinIcon coin={m.coin} size={22} />
+              <span className="flex-1 text-xs font-medium text-white/85">
+                {m.coin}
+              </span>
+              {ZERO_FEE_MARKETS.has(m.coin) && (
+                <span
+                  className="size-1.5 rounded-full bg-[#39e5b6]"
+                  style={{ boxShadow: "0 0 5px 1px #39e5b688" }}
+                />
+              )}
+              <span className="font-mono text-xs text-white/45">
+                {formatUsd(m.markPx)}
+              </span>
+              <span className="w-14 text-right font-mono text-xs font-medium text-emerald-300">
+                +{m.changePct.toFixed(2)}%
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <div className="h-px bg-white/[0.06]" />
+
+      {/* ── Top losers ─────────────────────────────────────── */}
+      <div>
+        <div className="mb-2 flex items-center gap-1.5">
+          <TrendingDown className="size-3.5 text-rose-400" />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-rose-400/80">
+            Top Losers
+          </span>
+        </div>
+        <div className="space-y-0.5">
+          {losers.map((m) => (
+            <Link
+              key={m.coin}
+              href={`/trade/${marketToSlug(m.coin)}`}
+              className="flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-white/[0.04]"
+            >
+              <CoinIcon coin={m.coin} size={22} />
+              <span className="flex-1 text-xs font-medium text-white/85">
+                {m.coin}
+              </span>
+              <span className="font-mono text-xs text-white/45">
+                {formatUsd(m.markPx)}
+              </span>
+              <span className="w-14 text-right font-mono text-xs font-medium text-rose-300">
+                {m.changePct.toFixed(2)}%
+              </span>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <div className="h-px bg-white/[0.06]" />
+
+      {/* ── Zero-fee highlight ─────────────────────────────── */}
+      <div>
+        <div className="mb-2 flex items-center gap-1.5">
+          <Sparkles className="size-3.5 text-teal-400" />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-teal-400/80">
+            Zero Platform Fee
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {[...ZERO_FEE_MARKETS].map((coin) => (
+            <Link
+              key={coin}
+              href={`/trade/${marketToSlug(coin)}`}
+              className="inline-flex items-center gap-1 rounded-full border border-teal-400/20 bg-teal-400/[0.07] px-2.5 py-1 text-[11px] font-medium text-teal-300 transition hover:border-teal-400/40 hover:bg-teal-400/[0.12]"
+            >
+              <span
+                className="size-1.5 rounded-full bg-teal-400"
+                style={{ boxShadow: "0 0 4px 1px #2dd4bf88" }}
+              />
+              {coin}
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <div className="h-px bg-white/[0.06]" />
+
+      {/* ── Top traders ────────────────────────────────────── */}
+      <div>
+        <div className="mb-2 flex items-center gap-1.5">
+          <Users className="size-3.5 text-[#7ea9ff]" />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#7ea9ff]/80">
+            Top Traders
+          </span>
+        </div>
+        <div className="space-y-0.5">
+          {DISCOVER_TRADERS.map((t) => (
+            <div
+              key={t.handle}
+              className="flex items-center gap-2 rounded-[8px] px-2 py-1.5"
+            >
+              <span className="w-5 text-center text-sm leading-none">
+                {RANK_MEDAL[t.rank] ?? `${t.rank}`}
+              </span>
+              <img
+                src={`https://avatar.vercel.sh/${encodeURIComponent(t.handle)}.png?size=48`}
+                alt={t.handle}
+                className="size-6 rounded-full border border-white/15"
+              />
+              <Link
+                href={`/profile/${encodeURIComponent(t.handle)}`}
+                className="flex-1 truncate text-xs font-medium text-white/85 hover:text-white"
+              >
+                {t.handle}
+              </Link>
+              <span className="font-mono text-xs font-semibold text-emerald-300">
+                +{formatUsd(t.pnl)}
+              </span>
+            </div>
+          ))}
+        </div>
+        <p className="mt-2 px-2 text-[10px] text-foreground/30">
+          Mock data · Live leaderboard coming soon
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function LeftRail(props: {
   market: string;
   tradeEnabled: boolean;
   onRequireBuilderSetup: () => void;
 }) {
   // Use the shared ZERO_FEE_MARKETS constant defined at module level
-  const [activeTab, setActiveTab] = useState<"watchlist" | "leaderboard">(
-    "watchlist",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "watchlist" | "leaderboard" | "discover"
+  >("watchlist");
   const [searchQuery, setSearchQuery] = useState("");
 
   const marketsQuery = useQuery({
@@ -448,6 +620,18 @@ function LeftRail(props: {
             >
               Leaderboard
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab("discover")}
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs transition ${
+                activeTab === "discover"
+                  ? "border border-[#c084fc50] bg-[#c084fc18] text-white"
+                  : "text-foreground/50 hover:text-white"
+              }`}
+            >
+              <Compass className="size-3" />
+              Discover
+            </button>
           </div>
 
           {/* Search — only show on watchlist */}
@@ -474,7 +658,11 @@ function LeftRail(props: {
           )}
         </div>
 
-        {activeTab === "leaderboard" ? (
+        {activeTab === "discover" ? (
+          <div className="flex-1 overflow-y-auto">
+            <DiscoverPanel markets={allRows} />
+          </div>
+        ) : activeTab === "leaderboard" ? (
           <div className="flex-1 overflow-y-auto">
             <LeaderboardPanel />
           </div>
@@ -620,8 +808,8 @@ function OrderSubmitButton({
     animRef.current?.stop();
     fillX.set(0);
     animRef.current = animate(fillX, 100, {
-      duration: 0.75,             // a touch slower — easier on the eye
-      ease: [0.4, 0, 0.2, 1],    // material ease-in-out
+      duration: 0.75, // a touch slower — easier on the eye
+      ease: [0.4, 0, 0.2, 1], // material ease-in-out
       onComplete: () => {
         // Soft white pulse
         void animate(flashOpacity, 0.22, { duration: 0.1 }).then(() =>
@@ -649,9 +837,9 @@ function OrderSubmitButton({
 
   const glowColor =
     orderResult === "error"
-      ? "rgba(248,113,113,0.55)"   // rose
+      ? "rgba(248,113,113,0.55)" // rose
       : isBuy
-        ? "rgba(52,211,153,0.55)"  // emerald
+        ? "rgba(52,211,153,0.55)" // emerald
         : "rgba(251,113,133,0.55)"; // rose for sell success
 
   return (
@@ -724,7 +912,9 @@ function OrderEntryPanel(props: {
   const [leverage, setLeverage] = useState(10);
   const [updatingLeverage, setUpdatingLeverage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [orderResult, setOrderResult] = useState<"idle" | "success" | "error">("idle");
+  const [orderResult, setOrderResult] = useState<"idle" | "success" | "error">(
+    "idle",
+  );
 
   // Live mark price — poll allMids every 3s
   const markQuery = useQuery({
@@ -1623,30 +1813,6 @@ function AccountPanel(props: {
               "Refresh now"
             )}
           </Button>
-          <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] font-medium text-foreground/60">
-            <div className="flex flex-col items-end gap-0.5">
-              <span className="text-[10px] text-foreground/55">
-                Refreshes every 5s
-              </span>
-              <span className="text-[11px] text-foreground/65">
-                <strong>Open notional:&nbsp;</strong>
-                {formatUsd(
-                  Number(
-                    accountQuery.data?.state?.marginSummary?.totalNtlPos ?? 0,
-                  ),
-                )}
-              </span>
-              <span className="text-[11px] text-foreground/65">
-                <strong>Margin used:&nbsp;</strong>
-                {formatUsd(
-                  Number(
-                    accountQuery.data?.state?.marginSummary?.totalMarginUsed ??
-                      0,
-                  ),
-                )}
-              </span>
-            </div>
-          </Badge>
         </div>
       </div>
 

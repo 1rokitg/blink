@@ -27,6 +27,7 @@ import {
   Search,
   Settings2,
   ShieldCheck,
+  Sparkles,
   Star,
   Wallet,
   X,
@@ -63,7 +64,11 @@ import {
   getApprovedBuilderFeeUnits,
   isBuilderApproved,
 } from "~/lib/blink/builder";
-import { getAssetIndex, getAssetIndexSync, infoClient } from "~/lib/blink/hyperliquid";
+import {
+  getAssetIndex,
+  getAssetIndexSync,
+  infoClient,
+} from "~/lib/blink/hyperliquid";
 import { createAgentExchangeClient } from "~/lib/blink/agent-wallet";
 import {
   fetchTopMarketsByVolume,
@@ -107,7 +112,11 @@ function getHyperliquidPerpPriceDecimals(price: number, szDecimals: number) {
   return Math.max(0, Math.min(sigDecimals, bySizeDecimals));
 }
 
-function roundWithMode(value: number, decimals: number, mode: "up" | "down" | "nearest") {
+function roundWithMode(
+  value: number,
+  decimals: number,
+  mode: "up" | "down" | "nearest",
+) {
   if (!Number.isFinite(value) || value <= 0) return "0";
   const factor = 10 ** Math.max(0, decimals);
   const scaled = value * factor;
@@ -191,10 +200,48 @@ function ConnectGate() {
   );
 }
 
+/** Coin logo from HL's public icon CDN, with a colored-initial fallback. */
+function CoinIcon({ coin, size = 24 }: { coin: string; size?: number }) {
+  const [errored, setErrored] = useState(false);
+  // HL serves per-coin SVGs at this public path
+  const src = `https://app.hyperliquid.xyz/icons/svg/${coin}.svg`;
+  // Deterministic pastel hue for the fallback circle
+  const hue = [...coin].reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
+
+  if (errored) {
+    return (
+      <span
+        className="flex shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white/90"
+        style={{
+          width: size,
+          height: size,
+          background: `hsl(${hue} 55% 35%)`,
+        }}
+      >
+        {coin.slice(0, 2)}
+      </span>
+    );
+  }
+
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={coin}
+      width={size}
+      height={size}
+      className="shrink-0 rounded-full"
+      onError={() => setErrored(true)}
+    />
+  );
+}
+
 function LeftRail(props: {
   market: string;
 }) {
   const zeroFeeCoins = new Set(["BTC", "ETH", "SOL", "HYPE"]);
+  const [searchQuery, setSearchQuery] = useState("");
+
   const marketsQuery = useQuery({
     queryKey: ["blink", "watchlist"],
     queryFn: () => fetchTopMarketsByVolume(25),
@@ -202,8 +249,13 @@ function LeftRail(props: {
     refetchInterval: 86_400_000,
   });
 
-  const marketRows = marketsQuery.data ?? [];
-  const walletRows = marketRows.slice(0, 8);
+  const allRows = marketsQuery.data ?? [];
+  const marketRows = searchQuery.trim()
+    ? allRows.filter((m) =>
+        m.coin.toLowerCase().includes(searchQuery.trim().toLowerCase()),
+      )
+    : allRows;
+
   return (
     <aside className="flex min-h-[calc(100vh-7rem)] w-[366px] flex-col gap-2.5">
       <div className="flex h-[68px] items-end px-1 py-1">
@@ -212,7 +264,6 @@ function LeftRail(props: {
           className="text-4xl md:text-5xl"
           initial={{ opacity: 1 }}
           animate={{
-            // Slower and clearer blink: open (1) for 1s, closing (0.3) for 0.2s, closed (0) for 0.15s, reopening (0.3) for 0.17s, open (1) for 1s
             opacity: [1, 1, 0.3, 0, 0.3, 1, 1],
           }}
           transition={{
@@ -236,33 +287,55 @@ function LeftRail(props: {
             </span>
             <span className="rounded-md px-2 py-1">Leaderboard</span>
           </div>
-          <div className="flex items-center gap-2 rounded-[9px] border border-[#8fc2ff3d] bg-[#111d3cad] px-2.5 py-1.5">
-            <Search className="size-3.5 text-foreground/45" />
-            <span className="text-xs text-foreground/45">Search perps</span>
-          </div>
+          {/* Live search input */}
+          <label className="flex items-center gap-2 rounded-[9px] border border-[#8fc2ff3d] bg-[#111d3cad] px-2.5 py-1.5 focus-within:border-[#8fc2ff80] focus-within:bg-[#111d3cd0] transition-colors cursor-text">
+            <Search className="size-3.5 shrink-0 text-foreground/45" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search perps"
+              className="w-full bg-transparent text-xs text-white placeholder:text-foreground/40 outline-none"
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="text-foreground/40 hover:text-foreground/70 transition-colors"
+              >
+                <X className="size-3" />
+              </button>
+            ) : null}
+          </label>
         </div>
 
-        <div className="flex-1 space-y-1 overflow-y-auto p-1.5">
-          {marketRows.map((item) => {
-            const selected = item.coin === props.market;
-            const positive = item.changePct >= 0;
-            return (
-              <Link
-                key={item.coin}
-                href={`/trade/${marketToSlug(item.coin)}`}
-                className={`block rounded-[10px] border px-2.5 py-2 transition ${
-                  selected
-                    ? "border-[#3be1ba9e] bg-[#2dc9ff2b]"
-                    : "border-white/0 bg-transparent hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="flex items-center gap-1.5 text-sm font-medium text-white">
-                      {item.coin}
+        <div className="flex-1 space-y-0.5 overflow-y-auto p-1.5">
+          {marketRows.length === 0 ? (
+            <p className="py-6 text-center text-xs text-foreground/40">No markets found</p>
+          ) : (
+            marketRows.map((item) => {
+              const selected = item.coin === props.market;
+              const positive = item.changePct >= 0;
+              return (
+                <Link
+                  key={item.coin}
+                  href={`/trade/${marketToSlug(item.coin)}`}
+                  className={`flex items-center gap-2.5 rounded-[10px] border px-2.5 py-2 transition ${
+                    selected
+                      ? "border-[#3be1ba9e] bg-[#2dc9ff2b]"
+                      : "border-white/0 bg-transparent hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
+                  }`}
+                >
+                  {/* Coin logo */}
+                  <CoinIcon coin={item.coin} size={28} />
+
+                  {/* Name + price */}
+                  <div className="flex-1 min-w-0">
+                    <p className="flex items-center gap-1.5 text-sm font-medium text-white leading-none">
+                      <span className="truncate">{item.coin}</span>
                       {zeroFeeCoins.has(item.coin) ? (
-                        <span className="rounded-full border border-amber-300/35 bg-amber-300/15 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-amber-200">
-                          0% fee
+                        <span className="inline-flex items-center gap-0.5 rounded-full border border-[#2ee8ca50] bg-[#1ac8b020] px-1.5 py-0.5">
+                          <Sparkles className="size-2.5 text-[#5eecd8]" />
                         </span>
                       ) : null}
                     </p>
@@ -270,16 +343,18 @@ function LeftRail(props: {
                       {formatUsd(item.markPx)}
                     </p>
                   </div>
+
+                  {/* Change % */}
                   <span
-                    className={`text-xs ${positive ? "text-emerald-300" : "text-rose-300"}`}
+                    className={`shrink-0 text-xs tabular-nums ${positive ? "text-emerald-300" : "text-rose-300"}`}
                   >
                     {positive ? "+" : ""}
                     {item.changePct.toFixed(2)}%
                   </span>
-                </div>
-              </Link>
-            );
-          })}
+                </Link>
+              );
+            })
+          )}
         </div>
       </section>
     </aside>
@@ -354,7 +429,8 @@ function OrderEntryPanel(props: {
   const notional = coinSize * (orderType === "limit" ? entryPrice : markPrice);
   const standardBuilderFeeUnits = Math.max(
     0,
-    Number.parseInt(process.env.NEXT_PUBLIC_BUILDER_FEE_BPS ?? "100", 10) || 100,
+    Number.parseInt(process.env.NEXT_PUBLIC_BUILDER_FEE_BPS ?? "100", 10) ||
+      100,
   );
   const isProRouting = props.builderFeeUnits < standardBuilderFeeUnits;
   const savingsBps = Math.max(
@@ -903,13 +979,16 @@ function OrderEntryPanel(props: {
         className="mt-3 block w-full text-center text-xs text-foreground/35 transition hover:text-foreground/60"
       >
         <ShieldCheck className="mr-1 inline size-3" />
-        Manage builder approval
+        Manage Approvals
       </button>
     </section>
   );
 }
 
-function AccountPanel(props: { walletAddress: string; builderFeeUnits: number }) {
+function AccountPanel(props: {
+  walletAddress: string;
+  builderFeeUnits: number;
+}) {
   const queryClient = useQueryClient();
   const [cancellingOid, setCancellingOid] = useState<number | null>(null);
   const [positionActionKey, setPositionActionKey] = useState<string | null>(
@@ -992,7 +1071,10 @@ function AccountPanel(props: { walletAddress: string; builderFeeUnits: number })
           infoClient.allMids(),
         ]);
         const assetIdx = getAssetIndexSync(params.coin, meta);
-        const szDecimals = Math.max(0, meta.universe[assetIdx]?.szDecimals ?? 6);
+        const szDecimals = Math.max(
+          0,
+          meta.universe[assetIdx]?.szDecimals ?? 6,
+        );
         const midRaw = mids[params.coin];
         const mid = Number(midRaw ?? 0);
         const pxDecimals = getHyperliquidPerpPriceDecimals(mid, szDecimals);
@@ -1150,7 +1232,8 @@ function AccountPanel(props: { walletAddress: string; builderFeeUnits: number })
                 <strong>Margin used:&nbsp;</strong>
                 {formatUsd(
                   Number(
-                    accountQuery.data?.state?.marginSummary?.totalMarginUsed ?? 0,
+                    accountQuery.data?.state?.marginSummary?.totalMarginUsed ??
+                      0,
                   ),
                 )}
               </span>
@@ -1273,7 +1356,9 @@ function AccountPanel(props: { walletAddress: string; builderFeeUnits: number })
                           type="button"
                           size="sm"
                           variant="outline"
-                          disabled={positionActionKey === `${position.coin}-cancel`}
+                          disabled={
+                            positionActionKey === `${position.coin}-cancel`
+                          }
                           className="h-7 rounded-full border-white/10 bg-white/[0.03] px-2.5 text-[11px]"
                           onClick={() => void cancelCoinOrders(position.coin)}
                         >
@@ -1326,13 +1411,17 @@ function AccountPanel(props: { walletAddress: string; builderFeeUnits: number })
                       <div className="mt-3 grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.02] p-2">
                         <Input
                           value={editExitPrice}
-                          onChange={(event) => setEditExitPrice(event.target.value)}
+                          onChange={(event) =>
+                            setEditExitPrice(event.target.value)
+                          }
                           placeholder="Exit price"
                           className="h-8 rounded-lg border-white/10 bg-white/[0.04] text-xs"
                         />
                         <Input
                           value={editExitSize}
-                          onChange={(event) => setEditExitSize(event.target.value)}
+                          onChange={(event) =>
+                            setEditExitSize(event.target.value)
+                          }
                           placeholder="Exit size"
                           className="h-8 rounded-lg border-white/10 bg-white/[0.04] text-xs"
                         />

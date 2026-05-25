@@ -3166,20 +3166,12 @@ export function TerminalShell(props: { market: string }) {
           </div>
           <div className="flex items-center gap-3 text-foreground/55">
             <a
-              href="https://x.com/rokitdotgg"
-              target="_blank"
-              rel="noreferrer"
-              className="transition hover:text-white"
-            >
-              X
-            </a>
-            <a
               href="https://discord.gg/Myu962DMMA"
               target="_blank"
               rel="noreferrer"
               className="transition hover:text-white"
             >
-              Community
+              Discord
             </a>
             <a
               href="https://t.me/rokitgg"

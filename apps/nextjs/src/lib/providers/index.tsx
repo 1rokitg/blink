@@ -38,12 +38,12 @@ export function ContextProviders({ children }: { children: React.ReactNode }) {
     if (!sessionStorage.getItem("blink:utm")) {
       const p = new URLSearchParams(window.location.search);
       const utm = {
-        ...(p.get("utm_source")   ? { source:   p.get("utm_source")   } : {}),
-        ...(p.get("utm_medium")   ? { medium:   p.get("utm_medium")   } : {}),
+        ...(p.get("utm_source") ? { source: p.get("utm_source") } : {}),
+        ...(p.get("utm_medium") ? { medium: p.get("utm_medium") } : {}),
         ...(p.get("utm_campaign") ? { campaign: p.get("utm_campaign") } : {}),
-        ...(p.get("utm_content")  ? { content:  p.get("utm_content")  } : {}),
-        ...(p.get("utm_term")     ? { term:     p.get("utm_term")     } : {}),
-        ...(p.get("ref")          ? { ref:      p.get("ref")          } : {}),
+        ...(p.get("utm_content") ? { content: p.get("utm_content") } : {}),
+        ...(p.get("utm_term") ? { term: p.get("utm_term") } : {}),
+        ...(p.get("ref") ? { ref: p.get("ref") } : {}),
       };
       if (Object.keys(utm).length > 0) {
         sessionStorage.setItem("blink:utm", JSON.stringify(utm));
@@ -92,7 +92,7 @@ export function ContextProviders({ children }: { children: React.ReactNode }) {
             config={{
               appearance: {
                 theme: "dark",
-                showWalletLoginFirst: false,
+                showWalletLoginFirst: true,
               },
               embeddedWallets: {
                 ethereum: {

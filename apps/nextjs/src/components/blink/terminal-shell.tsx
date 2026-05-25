@@ -3169,7 +3169,7 @@ export function TerminalShell(props: { market: string }) {
               href="https://whop.com/the-circle-vip"
               target="_blank"
               rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full border border-[#8fbaff80] bg-[linear-gradient(180deg,#3c76ff,#2457db)] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_10px_30px_rgba(37,90,224,0.35)] transition hover:brightness-110"
+              className="inline-flex items-center gap-1.5 rounded-full border border-[#8fbaff80] bg-[linear-gradient(180deg,#3c76ff,#2457db)] px-3 py-1 text-[11px] font-semibold text-white shadow-[0_10px_30px_rgba(37,90,224,0.35)] transition hover:brightness-110"
             >
               Community
               <ArrowUpRight className="size-3" />

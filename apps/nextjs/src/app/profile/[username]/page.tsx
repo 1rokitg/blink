@@ -23,7 +23,15 @@ export async function generateMetadata(props: {
   };
 }
 
-import { CalendarDays, Gift, Search, Verified } from "lucide-react";
+import {
+  BadgeCheck,
+  CalendarDays,
+  Code2,
+  Crown,
+  Gift,
+  Search,
+  Verified,
+} from "lucide-react";
 
 import { db } from "@acme/db/client";
 import {
@@ -37,6 +45,7 @@ import { ConnectTwitterButton } from "~/components/blink/connect-twitter-button"
 import { ProfileEquitySection } from "~/components/blink/profile-equity-section";
 import { ProfileShareButton } from "~/components/blink/profile-share-button";
 import { ProfileTopTraders } from "~/components/blink/profile-top-traders";
+import { BUILDER_ADDRESS } from "~/lib/blink/builder";
 import { infoClient } from "~/lib/blink/hyperliquid";
 import { formatUsd } from "~/lib/blink/markets";
 import { isWalletBlinkPro } from "~/lib/blink/membership.server";
@@ -88,6 +97,7 @@ async function getProfileHeroData(address: string | null, slug: string) {
       bio: "Trading Hyperliquid on Blink.",
       displayName: fallbackName,
       handle: fallbackHandle,
+      isFounder: false,
       isPro: false,
       joinedLabel: "Joined recently",
       referralCode: null,
@@ -97,6 +107,7 @@ async function getProfileHeroData(address: string | null, slug: string) {
 
   try {
     const normalizedAddress = address.toLowerCase();
+    const isFounder = normalizedAddress === BUILDER_ADDRESS.toLowerCase();
     const [profileRows, twitterRows, referralRows, isPro] = await Promise.all([
       db
         .select({
@@ -141,6 +152,7 @@ async function getProfileHeroData(address: string | null, slug: string) {
       fallbackHandle;
     const bio =
       profile?.bio?.trim() ||
+      (isFounder ? "CEO, founder, and lead developer of Blink." : null) ||
       (twitter?.twitterUsername
         ? `Verified on X as @${twitter.twitterUsername}.`
         : "Trading Hyperliquid on Blink.");
@@ -156,6 +168,7 @@ async function getProfileHeroData(address: string | null, slug: string) {
       bio,
       displayName,
       handle,
+      isFounder,
       isPro,
       joinedLabel,
       referralCode: referral?.code ?? null,
@@ -167,6 +180,7 @@ async function getProfileHeroData(address: string | null, slug: string) {
       bio: "Trading Hyperliquid on Blink.",
       displayName: fallbackName,
       handle: fallbackHandle,
+      isFounder: false,
       isPro: false,
       joinedLabel: "Joined recently",
       referralCode: null,
@@ -265,7 +279,11 @@ export default async function ProfilePage(props: {
                     <img
                       src={createAvatarUrl(hero.avatarSeed)}
                       alt={`${hero.displayName} avatar`}
-                      className="size-28 rounded-full border-4 border-[#08101f]"
+                      className={`size-28 rounded-full border-4 ${
+                        hero.isFounder
+                          ? "border-amber-300/70 shadow-[0_0_0_1px_rgba(252,211,77,0.25),0_0_32px_rgba(245,158,11,0.24)]"
+                          : "border-[#08101f]"
+                      }`}
                     />
                     <div
                       aria-hidden="true"
@@ -275,21 +293,50 @@ export default async function ProfilePage(props: {
                     </div>
                   </div>
                   <div>
-                    <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-[#8cb9ff]">
-                      Public Blink profile
+                    <p
+                      className={`text-[11px] font-medium uppercase tracking-[0.24em] ${
+                        hero.isFounder ? "text-amber-200" : "text-[#8cb9ff]"
+                      }`}
+                    >
+                      {hero.isFounder
+                        ? "Official Blink founder profile"
+                        : "Public Blink profile"}
                     </p>
                     <div className="pb-1">
-                      <p className="text-4xl font-semibold text-white">
+                      <p className="inline-flex items-center gap-2 text-4xl font-semibold text-white">
                         {hero.displayName}
+                        {hero.isFounder ? (
+                          <span className="inline-flex items-center justify-center rounded-full bg-gradient-to-br from-amber-300 via-yellow-300 to-orange-400 p-1 text-[#241300] shadow-[0_10px_24px_rgba(245,158,11,0.35)]">
+                            <BadgeCheck className="size-5" />
+                          </span>
+                        ) : null}
                       </p>
                       <p className="text-lg text-white/55">@{hero.handle}</p>
                     </div>
-                    {hero.isPro ? (
-                      <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-gradient-to-r from-amber-300/15 to-yellow-300/10 px-2.5 py-1 text-[10px] font-medium text-amber-200">
-                        <Verified className="size-3" />
-                        Blink Pro
-                      </div>
-                    ) : null}
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {hero.isFounder ? (
+                        <>
+                          <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/35 bg-gradient-to-r from-amber-300/20 via-yellow-300/10 to-orange-300/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-100">
+                            <Crown className="size-3" />
+                            CEO
+                          </div>
+                          <div className="inline-flex items-center gap-1.5 rounded-full border border-yellow-300/30 bg-yellow-300/10 px-2.5 py-1 text-[10px] font-medium text-yellow-100">
+                            <BadgeCheck className="size-3" />
+                            Founder
+                          </div>
+                          <div className="inline-flex items-center gap-1.5 rounded-full border border-sky-300/25 bg-sky-300/10 px-2.5 py-1 text-[10px] font-medium text-sky-100">
+                            <Code2 className="size-3" />
+                            Lead Dev
+                          </div>
+                        </>
+                      ) : null}
+                      {hero.isPro ? (
+                        <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-gradient-to-r from-amber-300/15 to-yellow-300/10 px-2.5 py-1 text-[10px] font-medium text-amber-200">
+                          <Verified className="size-3" />
+                          Blink Pro
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pb-1">

@@ -1,0 +1,92 @@
+name: Status Monitor
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  monitor_blink_status:
+    runs-on: ubuntu-latest
+    env:
+      # Configure this repo variable to your production Blink origin,
+      # for example: https://blink.lat
+      BLINK_STATUS_CHECK_URL: ${{ vars.BLINK_STATUS_CHECK_URL }}
+      # Configure this secret with the Discord webhook for your status channel.
+      DISCORD_STATUS_WEBHOOK_URL: ${{ secrets.DISCORD_STATUS_WEBHOOK_URL }}
+    steps:
+      - name: Skip if status monitor is not configured
+        if: ${{ env.BLINK_STATUS_CHECK_URL == '' || env.DISCORD_STATUS_WEBHOOK_URL == '' }}
+        run: |
+          echo "BLINK_STATUS_CHECK_URL or DISCORD_STATUS_WEBHOOK_URL is missing; skipping."
+
+      - name: Run Blink status monitor
+        if: ${{ env.BLINK_STATUS_CHECK_URL != '' && env.DISCORD_STATUS_WEBHOOK_URL != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          health_url="${BLINK_STATUS_CHECK_URL%/}/api/health"
+          body_file="$(mktemp)"
+          http_code="$(curl -sS -o "$body_file" -w "%{http_code}" --max-time 12 "$health_url" || true)"
+          status="$(jq -r '.status // "unknown"' "$body_file" 2>/dev/null || echo unknown)"
+          summary="$(
+            jq -r '
+              if (.checks // null) == null then
+                "Health endpoint returned an unexpected payload."
+              else
+                "database=" + (.checks.database.status // "unknown") + ", hyperliquid=" + (.checks.hyperliquid.status // "unknown")
+              end
+            ' "$body_file" 2>/dev/null || echo "Health endpoint returned an unreadable payload."
+          )"
+
+          title=""
+          description=""
+          color="15158332"
+
+          if [[ "$http_code" == "200" && "$status" == "ok" ]]; then
+            echo "Blink health check is passing."
+            exit 0
+          fi
+
+          if [[ "$http_code" == "000" || "$http_code" =~ ^5 ]]; then
+            title="Blink outage detected"
+            description="Blink did not respond successfully at the public health endpoint."
+          else
+            title="Blink degraded service detected"
+            description="Blink is reachable, but the health endpoint reported a degraded state."
+            color="16033049"
+          fi
+
+          payload="$(
+            jq -n \
+              --arg title "$title" \
+              --arg description "$description" \
+              --arg health_url "$health_url" \
+              --arg http_code "$http_code" \
+              --arg status "$status" \
+              --arg summary "$summary" \
+              --argjson color "$color" \
+              '{
+                content: "Blink status alert.",
+                embeds: [
+                  {
+                    title: $title,
+                    description: $description,
+                    color: $color,
+                    fields: [
+                      { name: "Health URL", value: $health_url, inline: false },
+                      { name: "HTTP", value: $http_code, inline: true },
+                      { name: "Status", value: $status, inline: true },
+                      { name: "Checks", value: $summary, inline: false }
+                    ],
+                    footer: { text: "Simple Blink status monitor" }
+                  }
+                ]
+              }'
+          )"
+
+          curl -fsSL \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$DISCORD_STATUS_WEBHOOK_URL"

@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { db } from "@acme/db/client";
 import { TwitterConnection } from "@acme/db/schema";
 import { env } from "~/env";
+import { sendDiscordProfileVerificationSighting } from "~/lib/blink/discord.server";
 import {
   DEFAULT_TWITTER_RETURN_TO,
   TWITTER_CLAIM_CONTEXT_COOKIE,
@@ -208,6 +209,17 @@ export async function GET(req: NextRequest) {
         connectedAt: new Date(),
       },
     });
+
+  await sendDiscordProfileVerificationSighting({
+    walletAddress: claimContext.walletAddress,
+    twitterName: twitterUser.name,
+    twitterUsername: twitterUser.username,
+  }).catch((error) => {
+    console.warn(
+      "[discord] failed to post profile verification sighting",
+      error,
+    );
+  });
 
   const response = NextResponse.redirect(
     buildReturnRedirect({

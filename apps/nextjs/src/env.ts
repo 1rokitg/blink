@@ -38,6 +38,12 @@ export const env = createEnv({
       .min(1)
       .max(10)
       .default(2),
+    /** Optional Discord webhook for curated Blink sightings such as profile verifications. */
+    DISCORD_SIGHTINGS_WEBHOOK_URL: z
+      .string()
+      .url()
+      .or(z.literal(""))
+      .default(""),
   },
 
   /**

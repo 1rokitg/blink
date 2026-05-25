@@ -1,7 +1,12 @@
 import { and, desc, eq, gte, sql } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
-import { BlinkMembership, BuilderApproval, BuilderDailyMetric, MetricEvent } from "@acme/db/schema";
+import {
+  BlinkMembership,
+  BuilderApproval,
+  BuilderDailyMetric,
+  MetricEvent,
+} from "@acme/db/schema";
 
 import { env } from "~/env";
 
@@ -62,18 +67,19 @@ function estimateBuilderFeeUsd(
     return {
       builderFeeUsd: explicit,
       feeUnits:
-        params.notionalUsd > 0 ? Math.round((explicit / params.notionalUsd) * 1e6) : 0,
+        params.notionalUsd > 0
+          ? Math.round((explicit / params.notionalUsd) * 1e6)
+          : 0,
     };
   }
 
   const isZeroFeeGrowthMarket =
     isGrowthModeEnabled() && GROWTH_ZERO_FEE_MARKETS.includes(params.coin);
-  const feeUnits =
-    isZeroFeeGrowthMarket
-      ? 0
-      : proSet.has(params.walletAddress.toLowerCase())
-        ? env.BLINK_PRO_BUILDER_FEE_BPS
-        : BUILDER_FEE_UNITS;
+  const feeUnits = isZeroFeeGrowthMarket
+    ? 0
+    : proSet.has(params.walletAddress.toLowerCase())
+      ? env.BLINK_PRO_BUILDER_FEE_BPS
+      : BUILDER_FEE_UNITS;
   return {
     builderFeeUsd: params.notionalUsd * feeUnits * 1e-6,
     feeUnits,
@@ -258,7 +264,13 @@ export async function getBuilderMetricsSnapshot(days = 30) {
       acc.activeUsers += Number(row.activeUsers ?? 0);
       return acc;
     },
-    { volumeUsd: 0, builderFeeUsd: 0, feeUsd: 0, fillsCount: 0, activeUsers: 0 },
+    {
+      volumeUsd: 0,
+      builderFeeUsd: 0,
+      feeUsd: 0,
+      fillsCount: 0,
+      activeUsers: 0,
+    },
   );
 
   const uniqueUsersQuery = await db.execute(sql`
@@ -273,8 +285,7 @@ export async function getBuilderMetricsSnapshot(days = 30) {
     totals: {
       ...totals,
       totalUsers,
-      avgRevenuePerUser:
-        totalUsers > 0 ? totals.builderFeeUsd / totalUsers : 0,
+      avgRevenuePerUser: totalUsers > 0 ? totals.builderFeeUsd / totalUsers : 0,
     },
     series: rows.map((r) => ({
       day: r.day,
@@ -285,9 +296,9 @@ export async function getBuilderMetricsSnapshot(days = 30) {
   };
 }
 
-export async function getCanonicalBuilderMetricsSnapshot(days = 30) {
-  const now = Date.now();
-  const startTime = now - days * 24 * 60 * 60 * 1000;
+export async function gethyperliquidBuilderMetricsSnapshot(days = 30) {
+  const syncStartedAt = Date.now();
+  const startTime = syncStartedAt - days * 24 * 60 * 60 * 1000;
   const approvedWallets = await getApprovedWallets();
   if (approvedWallets.length === 0) {
     return {
@@ -314,6 +325,7 @@ export async function getCanonicalBuilderMetricsSnapshot(days = 30) {
     { revenue: number; volume: number; fillsCount: number; users: Set<string> }
   >();
   const includedUsers = new Set<string>();
+  let latestObservedFillTime = 0;
 
   for (const wallet of approvedWallets) {
     let fills: Array<Record<string, unknown>> = [];
@@ -323,7 +335,7 @@ export async function getCanonicalBuilderMetricsSnapshot(days = 30) {
         startTime,
       })) as unknown as Array<Record<string, unknown>>;
     } catch (error) {
-      console.warn("[metrics] canonical userFillsByTime failed", {
+      console.warn("[metrics] hyperliquid userFillsByTime failed", {
         wallet,
         error,
       });
@@ -331,6 +343,11 @@ export async function getCanonicalBuilderMetricsSnapshot(days = 30) {
     }
 
     for (const fill of fills) {
+      const fillTime = numberOrZero(fill.time);
+      if (fillTime > latestObservedFillTime) {
+        latestObservedFillTime = fillTime;
+      }
+
       const strictBuilderFeeUsd = getStrictBuilderFeeUsd(fill);
       if (strictBuilderFeeUsd === null) {
         continue;
@@ -342,7 +359,7 @@ export async function getCanonicalBuilderMetricsSnapshot(days = 30) {
       if (!Number.isFinite(volumeUsd) || volumeUsd <= 0) {
         continue;
       }
-      const time = numberOrZero(fill.time);
+      const time = fillTime;
       if (!time) {
         continue;
       }
@@ -386,9 +403,13 @@ export async function getCanonicalBuilderMetricsSnapshot(days = 30) {
   );
 
   const uniqueUsers = includedUsers.size;
-  const lastSyncedAt = new Date().toISOString();
-  const freshness: SyncFreshness =
-    Date.now() - new Date(lastSyncedAt).getTime() < 10 * 60 * 1000
+  // Freshness should reflect recency of observed L1 fill data, not wall-clock "now".
+  const hasObservedData = latestObservedFillTime > 0;
+  const lastSyncedAtMs = hasObservedData ? latestObservedFillTime : syncStartedAt;
+  const lastSyncedAt = new Date(lastSyncedAtMs).toISOString();
+  const freshness: SyncFreshness = !hasObservedData
+    ? "unknown"
+    : syncStartedAt - lastSyncedAtMs < 10 * 60 * 1000
       ? "fresh"
       : "stale";
 
@@ -435,17 +456,44 @@ export async function getBuilderAttributionSnapshot(days = 90) {
     const wallet = row.walletAddress?.toLowerCase();
     if (!wallet || signupMap.has(wallet)) continue;
     const metadata = (row.metadata ?? {}) as Record<string, unknown>;
-    const source = String(row.source ?? metadata.source ?? "unknown").toLowerCase();
+    const source = String(
+      row.source ?? metadata.source ?? "unknown",
+    ).toLowerCase();
     const country = String(metadata.country ?? "unknown").toUpperCase();
     signupMap.set(wallet, { source, country });
   }
 
   const byUser = new Map<
     string,
-    { walletAddress: string; source: string; country: string; volumeUsd: number; revenueUsd: number; fillsCount: number }
+    {
+      walletAddress: string;
+      source: string;
+      country: string;
+      volumeUsd: number;
+      revenueUsd: number;
+      fillsCount: number;
+    }
   >();
-  const bySource = new Map<string, { source: string; volumeUsd: number; revenueUsd: number; users: Set<string>; fillsCount: number }>();
-  const byCountry = new Map<string, { country: string; volumeUsd: number; revenueUsd: number; users: Set<string>; fillsCount: number }>();
+  const bySource = new Map<
+    string,
+    {
+      source: string;
+      volumeUsd: number;
+      revenueUsd: number;
+      users: Set<string>;
+      fillsCount: number;
+    }
+  >();
+  const byCountry = new Map<
+    string,
+    {
+      country: string;
+      volumeUsd: number;
+      revenueUsd: number;
+      users: Set<string>;
+      fillsCount: number;
+    }
+  >();
 
   for (const wallet of approvedWallets) {
     let fills: Array<Record<string, unknown>> = [];
@@ -455,7 +503,10 @@ export async function getBuilderAttributionSnapshot(days = 90) {
         startTime,
       })) as unknown as Array<Record<string, unknown>>;
     } catch (error) {
-      console.warn("[metrics] attribution userFillsByTime failed", { wallet, error });
+      console.warn("[metrics] attribution userFillsByTime failed", {
+        wallet,
+        error,
+      });
       continue;
     }
 
@@ -550,7 +601,10 @@ export async function getLiveBuilderFillFeed(options?: {
     getActiveProSet(),
   ]);
   if (approvedWallets.length === 0) {
-    return { fills: [] as BuilderFillRow[], totals: { revenueUsd: 0, notionalUsd: 0, fillsCount: 0 } };
+    return {
+      fills: [] as BuilderFillRow[],
+      totals: { revenueUsd: 0, notionalUsd: 0, fillsCount: 0 },
+    };
   }
 
   const allFills: BuilderFillRow[] = [];
@@ -615,7 +669,7 @@ export async function getLiveBuilderFillFeed(options?: {
   return { fills, totals };
 }
 
-export async function getCanonicalLiveBuilderFillFeed(options?: {
+export async function gethyperliquidLiveBuilderFillFeed(options?: {
   minutes?: number;
   limit?: number;
 }) {
@@ -640,7 +694,10 @@ export async function getCanonicalLiveBuilderFillFeed(options?: {
         startTime,
       })) as unknown as Array<Record<string, unknown>>;
     } catch (error) {
-      console.warn("[metrics] canonical live fill feed failed", { wallet, error });
+      console.warn("[metrics] hyperliquid live fill feed failed", {
+        wallet,
+        error,
+      });
       continue;
     }
 

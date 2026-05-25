@@ -126,6 +126,24 @@
     @apply inline-flex items-center gap-2 rounded-[12px] border border-white/10 bg-[#252a31] px-3.5 py-2 text-sm font-medium text-[#e6ebf5] outline-none transition hover:bg-[#2e343d] active:bg-[#363d48] focus:border-white/10 focus:outline-none focus:ring-0;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   }
+
+  .internal-shell {
+    background: #0a0b0d;
+    color: #f2f3f5;
+  }
+
+  .internal-sidebar {
+    @apply rounded-none border-r border-white/10 bg-[#0b0c0f];
+  }
+
+  .internal-panel {
+    @apply rounded-[14px] border border-white/10 bg-[#121418];
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  }
+
+  .internal-card {
+    @apply rounded-[12px] border border-white/10 bg-[#171a1f];
+  }
 }
 
 @layer utilities {

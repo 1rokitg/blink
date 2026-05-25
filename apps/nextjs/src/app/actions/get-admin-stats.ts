@@ -3,11 +3,16 @@
 import { count, desc, eq } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
-import { BlinkMembership, BuilderApproval, MetricEvent, Referral } from "@acme/db/schema";
+import {
+  BlinkMembership,
+  BuilderApproval,
+  MetricEvent,
+  Referral,
+} from "@acme/db/schema";
 
 import {
-  getCanonicalBuilderMetricsSnapshot,
-  getCanonicalLiveBuilderFillFeed,
+  gethyperliquidBuilderMetricsSnapshot,
+  gethyperliquidLiveBuilderFillFeed,
   getBuilderAttributionSnapshot,
   getLiveBuilderFillFeed,
   getBuilderMetricsSnapshot,
@@ -15,13 +20,13 @@ import {
 } from "~/lib/blink/internal-metrics.server";
 import { getFeatureFlags } from "~/lib/blink/feature-flags.server";
 
-type KpiSource = "canonical" | "pipeline";
+type KpiSource = "hyperliquid" | "pipeline";
 
 export interface AdminStats {
   windowDays: number;
   syncedAt: string;
   kpiSource: Record<string, KpiSource>;
-  canonicalSync: {
+  hyperliquidSync: {
     lastSyncedAt: string;
     window: "today" | "7d" | "30d" | "90d";
     freshness: "fresh" | "stale" | "unknown";
@@ -56,7 +61,7 @@ export interface AdminStats {
   totalReferrals: number;
   activeProMembers: number;
   finance: {
-    canonical: {
+    hyperliquid: {
       totalRevenueUsd: number;
       totalVolumeUsd: number;
       totalUsers: number;
@@ -71,10 +76,10 @@ export interface AdminStats {
       fillsCount: number;
     };
     reconciliation: {
-      revenue: { canonical: number; pipeline: number; delta: number };
-      volume: { canonical: number; pipeline: number; delta: number };
-      fills: { canonical: number; pipeline: number; delta: number };
-      users: { canonical: number; pipeline: number; delta: number };
+      revenue: { hyperliquid: number; pipeline: number; delta: number };
+      volume: { hyperliquid: number; pipeline: number; delta: number };
+      fills: { hyperliquid: number; pipeline: number; delta: number };
+      users: { hyperliquid: number; pipeline: number; delta: number };
       status: "ok" | "warning" | "critical";
     };
   };
@@ -191,7 +196,19 @@ export async function getAdminStats(options?: {
           ? "30d"
           : "90d";
 
-  const [totalRows, allApprovals, referralRows, activeProRows, metricRows, builderSnapshot, canonicalSnapshot, attribution, liveFeed, canonicalLiveFeed, featureFlags] = await Promise.all([
+  const [
+    totalRows,
+    allApprovals,
+    referralRows,
+    activeProRows,
+    metricRows,
+    builderSnapshot,
+    hyperliquidSnapshot,
+    attribution,
+    liveFeed,
+    hyperliquidLiveFeed,
+    featureFlags,
+  ] = await Promise.all([
     db.select({ c: count() }).from(BuilderApproval),
     db
       .select({
@@ -220,9 +237,9 @@ export async function getAdminStats(options?: {
       .orderBy(desc(MetricEvent.createdAt))
       .limit(3000),
     getBuilderMetricsSnapshot(windowDays),
-    getCanonicalBuilderMetricsSnapshot(windowDays),
+    gethyperliquidBuilderMetricsSnapshot(windowDays),
     includeAttribution
-      ? getBuilderAttributionSnapshot(90)
+      ? getBuilderAttributionSnapshot(windowDays)
       : Promise.resolve({
           byUser: [],
           bySource: [],
@@ -232,7 +249,7 @@ export async function getAdminStats(options?: {
       minutes: liveWindowMinutes,
       limit: liveLimit,
     }),
-    getCanonicalLiveBuilderFillFeed({
+    gethyperliquidLiveBuilderFillFeed({
       minutes: liveWindowMinutes,
       limit: liveLimit,
     }),
@@ -257,10 +274,13 @@ export async function getAdminStats(options?: {
   });
   const funnel = {
     signups: funnelEvents.filter((e) => e.eventType === "signup").length,
-    approvedBuilder: funnelEvents.filter((e) => e.eventType === "builder_approved")
+    approvedBuilder: funnelEvents.filter(
+      (e) => e.eventType === "builder_approved",
+    ).length,
+    firstTrade: funnelEvents.filter((e) => e.eventType === "first_trade")
       .length,
-    firstTrade: funnelEvents.filter((e) => e.eventType === "first_trade").length,
-    proStarted: funnelEvents.filter((e) => e.eventType === "pro_started").length,
+    proStarted: funnelEvents.filter((e) => e.eventType === "pro_started")
+      .length,
   };
 
   const event24h = metricRows.filter(
@@ -282,18 +302,30 @@ export async function getAdminStats(options?: {
   const botEvents24h = event24h.filter((row) => Boolean(row.isBot)).length;
   const humanEvents24h = event24h.length - botEvents24h;
 
-  const sourceMap = new Map<string, { events: number; visitors: Set<string> }>();
-  const countryMap = new Map<string, { events: number; visitors: Set<string> }>();
+  const sourceMap = new Map<
+    string,
+    { events: number; visitors: Set<string> }
+  >();
+  const countryMap = new Map<
+    string,
+    { events: number; visitors: Set<string> }
+  >();
   for (const row of event7d) {
     const source = String(row.source ?? "unknown").toLowerCase();
     const meta = (row.metadata ?? {}) as Record<string, unknown>;
     const country = String(meta.country ?? "unknown").toUpperCase();
-    const sourceItem = sourceMap.get(source) ?? { events: 0, visitors: new Set<string>() };
+    const sourceItem = sourceMap.get(source) ?? {
+      events: 0,
+      visitors: new Set<string>(),
+    };
     sourceItem.events += 1;
     if (row.visitorId) sourceItem.visitors.add(row.visitorId);
     sourceMap.set(source, sourceItem);
 
-    const countryItem = countryMap.get(country) ?? { events: 0, visitors: new Set<string>() };
+    const countryItem = countryMap.get(country) ?? {
+      events: 0,
+      visitors: new Set<string>(),
+    };
     countryItem.events += 1;
     if (row.visitorId) countryItem.visitors.add(row.visitorId);
     countryMap.set(country, countryItem);
@@ -316,7 +348,9 @@ export async function getAdminStats(options?: {
     const d = new Date(event.createdAt);
     const year = d.getUTCFullYear();
     const start = new Date(Date.UTC(year, 0, 1));
-    const diffDays = Math.floor((d.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+    const diffDays = Math.floor(
+      (d.getTime() - start.getTime()) / (24 * 60 * 60 * 1000),
+    );
     const week = `${year}-W${String(Math.floor(diffDays / 7) + 1).padStart(2, "0")}`;
     const current = weeklyMap.get(week) ?? {
       signups: 0,
@@ -339,28 +373,29 @@ export async function getAdminStats(options?: {
   yesterday.setUTCDate(yesterday.getUTCDate() - 1);
   const yesterdayKey = yesterday.toISOString().slice(0, 10);
   const todayRow =
-    canonicalSnapshot.series.find((row) => row.day === todayKey) ??
+    hyperliquidSnapshot.series.find((row) => row.day === todayKey) ??
     builderSnapshot.series.find((row) => row.day === todayKey);
   const yesterdayRow =
-    canonicalSnapshot.series.find((row) => row.day === yesterdayKey) ??
+    hyperliquidSnapshot.series.find((row) => row.day === yesterdayKey) ??
     builderSnapshot.series.find((row) => row.day === yesterdayKey);
 
   const revDelta =
-    canonicalSnapshot.totals.builderFeeUsd - builderSnapshot.totals.builderFeeUsd;
+    hyperliquidSnapshot.totals.builderFeeUsd -
+    builderSnapshot.totals.builderFeeUsd;
   const volDelta =
-    canonicalSnapshot.totals.volumeUsd - builderSnapshot.totals.volumeUsd;
+    hyperliquidSnapshot.totals.volumeUsd - builderSnapshot.totals.volumeUsd;
   const fillsDelta =
-    canonicalSnapshot.totals.fillsCount - builderSnapshot.totals.fillsCount;
+    hyperliquidSnapshot.totals.fillsCount - builderSnapshot.totals.fillsCount;
   const usersDelta =
-    canonicalSnapshot.totals.totalUsers - builderSnapshot.totals.totalUsers;
+    hyperliquidSnapshot.totals.totalUsers - builderSnapshot.totals.totalUsers;
 
   const revenueDeltaRatio =
-    canonicalSnapshot.totals.builderFeeUsd > 0
-      ? Math.abs(revDelta) / canonicalSnapshot.totals.builderFeeUsd
+    hyperliquidSnapshot.totals.builderFeeUsd > 0
+      ? Math.abs(revDelta) / hyperliquidSnapshot.totals.builderFeeUsd
       : 0;
   const volumeDeltaRatio =
-    canonicalSnapshot.totals.volumeUsd > 0
-      ? Math.abs(volDelta) / canonicalSnapshot.totals.volumeUsd
+    hyperliquidSnapshot.totals.volumeUsd > 0
+      ? Math.abs(volDelta) / hyperliquidSnapshot.totals.volumeUsd
       : 0;
   const maxDrift = Math.max(revenueDeltaRatio, volumeDeltaRatio);
   const reconciliationStatus: "ok" | "warning" | "critical" =
@@ -370,21 +405,21 @@ export async function getAdminStats(options?: {
     windowDays,
     syncedAt: new Date().toISOString(),
     kpiSource: {
-      builderRevenue: "canonical",
-      routedVolume: "canonical",
-      fills: "canonical",
-      activeUsers: "canonical",
-      avgRevenuePerUser: "canonical",
+      builderRevenue: "hyperliquid",
+      routedVolume: "hyperliquid",
+      fills: "hyperliquid",
+      activeUsers: "hyperliquid",
+      avgRevenuePerUser: "hyperliquid",
       signups: "pipeline",
       builderApprovals: "pipeline",
       firstTrade: "pipeline",
       proStarted: "pipeline",
       referrals: "pipeline",
     },
-    canonicalSync: {
-      lastSyncedAt: canonicalSnapshot.lastSyncedAt,
+    hyperliquidSync: {
+      lastSyncedAt: hyperliquidSnapshot.lastSyncedAt,
       window: windowLabel,
-      freshness: canonicalSnapshot.freshness,
+      freshness: hyperliquidSnapshot.freshness,
     },
     internalAnalytics: {
       uniqueVisitors24h,
@@ -413,8 +448,8 @@ export async function getAdminStats(options?: {
       volumeUsd: todayRow?.volume ?? 0,
       activeUsers: todayRow?.users ?? 0,
       fillsCount:
-        canonicalLiveFeed.totals.fillsCount > 0
-          ? canonicalLiveFeed.totals.fillsCount
+        hyperliquidLiveFeed.totals.fillsCount > 0
+          ? hyperliquidLiveFeed.totals.fillsCount
           : liveFeed.totals.fillsCount,
       yesterdayRevenueUsd: yesterdayRow?.revenue ?? 0,
       yesterdayVolumeUsd: yesterdayRow?.volume ?? 0,
@@ -425,12 +460,12 @@ export async function getAdminStats(options?: {
     totalReferrals,
     activeProMembers,
     finance: {
-      canonical: {
-        totalRevenueUsd: canonicalSnapshot.totals.builderFeeUsd,
-        totalVolumeUsd: canonicalSnapshot.totals.volumeUsd,
-        totalUsers: canonicalSnapshot.totals.totalUsers,
-        avgRevenuePerUser: canonicalSnapshot.totals.avgRevenuePerUser,
-        fillsCount: canonicalSnapshot.totals.fillsCount,
+      hyperliquid: {
+        totalRevenueUsd: hyperliquidSnapshot.totals.builderFeeUsd,
+        totalVolumeUsd: hyperliquidSnapshot.totals.volumeUsd,
+        totalUsers: hyperliquidSnapshot.totals.totalUsers,
+        avgRevenuePerUser: hyperliquidSnapshot.totals.avgRevenuePerUser,
+        fillsCount: hyperliquidSnapshot.totals.fillsCount,
       },
       pipeline: {
         totalRevenueUsd: builderSnapshot.totals.builderFeeUsd,
@@ -441,22 +476,22 @@ export async function getAdminStats(options?: {
       },
       reconciliation: {
         revenue: {
-          canonical: canonicalSnapshot.totals.builderFeeUsd,
+          hyperliquid: hyperliquidSnapshot.totals.builderFeeUsd,
           pipeline: builderSnapshot.totals.builderFeeUsd,
           delta: revDelta,
         },
         volume: {
-          canonical: canonicalSnapshot.totals.volumeUsd,
+          hyperliquid: hyperliquidSnapshot.totals.volumeUsd,
           pipeline: builderSnapshot.totals.volumeUsd,
           delta: volDelta,
         },
         fills: {
-          canonical: canonicalSnapshot.totals.fillsCount,
+          hyperliquid: hyperliquidSnapshot.totals.fillsCount,
           pipeline: builderSnapshot.totals.fillsCount,
           delta: fillsDelta,
         },
         users: {
-          canonical: canonicalSnapshot.totals.totalUsers,
+          hyperliquid: hyperliquidSnapshot.totals.totalUsers,
           pipeline: builderSnapshot.totals.totalUsers,
           delta: usersDelta,
         },
@@ -467,22 +502,22 @@ export async function getAdminStats(options?: {
     weeklyCohorts,
     builder: {
       address: process.env.NEXT_PUBLIC_BUILDER_ADDRESS ?? "",
-      totalRevenueUsd: canonicalSnapshot.totals.builderFeeUsd,
-      totalVolumeUsd: canonicalSnapshot.totals.volumeUsd,
-      totalUsers: canonicalSnapshot.totals.totalUsers,
-      avgRevenuePerUser: canonicalSnapshot.totals.avgRevenuePerUser,
-      fillsCount: canonicalSnapshot.totals.fillsCount,
-      series: canonicalSnapshot.series,
+      totalRevenueUsd: hyperliquidSnapshot.totals.builderFeeUsd,
+      totalVolumeUsd: hyperliquidSnapshot.totals.volumeUsd,
+      totalUsers: hyperliquidSnapshot.totals.totalUsers,
+      avgRevenuePerUser: hyperliquidSnapshot.totals.avgRevenuePerUser,
+      fillsCount: hyperliquidSnapshot.totals.fillsCount,
+      series: hyperliquidSnapshot.series,
       attribution,
       live: {
         windowMinutes: liveWindowMinutes,
         totals:
-          canonicalLiveFeed.totals.fillsCount > 0
-            ? canonicalLiveFeed.totals
+          hyperliquidLiveFeed.totals.fillsCount > 0
+            ? hyperliquidLiveFeed.totals
             : liveFeed.totals,
         fills:
-          canonicalLiveFeed.fills.length > 0
-            ? canonicalLiveFeed.fills
+          hyperliquidLiveFeed.fills.length > 0
+            ? hyperliquidLiveFeed.fills
             : liveFeed.fills,
       },
     },

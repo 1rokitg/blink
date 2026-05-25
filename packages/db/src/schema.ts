@@ -87,8 +87,8 @@ export const TwitterConnection = pgTable("twitter_connection", (t) => ({
   id: t.uuid().notNull().primaryKey().defaultRandom(),
   /** The user's EVM wallet address (lower-cased). One connection per wallet. */
   walletAddress: t.varchar({ length: 42 }).notNull().unique(),
-  /** Twitter user ID (numeric string). */
-  twitterId: t.varchar({ length: 64 }).notNull(),
+  /** Twitter user ID (numeric string). One X account can only back one wallet claim. */
+  twitterId: t.varchar({ length: 64 }).notNull().unique(),
   /** Twitter @username (without the @). */
   twitterUsername: t.varchar({ length: 64 }).notNull(),
   /** Twitter display name. */

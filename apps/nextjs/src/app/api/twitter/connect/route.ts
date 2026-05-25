@@ -1,9 +1,24 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import crypto from "node:crypto";
 
-const CLIENT_ID =
-  process.env.TWITTER_CLIENT_ID ?? "";
+import { cookies } from "next/headers";
+import { type NextRequest, NextResponse } from "next/server";
+import { getAddress, recoverMessageAddress } from "viem";
+import { z } from "zod";
+
+import { env } from "~/env";
+import {
+  TWITTER_CLAIM_CONTEXT_COOKIE,
+  TWITTER_OAUTH_STATE_COOKIE,
+  TWITTER_PKCE_VERIFIER_COOKIE,
+  createTwitterOwnershipMessage,
+} from "~/lib/blink/twitter-ownership";
+
+export const runtime = "nodejs";
+
+const bodySchema = z.object({
+  walletAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  signature: z.string().regex(/^0x[0-9a-fA-F]{130}$/),
+});
 
 const SCOPES = "tweet.read users.read";
 
@@ -17,42 +32,103 @@ function generateCodeChallenge(verifier: string) {
   return crypto.createHash("sha256").update(verifier).digest("base64url");
 }
 
+function parseClaimContext(value?: string) {
+  if (!value) return null;
+
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, "base64url").toString("utf8"),
+    ) as {
+      nonce?: string;
+      returnTo?: string;
+      walletAddress?: string;
+    };
+
+    if (!parsed.nonce || !parsed.returnTo || !parsed.walletAddress) {
+      return null;
+    }
+
+    return {
+      nonce: parsed.nonce,
+      returnTo: parsed.returnTo,
+      walletAddress: parsed.walletAddress,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 /**
- * GET /api/twitter/connect?wallet=0x...
+ * POST /api/twitter/connect
  *
- * Initiates Twitter OAuth 2.0 PKCE flow.
- * Stores the code_verifier in an httpOnly cookie and the wallet address in
- * the OAuth `state` param (base64url encoded) so we can link the account
- * after the callback.
+ * Verifies the wallet signature for an ownership claim, then initiates the
+ * Twitter OAuth 2.0 PKCE flow.
  */
-export async function GET(req: NextRequest) {
-  const appUrl = req.nextUrl.origin;
-  const redirectUri = `${appUrl}/api/twitter/callback`;
-
-  const wallet = req.nextUrl.searchParams.get("wallet");
-  if (!wallet || !wallet.startsWith("0x")) {
-    return NextResponse.json({ error: "wallet param required" }, { status: 400 });
+export async function POST(req: NextRequest) {
+  if (!env.TWITTER_CLIENT_ID) {
+    return NextResponse.json(
+      { error: "twitter_client_not_configured" },
+      { status: 500 },
+    );
   }
 
+  const body = await req.json().catch(() => null);
+  const parsed = bodySchema.safeParse(body);
+
+  if (!parsed.success) {
+    return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
+  }
+
+  const walletAddress = parsed.data.walletAddress.toLowerCase();
+  const cookieStore = await cookies();
+  const claimContext = parseClaimContext(
+    cookieStore.get(TWITTER_CLAIM_CONTEXT_COOKIE)?.value,
+  );
+
+  if (!claimContext) {
+    return NextResponse.json(
+      { error: "claim_session_expired" },
+      { status: 400 },
+    );
+  }
+
+  if (claimContext.walletAddress !== walletAddress) {
+    return NextResponse.json(
+      { error: "claim_wallet_mismatch" },
+      { status: 400 },
+    );
+  }
+
+  const recoveredAddress = await recoverMessageAddress({
+    message: createTwitterOwnershipMessage({
+      walletAddress,
+      nonce: claimContext.nonce,
+    }),
+    signature: parsed.data.signature as `0x${string}`,
+  }).catch(() => null);
+
+  if (!recoveredAddress) {
+    return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
+  }
+
+  if (getAddress(recoveredAddress).toLowerCase() !== walletAddress) {
+    return NextResponse.json(
+      { error: "wallet_verification_failed" },
+      { status: 401 },
+    );
+  }
+
+  const appUrl = req.nextUrl.origin;
+  const redirectUri = `${appUrl}/api/twitter/callback`;
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = generateCodeChallenge(codeVerifier);
-  const state = Buffer.from(wallet.toLowerCase()).toString("base64url");
-
-  // Store verifier in a short-lived httpOnly cookie
-  const cookieStore = await cookies();
-  cookieStore.set("tw_pkce_verifier", codeVerifier, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 600, // 10 minutes
-  });
+  const state = crypto.randomBytes(16).toString("base64url");
 
   const params = new URLSearchParams({
     response_type: "code",
-    client_id: CLIENT_ID,
+    client_id: env.TWITTER_CLIENT_ID,
     redirect_uri: redirectUri,
     scope: SCOPES,
     state,
@@ -60,7 +136,24 @@ export async function GET(req: NextRequest) {
     code_challenge_method: "S256",
   });
 
-  return NextResponse.redirect(
-    `https://twitter.com/i/oauth2/authorize?${params.toString()}`,
-  );
+  const response = NextResponse.json({
+    authorizeUrl: `https://twitter.com/i/oauth2/authorize?${params.toString()}`,
+  });
+
+  response.cookies.set(TWITTER_PKCE_VERIFIER_COOKIE, codeVerifier, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 600,
+  });
+  response.cookies.set(TWITTER_OAUTH_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 600,
+  });
+
+  return response;
 }

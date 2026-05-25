@@ -29,6 +29,8 @@ type BuilderFillRow = {
   tid: string;
 };
 
+type SyncFreshness = "fresh" | "stale" | "unknown";
+
 function toDayKey(date: Date) {
   const y = date.getUTCFullYear();
   const m = `${date.getUTCMonth() + 1}`.padStart(2, "0");
@@ -71,6 +73,16 @@ function estimateBuilderFeeUsd(
     builderFeeUsd: params.notionalUsd * feeUnits * 1e-6,
     feeUnits,
   };
+}
+
+function getStrictBuilderFeeUsd(fill: Record<string, unknown>) {
+  const explicitBuilderFeeUsd = numberOrZero(
+    (fill as { builderFee?: unknown }).builderFee,
+  );
+  if (explicitBuilderFeeUsd <= 0) {
+    return null;
+  }
+  return explicitBuilderFeeUsd;
 }
 
 async function getApprovedWallets() {
@@ -260,6 +272,126 @@ export async function getBuilderMetricsSnapshot(days = 30) {
       volume: numberOrZero(r.volumeUsd),
       users: Number(r.activeUsers ?? 0),
     })),
+  };
+}
+
+export async function getCanonicalBuilderMetricsSnapshot(days = 30) {
+  const now = Date.now();
+  const startTime = now - days * 24 * 60 * 60 * 1000;
+  const approvedWallets = await getApprovedWallets();
+  if (approvedWallets.length === 0) {
+    return {
+      totals: {
+        volumeUsd: 0,
+        builderFeeUsd: 0,
+        fillsCount: 0,
+        totalUsers: 0,
+        avgRevenuePerUser: 0,
+      },
+      series: [] as Array<{
+        day: string;
+        revenue: number;
+        volume: number;
+        users: number;
+      }>,
+      lastSyncedAt: new Date().toISOString(),
+      freshness: "unknown" as SyncFreshness,
+    };
+  }
+
+  const byDay = new Map<
+    string,
+    { revenue: number; volume: number; fillsCount: number; users: Set<string> }
+  >();
+  const includedUsers = new Set<string>();
+
+  for (const wallet of approvedWallets) {
+    let fills: Array<Record<string, unknown>> = [];
+    try {
+      fills = (await infoClient.userFillsByTime({
+        user: wallet as `0x${string}`,
+        startTime,
+      })) as unknown as Array<Record<string, unknown>>;
+    } catch (error) {
+      console.warn("[metrics] canonical userFillsByTime failed", {
+        wallet,
+        error,
+      });
+      continue;
+    }
+
+    for (const fill of fills) {
+      const strictBuilderFeeUsd = getStrictBuilderFeeUsd(fill);
+      if (strictBuilderFeeUsd === null) {
+        continue;
+      }
+
+      const px = numberOrZero(fill.px);
+      const sz = Math.abs(numberOrZero(fill.sz));
+      const volumeUsd = px * sz;
+      if (!Number.isFinite(volumeUsd) || volumeUsd <= 0) {
+        continue;
+      }
+      const time = numberOrZero(fill.time);
+      if (!time) {
+        continue;
+      }
+      const day = toDayKey(new Date(time));
+      const current = byDay.get(day) ?? {
+        revenue: 0,
+        volume: 0,
+        fillsCount: 0,
+        users: new Set<string>(),
+      };
+      current.revenue += strictBuilderFeeUsd;
+      current.volume += volumeUsd;
+      current.fillsCount += 1;
+      current.users.add(wallet);
+      byDay.set(day, current);
+      includedUsers.add(wallet);
+    }
+  }
+
+  const series = Array.from(byDay.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([day, value]) => ({
+      day,
+      revenue: value.revenue,
+      volume: value.volume,
+      users: value.users.size,
+    }));
+
+  const totals = series.reduce(
+    (acc, row) => {
+      acc.volumeUsd += row.volume;
+      acc.builderFeeUsd += row.revenue;
+      acc.fillsCount += byDay.get(row.day)?.fillsCount ?? 0;
+      return acc;
+    },
+    {
+      volumeUsd: 0,
+      builderFeeUsd: 0,
+      fillsCount: 0,
+    },
+  );
+
+  const uniqueUsers = includedUsers.size;
+  const lastSyncedAt = new Date().toISOString();
+  const freshness: SyncFreshness =
+    Date.now() - new Date(lastSyncedAt).getTime() < 10 * 60 * 1000
+      ? "fresh"
+      : "stale";
+
+  return {
+    totals: {
+      ...totals,
+      totalUsers: uniqueUsers,
+      avgRevenuePerUser:
+        uniqueUsers > 0 ? totals.builderFeeUsd / uniqueUsers : 0,
+    },
+    series,
+    lastSyncedAt,
+    freshness,
   };
 }
 
@@ -470,5 +602,82 @@ export async function getLiveBuilderFillFeed(options?: {
     },
     { revenueUsd: 0, notionalUsd: 0, fillsCount: 0 },
   );
+  return { fills, totals };
+}
+
+export async function getCanonicalLiveBuilderFillFeed(options?: {
+  minutes?: number;
+  limit?: number;
+}) {
+  const minutes = Math.max(1, Math.min(options?.minutes ?? 30, 360));
+  const limit = Math.max(10, Math.min(options?.limit ?? 200, 500));
+  const startTime = Date.now() - minutes * 60 * 1000;
+
+  const approvedWallets = await getApprovedWallets();
+  if (approvedWallets.length === 0) {
+    return {
+      fills: [] as BuilderFillRow[],
+      totals: { revenueUsd: 0, notionalUsd: 0, fillsCount: 0 },
+    };
+  }
+
+  const allFills: BuilderFillRow[] = [];
+  for (const wallet of approvedWallets) {
+    let fills: Array<Record<string, unknown>> = [];
+    try {
+      fills = (await infoClient.userFillsByTime({
+        user: wallet as `0x${string}`,
+        startTime,
+      })) as unknown as Array<Record<string, unknown>>;
+    } catch (error) {
+      console.warn("[metrics] canonical live fill feed failed", { wallet, error });
+      continue;
+    }
+
+    for (const fill of fills) {
+      const strictBuilderFeeUsd = getStrictBuilderFeeUsd(fill);
+      if (strictBuilderFeeUsd === null) {
+        continue;
+      }
+
+      const coin = String(fill.coin ?? "").toUpperCase();
+      const time = numberOrZero(fill.time);
+      if (!time) continue;
+      const px = numberOrZero(fill.px);
+      const sz = Math.abs(numberOrZero(fill.sz));
+      const notionalUsd = px * sz;
+      if (!Number.isFinite(notionalUsd) || notionalUsd <= 0) continue;
+      const sideRaw = String(fill.side ?? "").toLowerCase();
+      const side: "buy" | "sell" = sideRaw.includes("sell") ? "sell" : "buy";
+      const feeUnits =
+        notionalUsd > 0
+          ? Math.round((strictBuilderFeeUsd / notionalUsd) * 1e6)
+          : 0;
+      allFills.push({
+        time,
+        walletAddress: wallet,
+        coin,
+        side,
+        px,
+        sz,
+        notionalUsd,
+        builderFeeUsd: strictBuilderFeeUsd,
+        feeUnits,
+        tid: String(fill.tid ?? `${wallet}-${time}`),
+      });
+    }
+  }
+
+  const fills = allFills.sort((a, b) => b.time - a.time).slice(0, limit);
+  const totals = fills.reduce(
+    (acc, fill) => {
+      acc.revenueUsd += fill.builderFeeUsd;
+      acc.notionalUsd += fill.notionalUsd;
+      acc.fillsCount += 1;
+      return acc;
+    },
+    { revenueUsd: 0, notionalUsd: 0, fillsCount: 0 },
+  );
+
   return { fills, totals };
 }

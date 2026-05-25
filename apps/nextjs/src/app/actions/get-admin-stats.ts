@@ -6,6 +6,8 @@ import { db } from "@acme/db/client";
 import { BlinkMembership, BuilderApproval, MetricEvent, Referral } from "@acme/db/schema";
 
 import {
+  getCanonicalBuilderMetricsSnapshot,
+  getCanonicalLiveBuilderFillFeed,
   getBuilderAttributionSnapshot,
   getLiveBuilderFillFeed,
   getBuilderMetricsSnapshot,
@@ -13,12 +15,53 @@ import {
 } from "~/lib/blink/internal-metrics.server";
 import { getFeatureFlags } from "~/lib/blink/feature-flags.server";
 
+type KpiSource = "canonical" | "pipeline";
+
 export interface AdminStats {
+  windowDays: number;
+  syncedAt: string;
+  kpiSource: Record<string, KpiSource>;
+  canonicalSync: {
+    lastSyncedAt: string;
+    window: "today" | "7d" | "30d" | "90d";
+    freshness: "fresh" | "stale" | "unknown";
+  };
+  today: {
+    revenueUsd: number;
+    volumeUsd: number;
+    activeUsers: number;
+    fillsCount: number;
+    yesterdayRevenueUsd: number;
+    yesterdayVolumeUsd: number;
+  };
   totalApprovals: number;
   approvalsSince24h: number;
   approvalsSince7d: number;
   totalReferrals: number;
   activeProMembers: number;
+  finance: {
+    canonical: {
+      totalRevenueUsd: number;
+      totalVolumeUsd: number;
+      totalUsers: number;
+      avgRevenuePerUser: number;
+      fillsCount: number;
+    };
+    pipeline: {
+      totalRevenueUsd: number;
+      totalVolumeUsd: number;
+      totalUsers: number;
+      avgRevenuePerUser: number;
+      fillsCount: number;
+    };
+    reconciliation: {
+      revenue: { canonical: number; pipeline: number; delta: number };
+      volume: { canonical: number; pipeline: number; delta: number };
+      fills: { canonical: number; pipeline: number; delta: number };
+      users: { canonical: number; pipeline: number; delta: number };
+      status: "ok" | "warning" | "critical";
+    };
+  };
   funnel: {
     signups: number;
     approvedBuilder: number;
@@ -109,6 +152,7 @@ export async function getAdminStats(options?: {
   includeAttribution?: boolean;
   liveWindowMinutes?: number;
   liveLimit?: number;
+  windowDays?: 1 | 7 | 30 | 90;
 }): Promise<AdminStats> {
   if (options?.syncHyperliquid) {
     await syncBuilderDailyMetrics(90);
@@ -121,8 +165,17 @@ export async function getAdminStats(options?: {
   const includeAttribution = options?.includeAttribution ?? true;
   const liveWindowMinutes = options?.liveWindowMinutes ?? 30;
   const liveLimit = options?.liveLimit ?? 120;
+  const windowDays = options?.windowDays ?? 90;
+  const windowLabel =
+    windowDays === 1
+      ? "today"
+      : windowDays === 7
+        ? "7d"
+        : windowDays === 30
+          ? "30d"
+          : "90d";
 
-  const [totalRows, allApprovals, referralRows, activeProRows, metricRows, builderSnapshot, attribution, liveFeed, featureFlags] = await Promise.all([
+  const [totalRows, allApprovals, referralRows, activeProRows, metricRows, builderSnapshot, canonicalSnapshot, attribution, liveFeed, canonicalLiveFeed, featureFlags] = await Promise.all([
     db.select({ c: count() }).from(BuilderApproval),
     db
       .select({
@@ -146,7 +199,8 @@ export async function getAdminStats(options?: {
       .from(MetricEvent)
       .orderBy(desc(MetricEvent.createdAt))
       .limit(3000),
-    getBuilderMetricsSnapshot(90),
+    getBuilderMetricsSnapshot(windowDays),
+    getCanonicalBuilderMetricsSnapshot(windowDays),
     includeAttribution
       ? getBuilderAttributionSnapshot(90)
       : Promise.resolve({
@@ -155,6 +209,10 @@ export async function getAdminStats(options?: {
           byCountry: [],
         }),
     getLiveBuilderFillFeed({
+      minutes: liveWindowMinutes,
+      limit: liveLimit,
+    }),
+    getCanonicalLiveBuilderFillFeed({
       minutes: liveWindowMinutes,
       limit: liveLimit,
     }),
@@ -220,27 +278,134 @@ export async function getAdminStats(options?: {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([week, values]) => ({ week, ...values }));
 
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date();
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const yesterdayKey = yesterday.toISOString().slice(0, 10);
+  const todayRow =
+    canonicalSnapshot.series.find((row) => row.day === todayKey) ??
+    builderSnapshot.series.find((row) => row.day === todayKey);
+  const yesterdayRow =
+    canonicalSnapshot.series.find((row) => row.day === yesterdayKey) ??
+    builderSnapshot.series.find((row) => row.day === yesterdayKey);
+
+  const revDelta =
+    canonicalSnapshot.totals.builderFeeUsd - builderSnapshot.totals.builderFeeUsd;
+  const volDelta =
+    canonicalSnapshot.totals.volumeUsd - builderSnapshot.totals.volumeUsd;
+  const fillsDelta =
+    canonicalSnapshot.totals.fillsCount - builderSnapshot.totals.fillsCount;
+  const usersDelta =
+    canonicalSnapshot.totals.totalUsers - builderSnapshot.totals.totalUsers;
+
+  const revenueDeltaRatio =
+    canonicalSnapshot.totals.builderFeeUsd > 0
+      ? Math.abs(revDelta) / canonicalSnapshot.totals.builderFeeUsd
+      : 0;
+  const volumeDeltaRatio =
+    canonicalSnapshot.totals.volumeUsd > 0
+      ? Math.abs(volDelta) / canonicalSnapshot.totals.volumeUsd
+      : 0;
+  const maxDrift = Math.max(revenueDeltaRatio, volumeDeltaRatio);
+  const reconciliationStatus: "ok" | "warning" | "critical" =
+    maxDrift >= 0.2 ? "critical" : maxDrift >= 0.05 ? "warning" : "ok";
+
   return {
+    windowDays,
+    syncedAt: new Date().toISOString(),
+    kpiSource: {
+      builderRevenue: "canonical",
+      routedVolume: "canonical",
+      fills: "canonical",
+      activeUsers: "canonical",
+      avgRevenuePerUser: "canonical",
+      signups: "pipeline",
+      builderApprovals: "pipeline",
+      firstTrade: "pipeline",
+      proStarted: "pipeline",
+      referrals: "pipeline",
+    },
+    canonicalSync: {
+      lastSyncedAt: canonicalSnapshot.lastSyncedAt,
+      window: windowLabel,
+      freshness: canonicalSnapshot.freshness,
+    },
+    today: {
+      revenueUsd: todayRow?.revenue ?? 0,
+      volumeUsd: todayRow?.volume ?? 0,
+      activeUsers: todayRow?.users ?? 0,
+      fillsCount:
+        canonicalLiveFeed.totals.fillsCount > 0
+          ? canonicalLiveFeed.totals.fillsCount
+          : liveFeed.totals.fillsCount,
+      yesterdayRevenueUsd: yesterdayRow?.revenue ?? 0,
+      yesterdayVolumeUsd: yesterdayRow?.volume ?? 0,
+    },
     totalApprovals: Number(total),
     approvalsSince24h,
     approvalsSince7d,
     totalReferrals,
     activeProMembers,
+    finance: {
+      canonical: {
+        totalRevenueUsd: canonicalSnapshot.totals.builderFeeUsd,
+        totalVolumeUsd: canonicalSnapshot.totals.volumeUsd,
+        totalUsers: canonicalSnapshot.totals.totalUsers,
+        avgRevenuePerUser: canonicalSnapshot.totals.avgRevenuePerUser,
+        fillsCount: canonicalSnapshot.totals.fillsCount,
+      },
+      pipeline: {
+        totalRevenueUsd: builderSnapshot.totals.builderFeeUsd,
+        totalVolumeUsd: builderSnapshot.totals.volumeUsd,
+        totalUsers: builderSnapshot.totals.totalUsers,
+        avgRevenuePerUser: builderSnapshot.totals.avgRevenuePerUser,
+        fillsCount: builderSnapshot.totals.fillsCount,
+      },
+      reconciliation: {
+        revenue: {
+          canonical: canonicalSnapshot.totals.builderFeeUsd,
+          pipeline: builderSnapshot.totals.builderFeeUsd,
+          delta: revDelta,
+        },
+        volume: {
+          canonical: canonicalSnapshot.totals.volumeUsd,
+          pipeline: builderSnapshot.totals.volumeUsd,
+          delta: volDelta,
+        },
+        fills: {
+          canonical: canonicalSnapshot.totals.fillsCount,
+          pipeline: builderSnapshot.totals.fillsCount,
+          delta: fillsDelta,
+        },
+        users: {
+          canonical: canonicalSnapshot.totals.totalUsers,
+          pipeline: builderSnapshot.totals.totalUsers,
+          delta: usersDelta,
+        },
+        status: reconciliationStatus,
+      },
+    },
     funnel,
     weeklyCohorts,
     builder: {
       address: process.env.NEXT_PUBLIC_BUILDER_ADDRESS ?? "",
-      totalRevenueUsd: builderSnapshot.totals.builderFeeUsd,
-      totalVolumeUsd: builderSnapshot.totals.volumeUsd,
-      totalUsers: builderSnapshot.totals.totalUsers,
-      avgRevenuePerUser: builderSnapshot.totals.avgRevenuePerUser,
-      fillsCount: builderSnapshot.totals.fillsCount,
-      series: builderSnapshot.series,
+      totalRevenueUsd: canonicalSnapshot.totals.builderFeeUsd,
+      totalVolumeUsd: canonicalSnapshot.totals.volumeUsd,
+      totalUsers: canonicalSnapshot.totals.totalUsers,
+      avgRevenuePerUser: canonicalSnapshot.totals.avgRevenuePerUser,
+      fillsCount: canonicalSnapshot.totals.fillsCount,
+      series: canonicalSnapshot.series,
       attribution,
       live: {
         windowMinutes: liveWindowMinutes,
-        totals: liveFeed.totals,
-        fills: liveFeed.fills,
+        totals:
+          canonicalLiveFeed.totals.fillsCount > 0
+            ? canonicalLiveFeed.totals
+            : liveFeed.totals,
+        fills:
+          canonicalLiveFeed.fills.length > 0
+            ? canonicalLiveFeed.fills
+            : liveFeed.fills,
       },
     },
     recentApprovals: allApprovals.slice(0, 10).map((a) => ({

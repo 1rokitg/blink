@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { setFeatureFlag, type BlinkFeatureFlagKey } from "~/lib/blink/feature-flags.server";
-import { isAdminWallet } from "~/lib/blink/admin-allowlist";
+import { isAdminWalletDb } from "~/lib/blink/admin-roles.server";
 
 const schema = z.object({
   key: z.enum([
@@ -23,7 +23,7 @@ export async function setFeatureFlagAction(input: unknown) {
   }
 
   const wallet = parsed.data.walletAddress.toLowerCase();
-  if (!isAdminWallet(wallet)) {
+  if (!(await isAdminWalletDb(wallet))) {
     throw new Error("Unauthorized");
   }
 

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 
-import { useWallets } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { Loader2, RefreshCw, Search } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
 
@@ -18,8 +18,11 @@ import {
 } from "@acme/ui/chart";
 
 import { getAdminStats, type AdminStats } from "~/app/actions/get-admin-stats";
+import {
+  getAdminAccess,
+  type AdminAccessResult,
+} from "~/app/actions/get-admin-access";
 import { setFeatureFlagAction } from "~/app/actions/set-feature-flag";
-import { getWalletRole, isAdminWallet } from "~/lib/blink/admin-allowlist";
 
 function truncateAddress(address: string) {
   if (!address) return "—";
@@ -59,7 +62,7 @@ function formatLabel(input: string) {
     .replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
-function sourceBadge(source: "hyperliquid" | "pipeline") {
+function sourceBadge(source: "hyperliquid" | "offchain") {
   if (source === "hyperliquid") {
     return (
       <Badge className="rounded-full border border-emerald-400/35 bg-emerald-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-emerald-300">
@@ -109,15 +112,62 @@ function getRangeConfig(range: AdminRange) {
 }
 
 export function AdminDashboard() {
+  const { user } = usePrivy();
   const { wallets } = useWallets();
-  const connectedWallets = wallets
-    .map((wallet) => wallet.address?.toLowerCase())
-    .filter((address): address is string => Boolean(address));
-  const matchedAdminWallet =
-    connectedWallets.find((address) => isAdminWallet(address)) ?? "";
-  const walletAddress = matchedAdminWallet || connectedWallets[0] || "";
-  const isAllowed = Boolean(matchedAdminWallet);
-  const role = getWalletRole(matchedAdminWallet);
+  const connectedWallets = useMemo(
+    () =>
+      wallets
+        .map((wallet) => wallet.address?.toLowerCase())
+        .filter((address): address is string => Boolean(address)),
+    [wallets],
+  );
+  const identityEmails = useMemo(
+    () =>
+      [
+        user?.email?.address,
+        user?.google?.email,
+      ].filter((email): email is string => Boolean(email)),
+    [user],
+  );
+  const [adminAccess, setAdminAccess] = useState<AdminAccessResult>({
+    allowed: false,
+    role: "viewer",
+    walletAddress: "",
+  });
+  const [checkingAccess, setCheckingAccess] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveAccess() {
+      setCheckingAccess(true);
+      try {
+        const access = await getAdminAccess(connectedWallets, identityEmails);
+        if (!cancelled) setAdminAccess(access);
+      } catch (err) {
+        console.error("[admin] Failed to resolve admin access:", err);
+        if (!cancelled) {
+          setAdminAccess({
+            allowed: false,
+            role: "viewer",
+            walletAddress: connectedWallets[0] ?? "",
+          });
+        }
+      } finally {
+        if (!cancelled) setCheckingAccess(false);
+      }
+    }
+
+    void resolveAccess();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connectedWallets, identityEmails]);
+
+  const walletAddress = adminAccess.walletAddress || connectedWallets[0] || "";
+  const isAllowed = adminAccess.allowed;
+  const role = adminAccess.role;
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [loading, setLoading] = useState(false);
@@ -176,10 +226,6 @@ export function AdminDashboard() {
     revenue: {
       label: "Revenue",
       color: "#41d38f",
-    },
-    users: {
-      label: "Users",
-      color: "#8aa4ff",
     },
     fills: {
       label: "Fills",
@@ -242,6 +288,27 @@ export function AdminDashboard() {
     ] as const;
   }, [stats]);
 
+  if (checkingAccess) {
+    return (
+      <main className="min-h-screen bg-[#06070b] px-6 py-8 text-foreground">
+        <div className="mx-auto max-w-3xl">
+          <section className="rounded-2xl border border-white/10 bg-[#0f121a] p-8">
+            <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
+              Admin
+            </Badge>
+            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">
+              Verifying access…
+            </h1>
+            <div className="mt-4 inline-flex items-center gap-2 text-sm text-foreground/60">
+              <Loader2 className="size-4 animate-spin" />
+              Checking Neon RBAC roles for connected wallet(s).
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
   if (!isAllowed) {
     return (
       <main className="min-h-screen bg-[#06070b] px-6 py-8 text-foreground">
@@ -251,14 +318,11 @@ export function AdminDashboard() {
               Admin
             </Badge>
             <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">
-              Allowlisted wallet required.
+              Admin role required.
             </h1>
             <p className="mt-3 text-base leading-7 text-foreground/58">
-              Blink admin is gated behind a wallet allowlist. Add your wallet to{" "}
-              <code className="rounded bg-white/[0.06] px-1.5 py-0.5 text-sm text-white/70">
-                NEXT_PUBLIC_ADMIN_WALLET_ALLOWLIST
-              </code>{" "}
-              to unlock this suite.
+              Blink internal tools now use Neon-backed RBAC. Ask a superuser to
+              grant your connected wallet an admin or superuser role.
             </p>
             {connectedWallets.length > 0 && (
               <p className="mt-3 font-mono text-sm text-foreground/45">
@@ -341,7 +405,9 @@ export function AdminDashboard() {
             <div className="flex items-center gap-2">
               <select
                 value={selectedRange}
-                onChange={(event) => setSelectedRange(event.target.value as AdminRange)}
+                onChange={(event) =>
+                  setSelectedRange(event.target.value as AdminRange)
+                }
                 className="h-10 rounded-xl border border-white/10 bg-[#111624] px-3 text-sm text-white outline-none"
               >
                 {ADMIN_RANGE_OPTIONS.map((option) => (
@@ -373,9 +439,12 @@ export function AdminDashboard() {
 
           <section className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h1 className="text-[40px] font-semibold tracking-[-0.03em] text-white">Today</h1>
+              <h1 className="text-[40px] font-semibold tracking-[-0.03em] text-white">
+                Today
+              </h1>
               <p className="text-xs text-foreground/40">
-                Hyperliquid sync: {stats?.hyperliquidSync.freshness ?? "unknown"} ·{" "}
+                Hyperliquid sync:{" "}
+                {stats?.hyperliquidSync.freshness ?? "unknown"} ·{" "}
                 {stats ? timeAgo(stats.hyperliquidSync.lastSyncedAt) : "—"}
               </p>
             </div>
@@ -389,7 +458,8 @@ export function AdminDashboard() {
                   {stats ? formatMoney(stats.today.revenueUsd) : "—"}
                 </p>
                 <p className="mt-1 text-xs text-foreground/45">
-                  Yesterday {stats ? formatMoney(stats.today.yesterdayRevenueUsd) : "—"}
+                  Yesterday{" "}
+                  {stats ? formatMoney(stats.today.yesterdayRevenueUsd) : "—"}
                 </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-[#121726] p-4">
@@ -400,7 +470,8 @@ export function AdminDashboard() {
                   {stats ? formatCompact(stats.today.volumeUsd) : "—"}
                 </p>
                 <p className="mt-1 text-xs text-foreground/45">
-                  Yesterday {stats ? formatCompact(stats.today.yesterdayVolumeUsd) : "—"}
+                  Yesterday{" "}
+                  {stats ? formatCompact(stats.today.yesterdayVolumeUsd) : "—"}
                 </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-[#121726] p-4">
@@ -439,25 +510,48 @@ export function AdminDashboard() {
                       {card.label}
                     </p>
                     {sourceBadge(
-                      card.source === "hyperliquid" ? "hyperliquid" : "pipeline",
+                      card.source === "hyperliquid"
+                        ? "hyperliquid"
+                        : "offchain",
                     )}
                   </div>
-                  <p className="mt-2 text-3xl font-semibold text-white">{card.value}</p>
+                  <p className="mt-2 text-3xl font-semibold text-white">
+                    {card.value}
+                  </p>
                 </div>
               ))}
             </div>
 
             <div className="mt-4 rounded-xl border border-white/10 bg-[#101523] p-4">
               <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-white">Daily revenue + users</h3>
-                <span className="text-xs text-foreground/45">window {selectedRange}</span>
+                <h3 className="text-sm font-semibold text-white">
+                  Daily revenue + users
+                </h3>
+                <span className="text-xs text-foreground/45">
+                  window {selectedRange}
+                </span>
               </div>
               <div className="h-[220px]">
                 <ChartContainer config={chartConfig} className="h-full w-full">
-                  <LineChart data={stats?.builder.series ?? []} margin={{ left: 2, right: 2 }}>
-                    <CartesianGrid vertical={false} stroke="#1a2437" strokeDasharray="2 8" />
-                    <XAxis dataKey="day" tickLine={false} axisLine={false} tickMargin={8} />
-                    <ChartTooltip cursor={false} content={<ChartTooltipContent indicator="line" />} />
+                  <LineChart
+                    data={stats?.builder.series ?? []}
+                    margin={{ left: 2, right: 2 }}
+                  >
+                    <CartesianGrid
+                      vertical={false}
+                      stroke="#1a2437"
+                      strokeDasharray="2 8"
+                    />
+                    <XAxis
+                      dataKey="day"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                    />
+                    <ChartTooltip
+                      cursor={false}
+                      content={<ChartTooltipContent indicator="line" />}
+                    />
                     <Line
                       type="monotone"
                       dataKey="revenue"
@@ -479,35 +573,61 @@ export function AdminDashboard() {
           </section>
 
           <section className="mt-4 rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
-            <h2 className="text-base font-semibold text-white">Internal analytics (Vercel + Blink)</h2>
+            <h2 className="text-base font-semibold text-white">
+              Internal analytics (Vercel + Blink)
+            </h2>
             <p className="mt-1 text-xs text-foreground/45">
-              Unique visitor IDs use Vercel request signals + first-party visitor/session IDs.
+              Unique visitor IDs use Vercel request signals + first-party
+              visitor/session IDs.
             </p>
             <div className="mt-4 grid gap-3 md:grid-cols-4">
               <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
-                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">Unique visitors 24h</p>
-                <p className="mt-2 text-2xl font-semibold text-white">{stats?.internalAnalytics.uniqueVisitors24h ?? 0}</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  Unique visitors 24h
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {stats?.internalAnalytics.uniqueVisitors24h ?? 0}
+                </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
-                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">Unique visitors 7d</p>
-                <p className="mt-2 text-2xl font-semibold text-white">{stats?.internalAnalytics.uniqueVisitors7d ?? 0}</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  Unique visitors 7d
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {stats?.internalAnalytics.uniqueVisitors7d ?? 0}
+                </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
-                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">Human events 24h</p>
-                <p className="mt-2 text-2xl font-semibold text-emerald-300">{stats?.internalAnalytics.humanEvents24h ?? 0}</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  Human events 24h
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-emerald-300">
+                  {stats?.internalAnalytics.humanEvents24h ?? 0}
+                </p>
               </div>
               <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
-                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">Bot events 24h</p>
-                <p className="mt-2 text-2xl font-semibold text-amber-300">{stats?.internalAnalytics.botEvents24h ?? 0}</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  Bot events 24h
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-amber-300">
+                  {stats?.internalAnalytics.botEvents24h ?? 0}
+                </p>
               </div>
             </div>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div className="rounded-xl border border-white/10 bg-[#101523] p-3">
-                <p className="mb-2 text-sm font-medium text-white">Top sources (7d)</p>
+                <p className="mb-2 text-sm font-medium text-white">
+                  Top sources (7d)
+                </p>
                 <div className="space-y-2">
                   {(stats?.internalAnalytics.topSources7d ?? []).map((row) => (
-                    <div key={row.source} className="flex items-center justify-between text-sm">
-                      <span className="text-foreground/75">{formatLabel(row.source)}</span>
+                    <div
+                      key={row.source}
+                      className="flex items-center justify-between text-sm"
+                    >
+                      <span className="text-foreground/75">
+                        {formatLabel(row.source)}
+                      </span>
                       <span className="text-white/85">
                         {row.events} ev · {row.uniqueVisitors} uv
                       </span>
@@ -516,16 +636,25 @@ export function AdminDashboard() {
                 </div>
               </div>
               <div className="rounded-xl border border-white/10 bg-[#101523] p-3">
-                <p className="mb-2 text-sm font-medium text-white">Top countries (7d)</p>
+                <p className="mb-2 text-sm font-medium text-white">
+                  Top countries (7d)
+                </p>
                 <div className="space-y-2">
-                  {(stats?.internalAnalytics.topCountries7d ?? []).map((row) => (
-                    <div key={row.country} className="flex items-center justify-between text-sm">
-                      <span className="text-foreground/75">{row.country}</span>
-                      <span className="text-white/85">
-                        {row.events} ev · {row.uniqueVisitors} uv
-                      </span>
-                    </div>
-                  ))}
+                  {(stats?.internalAnalytics.topCountries7d ?? []).map(
+                    (row) => (
+                      <div
+                        key={row.country}
+                        className="flex items-center justify-between text-sm"
+                      >
+                        <span className="text-foreground/75">
+                          {row.country}
+                        </span>
+                        <span className="text-white/85">
+                          {row.events} ev · {row.uniqueVisitors} uv
+                        </span>
+                      </div>
+                    ),
+                  )}
                 </div>
               </div>
             </div>
@@ -533,30 +662,68 @@ export function AdminDashboard() {
 
           <section className="mt-4 rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-white">Reconciliation</h2>
-              <Badge className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${recTone}`}>
+              <h2 className="text-base font-semibold text-white">
+                Reconciliation
+              </h2>
+              <Badge
+                className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${recTone}`}
+              >
                 {rec?.status ?? "unknown"}
               </Badge>
             </div>
             <p className="mb-4 text-xs text-foreground/45">
-              Canonical L1 totals vs off-chain estimates for the selected window.
+              Canonical L1 totals vs off-chain estimates for the selected
+              window.
             </p>
             <div className="grid gap-3 md:grid-cols-4">
               {[
-                ["Revenue", rec?.revenue.hyperliquid ?? 0, rec?.revenue.pipeline ?? 0, rec?.revenue.delta ?? 0, true],
-                ["Volume", rec?.volume.hyperliquid ?? 0, rec?.volume.pipeline ?? 0, rec?.volume.delta ?? 0, true],
-                ["Fills", rec?.fills.hyperliquid ?? 0, rec?.fills.pipeline ?? 0, rec?.fills.delta ?? 0, false],
-                ["Users", rec?.users.hyperliquid ?? 0, rec?.users.pipeline ?? 0, rec?.users.delta ?? 0, false],
-              ].map(([label, canonical, pipeline, delta, money]) => (
-                <div key={String(label)} className="rounded-xl border border-white/10 bg-[#121726] p-3">
-                  <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">{label}</p>
+                [
+                  "Revenue",
+                  rec?.revenue.hyperliquid ?? 0,
+                  rec?.revenue.offchain ?? 0,
+                  rec?.revenue.delta ?? 0,
+                  true,
+                ],
+                [
+                  "Volume",
+                  rec?.volume.hyperliquid ?? 0,
+                  rec?.volume.offchain ?? 0,
+                  rec?.volume.delta ?? 0,
+                  true,
+                ],
+                [
+                  "Fills",
+                  rec?.fills.hyperliquid ?? 0,
+                  rec?.fills.offchain ?? 0,
+                  rec?.fills.delta ?? 0,
+                  false,
+                ],
+                [
+                  "Users",
+                  rec?.users.hyperliquid ?? 0,
+                  rec?.users.offchain ?? 0,
+                  rec?.users.delta ?? 0,
+                  false,
+                ],
+              ].map(([label, canonical, offchain, delta, money]) => (
+                <div
+                  key={String(label)}
+                  className="rounded-xl border border-white/10 bg-[#121726] p-3"
+                >
+                  <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                    {label}
+                  </p>
                   <p className="mt-2 text-sm text-foreground/75">
-                    C: {money ? formatMoney(Number(canonical)) : Number(canonical)}
+                    C:{" "}
+                    {money ? formatMoney(Number(canonical)) : Number(canonical)}
                   </p>
                   <p className="text-sm text-foreground/55">
-                    O: {money ? formatMoney(Number(pipeline)) : Number(pipeline)}
+                    O:{" "}
+                    {money ? formatMoney(Number(offchain)) : Number(offchain)}
                   </p>
-                  <p className={`mt-2 text-sm font-medium ${Number(delta) === 0 ? "text-foreground/60" : Number(delta) > 0 ? "text-emerald-300" : "text-rose-300"}`}>
+                  <p
+                    className={`mt-2 text-sm font-medium ${Number(delta) === 0 ? "text-foreground/60" : Number(delta) > 0 ? "text-emerald-300" : "text-rose-300"}`}
+                  >
                     Δ {money ? formatMoney(Number(delta)) : Number(delta)}
                   </p>
                 </div>
@@ -565,7 +732,9 @@ export function AdminDashboard() {
           </section>
 
           <section className="mt-4 rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
-            <h2 className="text-base font-semibold text-white">Feature flags</h2>
+            <h2 className="text-base font-semibold text-white">
+              Feature flags
+            </h2>
             <p className="mt-1 text-xs text-foreground/45">
               Runtime controls for growth and monetization behavior.
             </p>
@@ -577,8 +746,12 @@ export function AdminDashboard() {
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-medium text-white">{formatLabel(flag.key)}</p>
-                      <p className="mt-1 text-xs text-foreground/45">{flag.description}</p>
+                      <p className="text-sm font-medium text-white">
+                        {formatLabel(flag.key)}
+                      </p>
+                      <p className="mt-1 text-xs text-foreground/45">
+                        {flag.description}
+                      </p>
                       <p className="mt-2 text-[11px] text-foreground/35">
                         {flag.updatedBy
                           ? `Updated by ${truncateAddress(flag.updatedBy)}`
@@ -628,74 +801,99 @@ export function AdminDashboard() {
 
           <section className="mt-4 grid gap-4 lg:grid-cols-3">
             <div className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
-              <h2 className="text-base font-semibold text-white">Revenue by source</h2>
+              <h2 className="text-base font-semibold text-white">
+                Revenue by source
+              </h2>
               <div className="mt-4 space-y-2">
-                {(stats?.builder.attribution.bySource ?? []).slice(0, 8).map((row) => (
-                  <div
-                    key={row.source}
-                    className="flex items-center justify-between rounded-xl border border-white/8 bg-[#121726] px-3 py-2"
-                  >
-                    <div>
-                      <p className="text-sm text-white/85">{formatLabel(row.source)}</p>
-                      <p className="text-xs text-foreground/45">
-                        {row.users} users · {row.fillsCount} fills
+                {(stats?.builder.attribution.bySource ?? [])
+                  .slice(0, 8)
+                  .map((row) => (
+                    <div
+                      key={row.source}
+                      className="flex items-center justify-between rounded-xl border border-white/8 bg-[#121726] px-3 py-2"
+                    >
+                      <div>
+                        <p className="text-sm text-white/85">
+                          {formatLabel(row.source)}
+                        </p>
+                        <p className="text-xs text-foreground/45">
+                          {row.users} users · {row.fillsCount} fills
+                        </p>
+                      </div>
+                      <p className="text-sm font-medium text-emerald-300">
+                        {formatMoney(row.revenueUsd)}
                       </p>
                     </div>
-                    <p className="text-sm font-medium text-emerald-300">{formatMoney(row.revenueUsd)}</p>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
-              <h2 className="text-base font-semibold text-white">Revenue by country</h2>
+              <h2 className="text-base font-semibold text-white">
+                Revenue by country
+              </h2>
               <div className="mt-4 space-y-2">
-                {(stats?.builder.attribution.byCountry ?? []).slice(0, 8).map((row) => (
-                  <div
-                    key={row.country}
-                    className="flex items-center justify-between rounded-xl border border-white/8 bg-[#121726] px-3 py-2"
-                  >
-                    <div>
-                      <p className="text-sm text-white/85">{row.country}</p>
-                      <p className="text-xs text-foreground/45">
-                        {row.users} users · {row.fillsCount} fills
+                {(stats?.builder.attribution.byCountry ?? [])
+                  .slice(0, 8)
+                  .map((row) => (
+                    <div
+                      key={row.country}
+                      className="flex items-center justify-between rounded-xl border border-white/8 bg-[#121726] px-3 py-2"
+                    >
+                      <div>
+                        <p className="text-sm text-white/85">{row.country}</p>
+                        <p className="text-xs text-foreground/45">
+                          {row.users} users · {row.fillsCount} fills
+                        </p>
+                      </div>
+                      <p className="text-sm font-medium text-emerald-300">
+                        {formatMoney(row.revenueUsd)}
                       </p>
                     </div>
-                    <p className="text-sm font-medium text-emerald-300">{formatMoney(row.revenueUsd)}</p>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
               <h2 className="text-base font-semibold text-white">Top users</h2>
               <div className="mt-4 space-y-2">
-                {(stats?.builder.attribution.byUser ?? []).slice(0, 8).map((row) => (
-                  <div
-                    key={row.walletAddress}
-                    className="flex items-center justify-between rounded-xl border border-white/8 bg-[#121726] px-3 py-2"
-                  >
-                    <div>
-                      <p className="font-mono text-xs text-white/85">{truncateAddress(row.walletAddress)}</p>
-                      <p className="text-xs text-foreground/45">
-                        {formatLabel(row.source)} · {row.country}
-                      </p>
+                {(stats?.builder.attribution.byUser ?? [])
+                  .slice(0, 8)
+                  .map((row) => (
+                    <div
+                      key={row.walletAddress}
+                      className="flex items-center justify-between rounded-xl border border-white/8 bg-[#121726] px-3 py-2"
+                    >
+                      <div>
+                        <p className="font-mono text-xs text-white/85">
+                          {truncateAddress(row.walletAddress)}
+                        </p>
+                        <p className="text-xs text-foreground/45">
+                          {formatLabel(row.source)} · {row.country}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-emerald-300">
+                          {formatMoney(row.revenueUsd)}
+                        </p>
+                        <p className="text-xs text-foreground/45">
+                          {formatCompact(row.volumeUsd)} vol
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-emerald-300">{formatMoney(row.revenueUsd)}</p>
-                      <p className="text-xs text-foreground/45">{formatCompact(row.volumeUsd)} vol</p>
-                    </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             </div>
           </section>
 
           <section className="mt-4 rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-white">Live builder fill revenue</h2>
+              <h2 className="text-base font-semibold text-white">
+                Live builder fill revenue
+              </h2>
               <span className="text-xs text-foreground/45">
-                Polling every 8s · last {stats?.builder.live.windowMinutes ?? 30}m
+                Polling every 8s · last{" "}
+                {stats?.builder.live.windowMinutes ?? 30}m
               </span>
             </div>
             <div className="mb-4 grid gap-3 md:grid-cols-3">
@@ -754,12 +952,18 @@ export function AdminDashboard() {
                       >
                         {fill.side.toUpperCase()}
                       </td>
-                      <td className="px-3 py-2 text-right text-white/85">{fill.px.toFixed(4)}</td>
-                      <td className="px-3 py-2 text-right text-white/85">{fill.sz.toFixed(6)}</td>
+                      <td className="px-3 py-2 text-right text-white/85">
+                        {fill.px.toFixed(4)}
+                      </td>
+                      <td className="px-3 py-2 text-right text-white/85">
+                        {fill.sz.toFixed(6)}
+                      </td>
                       <td className="px-3 py-2 text-right text-white/85">
                         {formatMoney(fill.notionalUsd)}
                       </td>
-                      <td className="px-3 py-2 text-right text-white/70">{fill.feeUnits}</td>
+                      <td className="px-3 py-2 text-right text-white/70">
+                        {fill.feeUnits}
+                      </td>
                       <td className="px-3 py-2 text-right font-semibold text-emerald-300">
                         {formatMoney(fill.builderFeeUsd)}
                       </td>
@@ -772,7 +976,9 @@ export function AdminDashboard() {
 
           <section className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-[#0b0d13] p-0">
             <div className="border-b border-white/8 px-5 py-4">
-              <h2 className="text-base font-semibold text-white">Recent builder approvals</h2>
+              <h2 className="text-base font-semibold text-white">
+                Recent builder approvals
+              </h2>
             </div>
 
             {loading && !stats ? (
@@ -812,10 +1018,19 @@ export function AdminDashboard() {
 
           <div className="mt-4 flex items-center justify-between text-xs text-foreground/35">
             <span>
-              Allowlisted as <span className="font-mono">{truncateAddress(walletAddress)}</span>
+              Signed in as{" "}
+              <span className="font-mono">
+                {truncateAddress(walletAddress)}
+              </span>{" "}
+              · role <span className="uppercase">{role}</span>
             </span>
-            {lastFetched ? <span>Updated {lastFetched.toLocaleTimeString()}</span> : null}
-            <Link href="/trade/BTC" className="transition hover:text-foreground/70">
+            {lastFetched ? (
+              <span>Updated {lastFetched.toLocaleTimeString()}</span>
+            ) : null}
+            <Link
+              href="/trade/BTC"
+              className="transition hover:text-foreground/70"
+            >
               ← Back to terminal
             </Link>
           </div>

@@ -248,7 +248,7 @@ export default function RewardsPage() {
           <h1 className="text-[3.5rem] font-bold leading-none tracking-[-0.04em] text-white">
             Refer traders.
             <br />
-            <span className="text-[#6fa8ff]">Build the network.</span>
+            <span className="text-[#6fa8ff]">Build your network.</span>
           </h1>
           <p className="mt-4 text-base text-white/40">
             Every trader you bring to Blink makes the ecosystem stronger. Share

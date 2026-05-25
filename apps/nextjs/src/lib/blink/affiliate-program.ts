@@ -1,22 +1,15 @@
+import { AFFILIATE_SEEDS, findAffiliateByWallet } from "./affiliate-seeds";
+
 export type AffiliateProfile = {
   walletAddress: string;
   name: string;
   xHandle: string;
   xUrl: string;
+  avatar: string;
   boostedCode: string;
   boostLabel: string;
+  payoutSplitLabel: string;
 };
-
-const SEEDED_AFFILIATES: AffiliateProfile[] = [
-  {
-    walletAddress: "0x0000000000000000000000000000000000000000",
-    name: "BasedBuilder007",
-    xHandle: "@BasedBuilder007",
-    xUrl: "https://x.com/BasedBuilder007",
-    boostedCode: "BASED",
-    boostLabel: "2.0x",
-  },
-];
 
 function normalize(address: string) {
   return address.trim().toLowerCase();
@@ -40,10 +33,21 @@ export function isAffiliateWallet(address?: string | null) {
 export function getAffiliateProfile(address?: string | null) {
   if (!address) return null;
   const normalized = normalize(address);
-  const seeded = SEEDED_AFFILIATES.find(
-    (item) => normalize(item.walletAddress) === normalized,
-  );
-  if (seeded) return seeded;
+  const seeded = findAffiliateByWallet(normalized);
+  if (seeded) {
+    return {
+      walletAddress: seeded.walletAddress ?? normalized,
+      name: seeded.name,
+      xHandle: seeded.xHandle,
+      xUrl: seeded.xUrl,
+      avatar: seeded.avatarUrl,
+      boostedCode: seeded.code,
+      boostLabel: seeded.rewardBoostLabel,
+      payoutSplitLabel: seeded.payoutSplitLabel,
+    } satisfies AffiliateProfile;
+  }
+
+  const allowlistFallback = AFFILIATE_SEEDS[0];
   if (!isAffiliateWallet(normalized)) return null;
 
   return {
@@ -51,8 +55,9 @@ export function getAffiliateProfile(address?: string | null) {
     name: `Affiliate ${normalized.slice(2, 6).toUpperCase()}`,
     xHandle: "@affiliate",
     xUrl: "https://x.com",
+    avatar: allowlistFallback?.avatarUrl ?? "https://unavatar.io/x/affiliate",
     boostedCode: "LOCKED",
     boostLabel: "1.0x",
+    payoutSplitLabel: "70/30",
   } satisfies AffiliateProfile;
 }
-

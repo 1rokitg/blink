@@ -1,40 +1,93 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 
-import { useWallets } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@acme/ui/badge";
 
-import { getWalletRole, isAdminWallet } from "~/lib/blink/admin-allowlist";
-
-const FIRST_AFFILIATE = {
-  name: "BasedBuilder007",
-  xHandle: "@BasedBuilder007",
-  xUrl: "https://x.com/BasedBuilder007",
-  boostedCode: "BB",
-  boost: "2.0x",
-  payoutSplit: "35%",
-};
+import {
+  getAdminAccess,
+  type AdminAccessResult,
+} from "~/app/actions/get-admin-access";
+import { AFFILIATE_SEEDS } from "~/lib/blink/affiliate-seeds";
 
 export function AffiliatesDashboard() {
+  const { user } = usePrivy();
   const { wallets } = useWallets();
-  const connectedWallets = wallets
-    .map((wallet) => wallet.address?.toLowerCase())
-    .filter((address): address is string => Boolean(address));
-  const matchedAdminWallet =
-    connectedWallets.find((address) => isAdminWallet(address)) ?? "";
-  const isAllowed = Boolean(matchedAdminWallet);
-  const role = getWalletRole(matchedAdminWallet);
-
-  const referralLink = useMemo(
-    () => `https://blink.lat/r/${FIRST_AFFILIATE.boostedCode}`,
-    [],
+  const connectedWallets = useMemo(
+    () =>
+      wallets
+        .map((wallet) => wallet.address?.toLowerCase())
+        .filter((address): address is string => Boolean(address)),
+    [wallets],
   );
+  const identityEmails = useMemo(
+    () =>
+      [
+        user?.email?.address,
+        user?.google?.email,
+      ].filter((email): email is string => Boolean(email)),
+    [user],
+  );
+  const [adminAccess, setAdminAccess] = useState<AdminAccessResult>({
+    allowed: false,
+    role: "viewer",
+    walletAddress: "",
+  });
+  const [checkingAccess, setCheckingAccess] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveAccess() {
+      setCheckingAccess(true);
+      try {
+        const access = await getAdminAccess(connectedWallets, identityEmails);
+        if (!cancelled) setAdminAccess(access);
+      } catch (err) {
+        console.error("[affiliates] Failed to resolve admin access:", err);
+      } finally {
+        if (!cancelled) setCheckingAccess(false);
+      }
+    }
+
+    void resolveAccess();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connectedWallets, identityEmails]);
+
+  const isAllowed = adminAccess.allowed;
+  const role = adminAccess.role;
+
+  const primaryAffiliate = AFFILIATE_SEEDS[0];
+  const referralLink = useMemo(() => {
+    if (!primaryAffiliate) return "https://blink.lat/r/BLINK";
+    return `https://blink.lat/r/${primaryAffiliate.code}`;
+  }, [primaryAffiliate]);
+
+  if (checkingAccess) {
+    return (
+      <main className="min-h-screen bg-[#06070b] px-6 py-8 text-foreground">
+        <div className="mx-auto max-w-3xl">
+          <section className="rounded-2xl border border-white/10 bg-[#0f121a] p-8">
+            <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
+              Admin
+            </Badge>
+            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">
+              Verifying access…
+            </h1>
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   if (!isAllowed) {
     return (
@@ -45,10 +98,11 @@ export function AffiliatesDashboard() {
               Admin
             </Badge>
             <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">
-              Allowlisted wallet required.
+              Admin role required.
             </h1>
             <p className="mt-3 text-base leading-7 text-foreground/58">
-              Blink internal tools are gated behind the wallet allowlist.
+              Blink internal tools use Neon-backed RBAC. Ask a superuser to
+              grant your connected wallet an admin or superuser role.
             </p>
             <Link
               href="/trade/BTC"
@@ -103,6 +157,12 @@ export function AffiliatesDashboard() {
             >
               Back to Home →
             </Link>
+            <Link
+              href="/internal/affiliates/new"
+              className="text-sm text-sky-300 hover:text-sky-200"
+            >
+              + New affiliate
+            </Link>
           </div>
 
           <section className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
@@ -121,15 +181,15 @@ export function AffiliatesDashboard() {
                       Affiliate
                     </p>
                     <p className="mt-1 text-2xl font-semibold text-white">
-                      {FIRST_AFFILIATE.name}
+                      {primaryAffiliate?.name ?? "Affiliate"}
                     </p>
                     <a
-                      href={FIRST_AFFILIATE.xUrl}
+                      href={primaryAffiliate?.xUrl ?? "https://x.com"}
                       target="_blank"
                       rel="noreferrer"
                       className="mt-1 inline-flex items-center gap-1 text-sm text-sky-300 hover:text-sky-200"
                     >
-                      {FIRST_AFFILIATE.xHandle}
+                      {primaryAffiliate?.xHandle ?? "@affiliate"}
                       <ExternalLink className="size-3.5" />
                     </a>
                   </div>
@@ -145,7 +205,7 @@ export function AffiliatesDashboard() {
                       Code
                     </p>
                     <p className="mt-1 text-lg font-semibold text-white">
-                      {FIRST_AFFILIATE.boostedCode}
+                      {primaryAffiliate?.code ?? "BLINK"}
                     </p>
                   </div>
                   <div className="rounded-lg border border-white/10 bg-[#0f1422] p-3">
@@ -153,7 +213,7 @@ export function AffiliatesDashboard() {
                       Reward boost
                     </p>
                     <p className="mt-1 text-lg font-semibold text-emerald-300">
-                      {FIRST_AFFILIATE.boost}
+                      {primaryAffiliate?.rewardBoostLabel ?? "1.0x"}
                     </p>
                   </div>
                   <div className="rounded-lg border border-white/10 bg-[#0f1422] p-3">
@@ -161,7 +221,7 @@ export function AffiliatesDashboard() {
                       Payout split
                     </p>
                     <p className="mt-1 text-lg font-semibold text-white">
-                      {FIRST_AFFILIATE.payoutSplit}
+                      {primaryAffiliate?.payoutSplitLabel ?? "70/30"}
                     </p>
                   </div>
                 </div>
@@ -207,6 +267,55 @@ export function AffiliatesDashboard() {
                     Source: X / CT
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-white/10 bg-[#121726] p-4">
+              <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                Seeded affiliates
+              </p>
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full min-w-[620px] text-left text-sm">
+                  <thead className="text-[11px] uppercase tracking-[0.12em] text-foreground/45">
+                    <tr>
+                      <th className="py-2">Name</th>
+                      <th className="py-2">Code</th>
+                      <th className="py-2">Boost</th>
+                      <th className="py-2">Split</th>
+                      <th className="py-2">Profile</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {AFFILIATE_SEEDS.map((seed) => (
+                      <tr
+                        key={`${seed.code}-${seed.xHandle}`}
+                        className="border-t border-white/8"
+                      >
+                        <td className="py-2 text-white">{seed.name}</td>
+                        <td className="py-2 font-mono text-sky-300">
+                          {seed.code}
+                        </td>
+                        <td className="py-2 text-emerald-300">
+                          {seed.rewardBoostLabel}
+                        </td>
+                        <td className="py-2 text-white">
+                          {seed.payoutSplitLabel}
+                        </td>
+                        <td className="py-2">
+                          <a
+                            href={seed.xUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-foreground/75 hover:text-white"
+                          >
+                            {seed.xHandle}
+                            <ExternalLink className="size-3.5" />
+                          </a>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </section>

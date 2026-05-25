@@ -134,14 +134,6 @@ function getEventIdentityHeaders() {
   } as Record<string, string>;
 }
 
-function readAdminAllowlist() {
-  const source = process.env.NEXT_PUBLIC_ADMIN_WALLET_ALLOWLIST ?? "";
-  return source
-    .split(",")
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean);
-}
-
 function asHexAddress(address: string) {
   return address as `0x${string}`;
 }
@@ -1353,7 +1345,7 @@ function OrderEntryPanel(props: {
 
       {/* Available margin */}
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <div className="rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-2">
+        <div className="rounded-[16px]  bg-white/[0.03] px-3 py-2">
           <p className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">
             Available
           </p>
@@ -1363,7 +1355,7 @@ function OrderEntryPanel(props: {
               : "—"}
           </p>
         </div>
-        <div className="rounded-[16px] border border-white/6 bg-white/[0.03] px-3 py-2">
+        <div className="rounded-[16px] bg-white/[0.03] px-3 py-2">
           <p className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">
             Mark price
           </p>
@@ -2509,10 +2501,6 @@ export function TerminalShell(props: { market: string }) {
   const profileSlug = effectiveWalletAddress || "me";
   const effectiveReady = e2eConfig.enabled ? true : ready;
   const effectiveAuthenticated = e2eConfig.enabled ? true : authenticated;
-  const allowlist = useMemo(() => readAdminAllowlist(), []);
-  const isAdmin = effectiveWalletAddress
-    ? allowlist.includes(effectiveWalletAddress.toLowerCase())
-    : false;
   useEffect(() => {
     if (!e2eModeEnabled || typeof window === "undefined") return;
     const search = new URLSearchParams(window.location.search);
@@ -2823,7 +2811,9 @@ export function TerminalShell(props: { market: string }) {
               >
                 <span className="inline-flex items-center gap-2.5">
                   <Search className="size-3.5 shrink-0 text-[#5b8fff60]" />
-                  <span className="text-[13px]">Search markets or paste a wallet…</span>
+                  <span className="text-[13px]">
+                    Search markets or paste a wallet…
+                  </span>
                 </span>
                 <kbd className="rounded-md border border-white/[0.07] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-foreground/25">
                   /
@@ -2911,7 +2901,9 @@ export function TerminalShell(props: { market: string }) {
                           asChild
                           className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
                         >
-                          <Link href={`/profile/${encodeURIComponent(profileSlug)}`}>
+                          <Link
+                            href={`/profile/${encodeURIComponent(profileSlug)}`}
+                          >
                             <User className="size-4" />
                             Your profile
                           </Link>

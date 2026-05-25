@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import createJiti from "jiti";
+import { withBotId } from "botid/next/config";
 
 // Import env files to validate at build time. Use jiti so we can load .ts files in here.
 createJiti(fileURLToPath(import.meta.url))("./src/env");
@@ -26,4 +27,4 @@ const config = {
   typescript: { ignoreBuildErrors: true },
 };
 
-export default config;
+export default withBotId(config);

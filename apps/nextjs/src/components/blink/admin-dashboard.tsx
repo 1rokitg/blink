@@ -5,24 +5,25 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { Loader2, RefreshCw, Search } from "lucide-react";
+import { ArrowUpRight, Loader2, RefreshCw, Search } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
 
 import { Badge } from "@acme/ui/badge";
-import { Switch } from "@acme/ui/switch";
 import {
+  type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  type ChartConfig,
 } from "@acme/ui/chart";
+import { Switch } from "@acme/ui/switch";
 
-import { getAdminStats, type AdminStats } from "~/app/actions/get-admin-stats";
 import {
-  getAdminAccess,
   type AdminAccessResult,
+  getAdminAccess,
 } from "~/app/actions/get-admin-access";
+import { type AdminStats, getAdminStats } from "~/app/actions/get-admin-stats";
 import { setFeatureFlagAction } from "~/app/actions/set-feature-flag";
+import { BUILDER_ADDRESS } from "~/lib/blink/builder";
 
 function truncateAddress(address: string) {
   if (!address) return "—";
@@ -123,10 +124,9 @@ export function AdminDashboard() {
   );
   const identityEmails = useMemo(
     () =>
-      [
-        user?.email?.address,
-        user?.google?.email,
-      ].filter((email): email is string => Boolean(email)),
+      [user?.email?.address, user?.google?.email].filter(
+        (email): email is string => Boolean(email),
+      ),
     [user],
   );
   const [adminAccess, setAdminAccess] = useState<AdminAccessResult>({
@@ -174,6 +174,11 @@ export function AdminDashboard() {
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [flagSaving, setFlagSaving] = useState<string | null>(null);
   const [selectedRange, setSelectedRange] = useState<AdminRange>("1d");
+  const flowscanUrl = useMemo(
+    () =>
+      `https://www.flowscan.xyz/builders/${encodeURIComponent(BUILDER_ADDRESS)}?range=7d`,
+    [],
+  );
 
   const fetchStats = useCallback(
     async (options?: {
@@ -403,6 +408,15 @@ export function AdminDashboard() {
             </div>
 
             <div className="flex items-center gap-2">
+              <a
+                href={flowscanUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#8fbaff80] bg-[linear-gradient(180deg,#3c76ff,#2457db)] px-3 text-sm font-medium text-white shadow-[0_16px_40px_rgba(37,90,224,0.28)] transition hover:brightness-110"
+              >
+                Flowscan
+                <ArrowUpRight className="size-3.5" />
+              </a>
               <select
                 value={selectedRange}
                 onChange={(event) =>

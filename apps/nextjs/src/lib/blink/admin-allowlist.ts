@@ -2,7 +2,10 @@ const SUPERUSER_WALLETS = [
   "0xc7BcB2EeE9BbFbf875499960746Bc52B2E1A75C6".toLowerCase(),
 ] as const;
 
-const ADMIN_WALLETS = [...SUPERUSER_WALLETS] as const;
+const ADMIN_WALLETS = [
+  ...SUPERUSER_WALLETS,
+  "0xC073DeE020A561DEA671d8b7fF64F6fA1e90940D".toLowerCase(),
+] as const;
 
 export type BlinkRole = "viewer" | "admin" | "superuser";
 

@@ -3176,7 +3176,7 @@ export function TerminalShell(props: { market: string }) {
               X
             </a>
             <a
-              href="https://whop.com/the-circle-vip"
+              href="https://whop.com/joined/the-circle-vip/products/the-circle-monthly/"
               target="_blank"
               rel="noreferrer"
               className="transition hover:text-white"
@@ -3184,7 +3184,7 @@ export function TerminalShell(props: { market: string }) {
               Community
             </a>
             <a
-              href="https://t.me"
+              href="https://t.me/rokitgg"
               target="_blank"
               rel="noreferrer"
               className="transition hover:text-white"

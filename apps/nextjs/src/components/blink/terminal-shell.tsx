@@ -3161,6 +3161,16 @@ export function TerminalShell(props: { market: string }) {
               rokitg.fun
               <ArrowUpRight className="size-3" />
             </a>
+            <a
+              href="https://docs.blink.lat"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 text-foreground/72 transition hover:text-white"
+            >
+              <LayoutDashboard className="size-3.5 text-[#8fb9ff]" />
+              Docs
+              <ArrowUpRight className="size-3" />
+            </a>
             <Link
               href="https://hyperliquid.statuspage.io/"
               target="_blank"

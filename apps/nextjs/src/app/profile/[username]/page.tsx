@@ -1,24 +1,33 @@
 import { count, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { permanentRedirect } from "next/navigation";
 
 export async function generateMetadata(props: {
   params: Promise<{ username: string }>;
 }): Promise<Metadata> {
   const { username } = await props.params;
   const handle = decodeURIComponent(username);
+  const resolvedAddress = await resolveProfileAddress(handle);
+  const canonicalSlug = await getProfileSlugByWalletAddress(resolvedAddress);
+  const profileSlug = canonicalSlug ?? handle;
+  const profilePath = `/profile/${encodeURIComponent(profileSlug)}`;
+
   return {
-    title: `${handle} · Blink`,
-    description: `View ${handle}'s trading activity and performance on Blink — the social trading terminal for Hyperliquid.`,
+    title: `${profileSlug} · Blink`,
+    description: `View ${profileSlug}'s trading activity and performance on Blink — the social trading terminal for Hyperliquid.`,
+    alternates: {
+      canonical: profilePath,
+    },
     openGraph: {
-      title: `${handle} on Blink`,
-      description: `Check out ${handle}'s trades and performance on Hyperliquid.`,
-      url: `https://blink.lat/profile/${handle}`,
+      title: `${profileSlug} on Blink`,
+      description: `Check out ${profileSlug}'s trades and performance on Hyperliquid.`,
+      url: `https://blink.lat${profilePath}`,
     },
     twitter: {
       card: "summary_large_image",
-      title: `${handle} on Blink`,
-      description: `Check out ${handle}'s trades and performance on Hyperliquid.`,
+      title: `${profileSlug} on Blink`,
+      description: `Check out ${profileSlug}'s trades and performance on Hyperliquid.`,
     },
   };
 }
@@ -49,7 +58,10 @@ import { BUILDER_ADDRESS } from "~/lib/blink/builder";
 import { infoClient } from "~/lib/blink/hyperliquid";
 import { formatUsd } from "~/lib/blink/markets";
 import { isWalletBlinkPro } from "~/lib/blink/membership.server";
-import { resolveProfileAddress } from "~/lib/blink/resolve-address";
+import {
+  getProfileSlugByWalletAddress,
+  resolveProfileAddress,
+} from "~/lib/blink/resolve-address";
 
 function humanizeProfileSlug(slug: string) {
   const trimmed = slug.trim();
@@ -236,9 +248,14 @@ export default async function ProfilePage(props: {
   const slug = decodeURIComponent(rawUsername);
 
   const resolvedAddress = await resolveProfileAddress(slug);
+  const canonicalSlug = await getProfileSlugByWalletAddress(resolvedAddress);
+  if (canonicalSlug && canonicalSlug.toLowerCase() !== slug.toLowerCase()) {
+    permanentRedirect(`/profile/${encodeURIComponent(canonicalSlug)}`);
+  }
+
   const hero = await getProfileHeroData(resolvedAddress, slug);
   const showcaseStats = await getProfileShowcaseStats(resolvedAddress);
-  const profilePath = `/profile/${encodeURIComponent(slug)}`;
+  const profilePath = `/profile/${encodeURIComponent(canonicalSlug ?? slug)}`;
   const shareTitle = `${hero.displayName} on Blink`;
 
   return (

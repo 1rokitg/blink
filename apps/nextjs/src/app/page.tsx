@@ -32,8 +32,8 @@ export default function HomePage() {
           Blink
         </h1>
         <p className="mt-4 max-w-md text-base leading-7 text-foreground/65">
-          Crypto moves can be missed in the blink of an eye. Meet your brand new
-          Hyperliquid terminal.
+          Crypto moves can be missed in the blink of an eye. <br /> Meet your
+          brand new Hyperliquid terminal.
         </p>
 
         <Link

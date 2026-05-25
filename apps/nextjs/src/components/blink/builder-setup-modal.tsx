@@ -17,7 +17,7 @@ import {
   builderMaxFeeRate,
   isBuilderApproved,
 } from "~/lib/blink/builder";
-import { createExchangeClient } from "~/lib/blink/hyperliquid";
+import { createExchangeClient, infoClient } from "~/lib/blink/hyperliquid";
 
 function asHexAddress(address: string) {
   return address as `0x${string}`;
@@ -27,7 +27,20 @@ function truncateAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
+function isFundingRelatedError(errorMessage: string | null) {
+  if (!errorMessage) return false;
+  const lower = errorMessage.toLowerCase();
+  return (
+    lower.includes("must deposit") ||
+    lower.includes("deposit at least") ||
+    lower.includes("before performing actions") ||
+    lower.includes("account value")
+  );
+}
+
 type Step = "idle" | "step1-pending" | "step1-done" | "step2-pending" | "done";
+const MIN_HL_ACCOUNT_VALUE_USD = 20;
+const HYPERLIQUID_PORTFOLIO_URL = "https://app.hyperliquid.xyz/portfolio";
 
 function ensureExchangeActionOk(
   result: unknown,
@@ -66,11 +79,34 @@ export function BuilderSetupModal(props: {
   const [step, setStep] = useState<Step>("idle");
   const [checking, setChecking] = useState(false);
   const [successState, setSuccessState] = useState(false);
+  const [fundingCheckPending, setFundingCheckPending] = useState(false);
+  const [accountValueUsd, setAccountValueUsd] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const fundingError = isFundingRelatedError(error);
+  const needsFunding =
+    accountValueUsd !== null && accountValueUsd < MIN_HL_ACCOUNT_VALUE_USD;
   const shareText = `DO NOT BLINK! Just enabled builder routing on Blink for ${props.market} perps.`;
   const shareUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent("https://blink.lat")}`;
 
   if (!props.open) return null;
+
+  const ensureMinFunding = async () => {
+    setFundingCheckPending(true);
+    try {
+      const state = await infoClient.clearinghouseState({
+        user: asHexAddress(props.walletAddress),
+      });
+      const accountValue = Number(state?.marginSummary?.accountValue ?? 0);
+      setAccountValueUsd(accountValue);
+      if (accountValue < MIN_HL_ACCOUNT_VALUE_USD) {
+        throw new Error(
+          `Deposit at least ${MIN_HL_ACCOUNT_VALUE_USD} USDC on Hyperliquid before approvals. Current account value: $${accountValue.toFixed(2)}.`,
+        );
+      }
+    } finally {
+      setFundingCheckPending(false);
+    }
+  };
 
   const handleStep1 = async () => {
     const wallet = wallets[0];
@@ -78,6 +114,7 @@ export function BuilderSetupModal(props: {
     setStep("step1-pending");
     setError(null);
     try {
+      await ensureMinFunding();
       const provider = await wallet.getEthereumProvider();
       const accounts = (await provider.request({
         method: "eth_accounts",
@@ -115,6 +152,7 @@ export function BuilderSetupModal(props: {
     setStep("step2-pending");
     setError(null);
     try {
+      await ensureMinFunding();
       const provider = await wallet.getEthereumProvider();
       const accounts = (await provider.request({
         method: "eth_accounts",
@@ -164,6 +202,7 @@ export function BuilderSetupModal(props: {
     setChecking(true);
     setError(null);
     try {
+      await ensureMinFunding();
       const approved = await isBuilderApproved(
         asHexAddress(props.walletAddress),
         props.requiredFeeUnits,
@@ -279,6 +318,33 @@ export function BuilderSetupModal(props: {
                         Wallet: {truncateAddress(props.walletAddress)} · Market:{" "}
                         {props.market}
                       </p>
+                      <div className="mt-3 rounded-xl border border-[#ffd1663d] bg-[#ffd16614] p-3 text-xs text-[#ffe9b8cc]">
+                        <p className="font-medium text-[#ffe9b8]">
+                          Funding requirement for new accounts
+                        </p>
+                        <p className="mt-1">
+                          Hyperliquid requires at least{" "}
+                          {MIN_HL_ACCOUNT_VALUE_USD} USDC deposited before
+                          builder/agent approvals can succeed.
+                        </p>
+                        <p className="mt-1">
+                          Account value:{" "}
+                          {accountValueUsd === null
+                            ? "not checked yet"
+                            : `$${accountValueUsd.toFixed(2)}`}
+                        </p>
+                        {needsFunding ? (
+                          <a
+                            href={HYPERLIQUID_PORTFOLIO_URL}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-[#ffe6ad4f] bg-[#ffe6ad1a] px-2 py-1 text-[11px] font-semibold text-[#fff0c9] transition hover:bg-[#ffe6ad26]"
+                          >
+                            Fund on Hyperliquid
+                            <ExternalLink className="size-3.5" />
+                          </a>
+                        ) : null}
+                      </div>
 
                       {/* ── Step list ── */}
                       <div className="mt-5 space-y-3">
@@ -327,15 +393,21 @@ export function BuilderSetupModal(props: {
                                   type="button"
                                   className="whop-blue-btn mt-3 text-xs"
                                   onClick={() => void handleStep1()}
-                                  disabled={step === "step1-pending"}
+                                  disabled={
+                                    step === "step1-pending" ||
+                                    fundingCheckPending
+                                  }
                                 >
-                                  {step === "step1-pending" ? (
+                                  {step === "step1-pending" ||
+                                  fundingCheckPending ? (
                                     <>
                                       <Loader2 className="size-3.5 animate-spin" />{" "}
-                                      Waiting for wallet…
+                                      {fundingCheckPending
+                                        ? "Checking funding…"
+                                        : "Waiting for wallet…"}
                                     </>
                                   ) : (
-                                    "Sign in wallet →"
+                                    "Confirm"
                                   )}
                                 </button>
                               )}
@@ -388,7 +460,10 @@ export function BuilderSetupModal(props: {
                                   type="button"
                                   className="whop-blue-btn mt-3 text-xs"
                                   onClick={() => void handleStep2()}
-                                  disabled={step === "step2-pending"}
+                                  disabled={
+                                    step === "step2-pending" ||
+                                    fundingCheckPending
+                                  }
                                 >
                                   {step === "step2-pending" ? (
                                     <>
@@ -396,7 +471,7 @@ export function BuilderSetupModal(props: {
                                       Waiting for wallet…
                                     </>
                                   ) : (
-                                    "Sign in wallet →"
+                                    "Enable Trading"
                                   )}
                                 </button>
                               )}
@@ -405,8 +480,30 @@ export function BuilderSetupModal(props: {
                         </div>
                       </div>
 
-                      {error ? (
-                        <p className="mt-3 text-sm text-rose-300">{error}</p>
+                      {fundingError ? (
+                        <div className="mt-3 rounded-xl border border-[#ffd1663d] bg-[#ffd16614] p-3 text-sm text-[#ffe9b8cc]">
+                          <p className="font-medium text-[#ffe9b8]">
+                            Deposit needed to continue
+                          </p>
+                          <p className="mt-1 text-xs">
+                            Fund your Hyperliquid account with at least{" "}
+                            {MIN_HL_ACCOUNT_VALUE_USD} USDC, then tap{" "}
+                            <span className="font-semibold">Check</span>.
+                          </p>
+                          <a
+                            href={HYPERLIQUID_PORTFOLIO_URL}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-[#ffe6ad4f] bg-[#ffe6ad1a] px-2 py-1 text-[11px] font-semibold text-[#fff0c9] transition hover:bg-[#ffe6ad26]"
+                          >
+                            Fund on Hyperliquid
+                            <ExternalLink className="size-3.5" />
+                          </a>
+                        </div>
+                      ) : error ? (
+                        <p className="mt-3 text-sm text-rose-300">
+                          Could not complete setup right now. Please retry.
+                        </p>
                       ) : null}
 
                       <div className="mt-5 flex items-center gap-2">
@@ -416,6 +513,7 @@ export function BuilderSetupModal(props: {
                           onClick={() => void handleRecheck()}
                           disabled={
                             checking ||
+                            fundingCheckPending ||
                             step === "step1-pending" ||
                             step === "step2-pending"
                           }

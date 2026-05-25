@@ -114,6 +114,26 @@ function truncateAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
+function getEventIdentityHeaders() {
+  if (typeof window === "undefined") return {} as Record<string, string>;
+  const visitorKey = "blink:visitor-id";
+  const sessionKey = "blink:session-id";
+  let visitorId = window.localStorage.getItem(visitorKey);
+  let sessionId = window.sessionStorage.getItem(sessionKey);
+  if (!visitorId) {
+    visitorId = `v1_${crypto.randomUUID().replaceAll("-", "")}`;
+    window.localStorage.setItem(visitorKey, visitorId);
+  }
+  if (!sessionId) {
+    sessionId = `s1_${crypto.randomUUID().replaceAll("-", "")}`;
+    window.sessionStorage.setItem(sessionKey, sessionId);
+  }
+  return {
+    "x-blink-visitor-id": visitorId,
+    "x-blink-session-id": sessionId,
+  } as Record<string, string>;
+}
+
 function readAdminAllowlist() {
   const source = process.env.NEXT_PUBLIC_ADMIN_WALLET_ALLOWLIST ?? "";
   return source
@@ -200,7 +220,7 @@ function ConnectGate() {
             className="flex h-11 w-full items-center justify-center gap-2 rounded-[14px] border border-white/[0.09] bg-white/[0.04] text-sm font-medium text-white/80 transition hover:border-white/[0.16] hover:bg-white/[0.07] active:scale-[0.98]"
           >
             <Wallet className="size-4 text-white/55" />
-            Connect wallet
+            Continue with Google or wallet
           </button>
 
           {/* Feature pills */}
@@ -607,9 +627,11 @@ function LeftRail(props: {
               ⚡
             </div>
             <div>
-              <p className="text-sm font-semibold text-white">Quick Setup</p>
+              <p className="text-sm font-semibold text-white">
+                One-Click Setup
+              </p>
               <p className="text-xs text-foreground/50">
-                Import your Hyperliquid account — 2 sigs
+                Import your Hyperliquid account — live in seconds
               </p>
             </div>
             <ArrowRight className="ml-auto size-4 text-[#3be1ba] opacity-60 transition group-hover:translate-x-0.5 group-hover:opacity-100" />
@@ -620,9 +642,6 @@ function LeftRail(props: {
       <section className="glass-panel flex min-h-[392px] flex-col overflow-hidden p-0">
         <div className="border-b border-white/10 px-2.5 pb-1.5 pt-1.5">
           <div className="mb-1.5 flex items-center gap-1 text-sm">
-            <span className="rounded-md px-2 py-1 text-foreground/40 cursor-not-allowed text-xs">
-              Alerts
-            </span>
             <button
               type="button"
               onClick={() => setActiveTab("watchlist")}
@@ -648,7 +667,7 @@ function LeftRail(props: {
             <button
               type="button"
               onClick={() => setActiveTab("discover")}
-              className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs transition ${
+              className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition ${
                 activeTab === "discover"
                   ? "border border-[#c084fc50] bg-[#c084fc18] text-white"
                   : "text-foreground/50 hover:text-white"
@@ -656,6 +675,9 @@ function LeftRail(props: {
             >
               <Compass className="size-3" />
               Discover
+              <span className="rounded-full border border-[#c084fc50] bg-[#c084fc20] px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-[#d8b4fe]">
+                new
+              </span>
             </button>
           </div>
 
@@ -1236,7 +1258,10 @@ function OrderEntryPanel(props: {
           window.localStorage.setItem(firstTradeKey, "1");
           void fetch("/api/metrics/event", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...getEventIdentityHeaders(),
+            },
             body: JSON.stringify({
               eventType: "first_trade",
               walletAddress: props.walletAddress,
@@ -2481,6 +2506,7 @@ export function TerminalShell(props: { market: string }) {
   const effectiveWalletAddress = e2eConfig.enabled
     ? e2eConfig.walletAddress
     : walletAddress;
+  const profileSlug = effectiveWalletAddress || "me";
   const effectiveReady = e2eConfig.enabled ? true : ready;
   const effectiveAuthenticated = e2eConfig.enabled ? true : authenticated;
   const allowlist = useMemo(() => readAdminAllowlist(), []);
@@ -2576,7 +2602,10 @@ export function TerminalShell(props: { market: string }) {
 
     void fetch("/api/metrics/event", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...getEventIdentityHeaders(),
+      },
       body: JSON.stringify({
         eventType: "signup",
         walletAddress,
@@ -2700,12 +2729,6 @@ export function TerminalShell(props: { market: string }) {
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      // ⌘K / Ctrl+K — toggle
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
-        event.preventDefault();
-        setGlobalSearchOpen((prev) => !prev);
-        return;
-      }
       // "/" — open (only when no input/textarea is focused)
       if (
         event.key === "/" &&
@@ -2786,56 +2809,27 @@ export function TerminalShell(props: { market: string }) {
         />
 
         <div className="min-w-0 flex-1">
-          {/* ── Top header row — chips left · island zone · search right ── */}
-          <div className="mb-3 flex h-[68px] items-center gap-2 px-0.5">
-            {/* Quick market chips */}
-            <div className="flex items-center gap-1.5 overflow-hidden">
-              {(topMarketsQuery.data ?? []).slice(0, 5).map((m) => {
-                const pos = m.changePct >= 0;
-                return (
-                  <Link
-                    key={m.coin}
-                    href={`/trade/${m.coin}`}
-                    className={`group inline-flex items-center gap-1.5 rounded-[10px] border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                      m.coin === props.market
-                        ? "border-[#8fc2ff40] bg-[#111d3cad] text-white"
-                        : "border-white/[0.06] bg-white/[0.025] text-foreground/60 hover:border-white/[0.12] hover:bg-white/[0.05] hover:text-white"
-                    }`}
-                  >
-                    <span>{m.coin}</span>
-                    <span
-                      className={
-                        pos ? "text-emerald-400/80" : "text-rose-400/80"
-                      }
-                    >
-                      {pos ? "+" : ""}
-                      {m.changePct.toFixed(1)}%
-                    </span>
-                  </Link>
-                );
-              })}
-            </div>
-
-            {/* Island zone — keeps center clear */}
-            <div className="flex-1" />
-
-            {/* Search trigger — right-aligned */}
-            <button
-              type="button"
-              onClick={() => setGlobalSearchOpen(true)}
-              className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[11px] border border-[#8fc2ff3d] bg-[#111d3cad] pl-3 pr-2 text-sm text-foreground/50 transition hover:border-[#8fc2ff60] hover:bg-[#111d3cd0] hover:text-foreground/80"
-            >
-              <Search className="size-3.5 shrink-0" />
-              <span className="hidden text-xs sm:inline">Search markets</span>
-              <span className="ml-1 inline-flex items-center gap-1">
-                <kbd className="rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-foreground/35">
+          {/* ── Top header row — centered search with iOS glow ── */}
+          <div className="mb-3 flex h-[68px] items-center justify-center">
+            <div className="relative w-full max-w-md">
+              {/* Ambient glow layer */}
+              <div className="pointer-events-none absolute -inset-[3px] rounded-[18px] bg-[radial-gradient(ellipse_at_center,rgba(99,153,255,0.18)_0%,transparent_70%)] blur-[6px]" />
+              {/* Pulsing outer ring */}
+              <div className="pointer-events-none absolute -inset-px rounded-[16px] border border-[#5b8fff22] shadow-[0_0_18px_2px_rgba(91,143,255,0.10)]" />
+              <button
+                type="button"
+                onClick={() => setGlobalSearchOpen(true)}
+                className="relative flex h-11 w-full items-center justify-between gap-3 rounded-[14px] border border-[#4a7fff30] bg-[#0d1527cc] px-4 text-sm text-foreground/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm transition-all hover:border-[#4a7fff55] hover:bg-[#0d1527ee] hover:text-foreground/70 hover:shadow-[0_0_24px_4px_rgba(91,143,255,0.12)]"
+              >
+                <span className="inline-flex items-center gap-2.5">
+                  <Search className="size-3.5 shrink-0 text-[#5b8fff60]" />
+                  <span className="text-[13px]">Search markets or paste a wallet…</span>
+                </span>
+                <kbd className="rounded-md border border-white/[0.07] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-foreground/25">
                   /
                 </kbd>
-                <kbd className="rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-foreground/35">
-                  ⌘K
-                </kbd>
-              </span>
-            </button>
+              </button>
+            </div>
           </div>
 
           <MarketInfoBar
@@ -2917,9 +2911,7 @@ export function TerminalShell(props: { market: string }) {
                           asChild
                           className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
                         >
-                          <Link
-                            href={`/profile/${encodeURIComponent(user?.twitter?.username ?? user?.google?.email?.split("@")[0] ?? user?.email?.address?.split("@")[0] ?? user?.twitter?.username ?? user?.id ?? "me")}`}
-                          >
+                          <Link href={`/profile/${encodeURIComponent(profileSlug)}`}>
                             <User className="size-4" />
                             Your profile
                           </Link>

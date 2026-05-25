@@ -3,9 +3,16 @@
 import { count, desc, eq } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
-import { BlinkMembership, BuilderApproval, MetricEvent, Referral } from "@acme/db/schema";
+import {
+  BlinkMembership,
+  BuilderApproval,
+  MetricEvent,
+  Referral,
+} from "@acme/db/schema";
 
 import {
+  gethyperliquidBuilderMetricsSnapshot,
+  gethyperliquidLiveBuilderFillFeed,
   getBuilderAttributionSnapshot,
   getLiveBuilderFillFeed,
   getBuilderMetricsSnapshot,
@@ -13,12 +20,69 @@ import {
 } from "~/lib/blink/internal-metrics.server";
 import { getFeatureFlags } from "~/lib/blink/feature-flags.server";
 
+type KpiSource = "hyperliquid" | "offchain";
+
 export interface AdminStats {
+  windowDays: number;
+  syncedAt: string;
+  kpiSource: Record<string, KpiSource>;
+  hyperliquidSync: {
+    lastSyncedAt: string;
+    window: "today" | "7d" | "30d" | "90d";
+    freshness: "fresh" | "stale" | "unknown";
+  };
+  internalAnalytics: {
+    uniqueVisitors24h: number;
+    uniqueVisitors7d: number;
+    botEvents24h: number;
+    humanEvents24h: number;
+    topSources7d: Array<{
+      source: string;
+      events: number;
+      uniqueVisitors: number;
+    }>;
+    topCountries7d: Array<{
+      country: string;
+      events: number;
+      uniqueVisitors: number;
+    }>;
+  };
+  today: {
+    revenueUsd: number;
+    volumeUsd: number;
+    activeUsers: number;
+    fillsCount: number;
+    yesterdayRevenueUsd: number;
+    yesterdayVolumeUsd: number;
+  };
   totalApprovals: number;
   approvalsSince24h: number;
   approvalsSince7d: number;
   totalReferrals: number;
   activeProMembers: number;
+  finance: {
+    hyperliquid: {
+      totalRevenueUsd: number;
+      totalVolumeUsd: number;
+      totalUsers: number;
+      avgRevenuePerUser: number;
+      fillsCount: number;
+    };
+    offchain: {
+      totalRevenueUsd: number;
+      totalVolumeUsd: number;
+      totalUsers: number;
+      avgRevenuePerUser: number;
+      fillsCount: number;
+    };
+    reconciliation: {
+      revenue: { hyperliquid: number; offchain: number; delta: number };
+      volume: { hyperliquid: number; offchain: number; delta: number };
+      fills: { hyperliquid: number; offchain: number; delta: number };
+      users: { hyperliquid: number; offchain: number; delta: number };
+      status: "ok" | "warning" | "critical";
+    };
+  };
   funnel: {
     signups: number;
     approvedBuilder: number;
@@ -110,6 +174,7 @@ export async function getAdminStats(options?: {
   includeAttribution?: boolean;
   liveWindowMinutes?: number;
   liveLimit?: number;
+  windowDays?: 1 | 7 | 30 | 90;
 }): Promise<AdminStats> {
   // Keep UI on "Today" mode but fetch 2 days so yesterday deltas remain accurate.
   const canonicalWindowDays = 2;
@@ -125,8 +190,29 @@ export async function getAdminStats(options?: {
   const includeAttribution = options?.includeAttribution ?? true;
   const liveWindowMinutes = options?.liveWindowMinutes ?? 30;
   const liveLimit = options?.liveLimit ?? 120;
+  const windowDays = options?.windowDays ?? 90;
+  const windowLabel =
+    windowDays === 1
+      ? "today"
+      : windowDays === 7
+        ? "7d"
+        : windowDays === 30
+          ? "30d"
+          : "90d";
 
-  const [totalRows, allApprovals, referralRows, activeProRows, metricRows, builderSnapshot, attribution, liveFeed, featureFlags] = await Promise.all([
+  const [
+    totalRows,
+    allApprovals,
+    referralRows,
+    activeProRows,
+    metricRows,
+    builderSnapshot,
+    hyperliquidSnapshot,
+    attribution,
+    liveFeed,
+    hyperliquidLiveFeed,
+    featureFlags,
+  ] = await Promise.all([
     db.select({ c: count() }).from(BuilderApproval),
     db
       .select({
@@ -145,20 +231,29 @@ export async function getAdminStats(options?: {
     db
       .select({
         eventType: MetricEvent.eventType,
+        source: MetricEvent.source,
+        visitorId: MetricEvent.visitorId,
+        isBot: MetricEvent.isBot,
+        metadata: MetricEvent.metadata,
         createdAt: MetricEvent.createdAt,
       })
       .from(MetricEvent)
       .orderBy(desc(MetricEvent.createdAt))
       .limit(3000),
-    getBuilderMetricsSnapshot(canonicalWindowDays),
+    getBuilderMetricsSnapshot(windowDays),
+    gethyperliquidBuilderMetricsSnapshot(windowDays),
     includeAttribution
-      ? getBuilderAttributionSnapshot(canonicalWindowDays)
+      ? getBuilderAttributionSnapshot(windowDays)
       : Promise.resolve({
           byUser: [],
           bySource: [],
           byCountry: [],
         }),
     getLiveBuilderFillFeed({
+      minutes: liveWindowMinutes,
+      limit: liveLimit,
+    }),
+    gethyperliquidLiveBuilderFillFeed({
       minutes: liveWindowMinutes,
       limit: liveLimit,
     }),
@@ -183,11 +278,62 @@ export async function getAdminStats(options?: {
   });
   const funnel = {
     signups: funnelEvents.filter((e) => e.eventType === "signup").length,
-    approvedBuilder: funnelEvents.filter((e) => e.eventType === "builder_approved")
+    approvedBuilder: funnelEvents.filter(
+      (e) => e.eventType === "builder_approved",
+    ).length,
+    firstTrade: funnelEvents.filter((e) => e.eventType === "first_trade")
       .length,
-    firstTrade: funnelEvents.filter((e) => e.eventType === "first_trade").length,
-    proStarted: funnelEvents.filter((e) => e.eventType === "pro_started").length,
+    proStarted: funnelEvents.filter((e) => e.eventType === "pro_started")
+      .length,
   };
+
+  const event24h = metricRows.filter(
+    (row) => new Date(row.createdAt).getTime() > now - ms24h,
+  );
+  const event7d = metricRows.filter(
+    (row) => new Date(row.createdAt).getTime() > now - ms7d,
+  );
+  const uniqueVisitors24h = new Set(
+    event24h
+      .map((row) => row.visitorId)
+      .filter((value): value is string => Boolean(value)),
+  ).size;
+  const uniqueVisitors7d = new Set(
+    event7d
+      .map((row) => row.visitorId)
+      .filter((value): value is string => Boolean(value)),
+  ).size;
+  const botEvents24h = event24h.filter((row) => Boolean(row.isBot)).length;
+  const humanEvents24h = event24h.length - botEvents24h;
+
+  const sourceMap = new Map<
+    string,
+    { events: number; visitors: Set<string> }
+  >();
+  const countryMap = new Map<
+    string,
+    { events: number; visitors: Set<string> }
+  >();
+  for (const row of event7d) {
+    const source = String(row.source ?? "unknown").toLowerCase();
+    const meta = (row.metadata ?? {}) as Record<string, unknown>;
+    const country = String(meta.country ?? "unknown").toUpperCase();
+    const sourceItem = sourceMap.get(source) ?? {
+      events: 0,
+      visitors: new Set<string>(),
+    };
+    sourceItem.events += 1;
+    if (row.visitorId) sourceItem.visitors.add(row.visitorId);
+    sourceMap.set(source, sourceItem);
+
+    const countryItem = countryMap.get(country) ?? {
+      events: 0,
+      visitors: new Set<string>(),
+    };
+    countryItem.events += 1;
+    if (row.visitorId) countryItem.visitors.add(row.visitorId);
+    countryMap.set(country, countryItem);
+  }
 
   const weeklyMap = new Map<
     string,
@@ -206,7 +352,9 @@ export async function getAdminStats(options?: {
     const d = new Date(event.createdAt);
     const year = d.getUTCFullYear();
     const start = new Date(Date.UTC(year, 0, 1));
-    const diffDays = Math.floor((d.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+    const diffDays = Math.floor(
+      (d.getTime() - start.getTime()) / (24 * 60 * 60 * 1000),
+    );
     const week = `${year}-W${String(Math.floor(diffDays / 7) + 1).padStart(2, "0")}`;
     const current = weeklyMap.get(week) ?? {
       signups: 0,
@@ -224,27 +372,157 @@ export async function getAdminStats(options?: {
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([week, values]) => ({ week, ...values }));
 
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date();
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  const yesterdayKey = yesterday.toISOString().slice(0, 10);
+  const todayRow =
+    hyperliquidSnapshot.series.find((row) => row.day === todayKey) ??
+    builderSnapshot.series.find((row) => row.day === todayKey);
+  const yesterdayRow =
+    hyperliquidSnapshot.series.find((row) => row.day === yesterdayKey) ??
+    builderSnapshot.series.find((row) => row.day === yesterdayKey);
+
+  const revDelta =
+    hyperliquidSnapshot.totals.builderFeeUsd -
+    builderSnapshot.totals.builderFeeUsd;
+  const volDelta =
+    hyperliquidSnapshot.totals.volumeUsd - builderSnapshot.totals.volumeUsd;
+  const fillsDelta =
+    hyperliquidSnapshot.totals.fillsCount - builderSnapshot.totals.fillsCount;
+  const usersDelta =
+    hyperliquidSnapshot.totals.totalUsers - builderSnapshot.totals.totalUsers;
+
+  const revenueDeltaRatio =
+    hyperliquidSnapshot.totals.builderFeeUsd > 0
+      ? Math.abs(revDelta) / hyperliquidSnapshot.totals.builderFeeUsd
+      : 0;
+  const volumeDeltaRatio =
+    hyperliquidSnapshot.totals.volumeUsd > 0
+      ? Math.abs(volDelta) / hyperliquidSnapshot.totals.volumeUsd
+      : 0;
+  const maxDrift = Math.max(revenueDeltaRatio, volumeDeltaRatio);
+  const reconciliationStatus: "ok" | "warning" | "critical" =
+    maxDrift >= 0.2 ? "critical" : maxDrift >= 0.05 ? "warning" : "ok";
+
   return {
+    windowDays,
+    syncedAt: new Date().toISOString(),
+    kpiSource: {
+      builderRevenue: "hyperliquid",
+      routedVolume: "hyperliquid",
+      fills: "hyperliquid",
+      activeUsers: "hyperliquid",
+      avgRevenuePerUser: "hyperliquid",
+      signups: "offchain",
+      builderApprovals: "offchain",
+      firstTrade: "offchain",
+      proStarted: "offchain",
+      referrals: "offchain",
+    },
+    hyperliquidSync: {
+      lastSyncedAt: hyperliquidSnapshot.lastSyncedAt,
+      window: windowLabel,
+      freshness: hyperliquidSnapshot.freshness,
+    },
+    internalAnalytics: {
+      uniqueVisitors24h,
+      uniqueVisitors7d,
+      botEvents24h,
+      humanEvents24h,
+      topSources7d: Array.from(sourceMap.entries())
+        .map(([source, value]) => ({
+          source,
+          events: value.events,
+          uniqueVisitors: value.visitors.size,
+        }))
+        .sort((a, b) => b.events - a.events)
+        .slice(0, 8),
+      topCountries7d: Array.from(countryMap.entries())
+        .map(([country, value]) => ({
+          country,
+          events: value.events,
+          uniqueVisitors: value.visitors.size,
+        }))
+        .sort((a, b) => b.events - a.events)
+        .slice(0, 8),
+    },
+    today: {
+      revenueUsd: todayRow?.revenue ?? 0,
+      volumeUsd: todayRow?.volume ?? 0,
+      activeUsers: todayRow?.users ?? 0,
+      fillsCount:
+        hyperliquidLiveFeed.totals.fillsCount > 0
+          ? hyperliquidLiveFeed.totals.fillsCount
+          : liveFeed.totals.fillsCount,
+      yesterdayRevenueUsd: yesterdayRow?.revenue ?? 0,
+      yesterdayVolumeUsd: yesterdayRow?.volume ?? 0,
+    },
     totalApprovals: Number(total),
     approvalsSince24h,
     approvalsSince7d,
     totalReferrals,
     activeProMembers,
+    finance: {
+      hyperliquid: {
+        totalRevenueUsd: hyperliquidSnapshot.totals.builderFeeUsd,
+        totalVolumeUsd: hyperliquidSnapshot.totals.volumeUsd,
+        totalUsers: hyperliquidSnapshot.totals.totalUsers,
+        avgRevenuePerUser: hyperliquidSnapshot.totals.avgRevenuePerUser,
+        fillsCount: hyperliquidSnapshot.totals.fillsCount,
+      },
+      offchain: {
+        totalRevenueUsd: builderSnapshot.totals.builderFeeUsd,
+        totalVolumeUsd: builderSnapshot.totals.volumeUsd,
+        totalUsers: builderSnapshot.totals.totalUsers,
+        avgRevenuePerUser: builderSnapshot.totals.avgRevenuePerUser,
+        fillsCount: builderSnapshot.totals.fillsCount,
+      },
+      reconciliation: {
+        revenue: {
+          hyperliquid: hyperliquidSnapshot.totals.builderFeeUsd,
+          offchain: builderSnapshot.totals.builderFeeUsd,
+          delta: revDelta,
+        },
+        volume: {
+          hyperliquid: hyperliquidSnapshot.totals.volumeUsd,
+          offchain: builderSnapshot.totals.volumeUsd,
+          delta: volDelta,
+        },
+        fills: {
+          hyperliquid: hyperliquidSnapshot.totals.fillsCount,
+          offchain: builderSnapshot.totals.fillsCount,
+          delta: fillsDelta,
+        },
+        users: {
+          hyperliquid: hyperliquidSnapshot.totals.totalUsers,
+          offchain: builderSnapshot.totals.totalUsers,
+          delta: usersDelta,
+        },
+        status: reconciliationStatus,
+      },
+    },
     funnel,
     weeklyCohorts,
     builder: {
       address: process.env.NEXT_PUBLIC_BUILDER_ADDRESS ?? "",
-      totalRevenueUsd: builderSnapshot.totals.builderFeeUsd,
-      totalVolumeUsd: builderSnapshot.totals.volumeUsd,
-      totalUsers: builderSnapshot.totals.totalUsers,
-      avgRevenuePerUser: builderSnapshot.totals.avgRevenuePerUser,
-      fillsCount: builderSnapshot.totals.fillsCount,
-      series: builderSnapshot.series,
+      totalRevenueUsd: hyperliquidSnapshot.totals.builderFeeUsd,
+      totalVolumeUsd: hyperliquidSnapshot.totals.volumeUsd,
+      totalUsers: hyperliquidSnapshot.totals.totalUsers,
+      avgRevenuePerUser: hyperliquidSnapshot.totals.avgRevenuePerUser,
+      fillsCount: hyperliquidSnapshot.totals.fillsCount,
+      series: hyperliquidSnapshot.series,
       attribution,
       live: {
         windowMinutes: liveWindowMinutes,
-        totals: liveFeed.totals,
-        fills: liveFeed.fills,
+        totals:
+          hyperliquidLiveFeed.totals.fillsCount > 0
+            ? hyperliquidLiveFeed.totals
+            : liveFeed.totals,
+        fills:
+          hyperliquidLiveFeed.fills.length > 0
+            ? hyperliquidLiveFeed.fills
+            : liveFeed.fills,
       },
     },
     recentApprovals: allApprovals.slice(0, 10).map((a) => ({

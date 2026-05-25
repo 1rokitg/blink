@@ -16,15 +16,10 @@ const FIRST_AFFILIATE = {
   name: "BasedBuilder007",
   xHandle: "@BasedBuilder007",
   xUrl: "https://x.com/BasedBuilder007",
-  boostedCode: "BASED",
+  boostedCode: "BB",
   boost: "2.0x",
   payoutSplit: "35%",
 };
-
-function getXAvatarUrl(handle: string) {
-  const username = handle.replace("@", "").trim();
-  return `https://unavatar.io/x/${encodeURIComponent(username)}`;
-}
 
 export function AffiliatesDashboard() {
   const { wallets } = useWallets();
@@ -121,19 +116,7 @@ export function AffiliatesDashboard() {
             <div className="mt-5 grid gap-4 lg:grid-cols-[2fr_1fr]">
               <div className="rounded-xl border border-white/10 bg-[#121726] p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <img
-                      src={getXAvatarUrl(FIRST_AFFILIATE.xHandle)}
-                      alt={`${FIRST_AFFILIATE.name} X avatar`}
-                      className="size-12 rounded-full border border-white/15 object-cover"
-                      referrerPolicy="no-referrer"
-                      onError={(event) => {
-                        event.currentTarget.src = `https://avatar.vercel.sh/${encodeURIComponent(
-                          FIRST_AFFILIATE.name,
-                        )}.png?size=96`;
-                      }}
-                    />
-                    <div>
+                  <div>
                     <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
                       Affiliate
                     </p>
@@ -149,7 +132,6 @@ export function AffiliatesDashboard() {
                       {FIRST_AFFILIATE.xHandle}
                       <ExternalLink className="size-3.5" />
                     </a>
-                  </div>
                   </div>
 
                   <Badge className="rounded-full border border-emerald-400/35 bg-emerald-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-emerald-300">

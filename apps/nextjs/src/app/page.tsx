@@ -29,7 +29,7 @@ export default function HomePage() {
         </motion.div>
 
         <h1 className="mt-6 text-5xl font-semibold tracking-[-0.06em] text-white md:text-6xl">
-          DO NOT BLINK
+          Do Not Blink
         </h1>
         <p className="mt-4 max-w-md text-base leading-7 text-foreground/65">
           Crypto moves can be missed in the blink of an eye. Meet your brand new

@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { z } from "zod";
 
 import { trackMetricEvent } from "~/lib/blink/internal-metrics.server";
+import { resolveEventIdentity } from "~/lib/blink/event-identity";
 
 export const runtime = "nodejs";
 
@@ -16,7 +17,7 @@ const bodySchema = z.object({
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
   }
 
   const h = request.headers;
+  const identity = resolveEventIdentity(h);
 
   // ── Vercel geo headers (free, injected at edge) ──────────────────────────
   const country = h.get("x-vercel-ip-country") ?? h.get("cf-ipcountry") ?? "unknown";
@@ -58,9 +60,21 @@ export async function POST(request: Request) {
 
   await trackMetricEvent({
     ...parsed.data,
+    visitorId: identity.visitorId,
+    sessionId: identity.sessionId,
+    requestId: identity.requestId,
+    isBot: identity.bot.isBot,
+    botId: identity.bot.botId,
     source: parsed.data.source ?? refHost,
     metadata: {
       ...(parsed.data.metadata ?? {}),
+      visitorId: identity.visitorId,
+      sessionId: identity.sessionId,
+      requestId: identity.requestId,
+      ...(identity.bot.botTag ? { botTag: identity.bot.botTag } : {}),
+      ...(identity.bot.firewallAction
+        ? { firewallAction: identity.bot.firewallAction }
+        : {}),
       // Geo
       country,
       ...(region   ? { region }   : {}),
@@ -78,5 +92,13 @@ export async function POST(request: Request) {
       ...(utmCampaign ? { utmCampaign } : {}),
     },
   });
-  return NextResponse.json({ ok: true });
+  const response = NextResponse.json({
+    ok: true,
+    visitorId: identity.visitorId,
+    sessionId: identity.sessionId,
+  });
+  for (const cookie of identity.setCookies) {
+    response.headers.append("set-cookie", cookie);
+  }
+  return response;
 }

@@ -221,7 +221,10 @@ export default function RewardsPage() {
           <div className="flex items-center gap-1">
             {[
               { href: "/trade/BTC", label: "Trade" },
-              { href: `/profile/${address ?? ""}`, label: "Profile" },
+              {
+                href: code ? `/profile/${code}` : `/profile/${address ?? ""}`,
+                label: "Profile",
+              },
               { href: "/rewards", label: "Rewards", active: true },
             ].map((item) => (
               <Link

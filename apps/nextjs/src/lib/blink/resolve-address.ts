@@ -1,23 +1,22 @@
 /**
- * Resolves a slug (ENS name, wallet address, or Blink username) to a lowercase
+ * Resolves a slug (ENS name, wallet address, or Blink profile code) to a lowercase
  * EVM wallet address. Used by the public profile page.
  *
  * Resolution order:
  *   1. Raw 0x address  → return as-is (lowercased)
  *   2. *.eth / *.xyz / etc  → ENS resolution via viem + Cloudflare eth RPC
- *   3. Blink username  → look up UserProfile.displayName in Neon
+ *   3. Blink profile code  → look up ReferralCode.code in Neon
  *   4. Not found       → null
  */
 
-import { createPublicClient, http } from "viem";
-import { mainnet } from "viem/chains";
 import { eq } from "drizzle-orm";
+import { http, createPublicClient } from "viem";
+import { mainnet } from "viem/chains";
 
 import { db } from "@acme/db/client";
-import { UserProfile } from "@acme/db/schema";
+import { ReferralCode, UserProfile } from "@acme/db/schema";
 
-const ETH_RPC =
-  process.env.ETH_RPC_URL ?? "https://cloudflare-eth.com";
+const ETH_RPC = process.env.ETH_RPC_URL ?? "https://cloudflare-eth.com";
 
 // Lazy singleton — only created when ENS resolution is needed
 let _client: ReturnType<typeof createPublicClient> | null = null;
@@ -39,6 +38,24 @@ function isWalletAddress(s: string): boolean {
 
 function looksLikeEns(s: string): boolean {
   return ENS_TLDS.some((tld) => s.toLowerCase().endsWith(tld));
+}
+
+export async function getProfileSlugByWalletAddress(
+  walletAddress?: string | null,
+): Promise<string | null> {
+  if (!walletAddress || !isWalletAddress(walletAddress)) return null;
+
+  try {
+    const rows = await db
+      .select({ code: ReferralCode.code })
+      .from(ReferralCode)
+      .where(eq(ReferralCode.walletAddress, walletAddress.toLowerCase()))
+      .limit(1);
+
+    return rows[0]?.code ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /** Resolve an ENS name to an address. Returns null on failure. */
@@ -72,12 +89,12 @@ export async function resolveProfileAddress(
     // Fall through — maybe it's also a Blink username coincidentally
   }
 
-  // 3. Blink username lookup in Neon
+  // 3. Blink profile code lookup in Neon
   try {
     const rows = await db
-      .select({ walletAddress: UserProfile.walletAddress })
-      .from(UserProfile)
-      .where(eq(UserProfile.displayName, s))
+      .select({ walletAddress: ReferralCode.walletAddress })
+      .from(ReferralCode)
+      .where(eq(ReferralCode.code, s.toLowerCase()))
       .limit(1);
 
     if (rows.length > 0 && rows[0]) return rows[0].walletAddress;

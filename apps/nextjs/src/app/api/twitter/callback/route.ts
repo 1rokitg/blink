@@ -1,12 +1,18 @@
-import { type NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
+import { type NextRequest, NextResponse } from "next/server";
 
 import { db } from "@acme/db/client";
 import { TwitterConnection } from "@acme/db/schema";
+import { env } from "~/env";
+import {
+  DEFAULT_TWITTER_RETURN_TO,
+  TWITTER_CLAIM_CONTEXT_COOKIE,
+  TWITTER_OAUTH_STATE_COOKIE,
+  TWITTER_PKCE_VERIFIER_COOKIE,
+  sanitizeTwitterReturnTo,
+} from "~/lib/blink/twitter-ownership";
 
-const CLIENT_ID = process.env.TWITTER_CLIENT_ID ?? "";
-const CLIENT_SECRET = process.env.TWITTER_CLIENT_SECRET ?? "";
+export const runtime = "nodejs";
 
 interface TwitterTokenResponse {
   access_token: string;
@@ -26,6 +32,57 @@ interface TwitterUserResponse {
   errors?: { message: string }[];
 }
 
+function parseClaimContext(value?: string) {
+  if (!value) return null;
+
+  try {
+    const parsed = JSON.parse(
+      Buffer.from(value, "base64url").toString("utf8"),
+    ) as {
+      returnTo?: string;
+      walletAddress?: string;
+    };
+
+    if (!parsed.returnTo || !parsed.walletAddress) {
+      return null;
+    }
+
+    return {
+      returnTo: sanitizeTwitterReturnTo(parsed.returnTo),
+      walletAddress: parsed.walletAddress.toLowerCase(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function clearTwitterCookies(response: NextResponse) {
+  response.cookies.delete(TWITTER_CLAIM_CONTEXT_COOKIE);
+  response.cookies.delete(TWITTER_OAUTH_STATE_COOKIE);
+  response.cookies.delete(TWITTER_PKCE_VERIFIER_COOKIE);
+}
+
+function buildReturnRedirect(params: {
+  appUrl: string;
+  returnTo?: string;
+  searchParams: Record<string, string>;
+}) {
+  const redirectUrl = new URL(
+    params.returnTo ?? DEFAULT_TWITTER_RETURN_TO,
+    params.appUrl,
+  );
+
+  for (const [key, value] of Object.entries(params.searchParams)) {
+    redirectUrl.searchParams.set(key, value);
+  }
+
+  return redirectUrl;
+}
+
+function getCanonicalAppUrl() {
+  return env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
+}
+
 /**
  * GET /api/twitter/callback?code=...&state=...
  *
@@ -34,37 +91,50 @@ interface TwitterUserResponse {
  * store the connection in DB, then redirect back to the profile page.
  */
 export async function GET(req: NextRequest) {
-  const appUrl = req.nextUrl.origin;
+  const appUrl = getCanonicalAppUrl();
   const redirectUri = `${appUrl}/api/twitter/callback`;
-
   const url = req.nextUrl;
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const error = url.searchParams.get("error");
+  const claimContext = parseClaimContext(
+    req.cookies.get(TWITTER_CLAIM_CONTEXT_COOKIE)?.value,
+  );
+  const returnTo = claimContext?.returnTo ?? DEFAULT_TWITTER_RETURN_TO;
 
-  const failRedirect = (reason: string) =>
-    NextResponse.redirect(`${appUrl}/profile?twitter_error=${encodeURIComponent(reason)}`);
+  const failRedirect = (reason: string) => {
+    const response = NextResponse.redirect(
+      buildReturnRedirect({
+        appUrl,
+        returnTo,
+        searchParams: { twitter_error: reason },
+      }),
+    );
+    clearTwitterCookies(response);
+    return response;
+  };
 
   if (error) return failRedirect(error);
   if (!code || !state) return failRedirect("missing_params");
+  if (!claimContext?.walletAddress)
+    return failRedirect("claim_session_expired");
+  if (!env.TWITTER_CLIENT_ID || !env.TWITTER_CLIENT_SECRET) {
+    return failRedirect("twitter_client_not_configured");
+  }
 
-  // Retrieve code_verifier from cookie
-  const cookieStore = await cookies();
-  const codeVerifier = cookieStore.get("tw_pkce_verifier")?.value;
-  if (!codeVerifier) return failRedirect("session_expired");
-
-  // Decode wallet address from state
-  let walletAddress: string;
-  try {
-    walletAddress = Buffer.from(state, "base64url").toString();
-    if (!walletAddress.startsWith("0x")) throw new Error("bad wallet");
-  } catch {
+  const expectedState = req.cookies.get(TWITTER_OAUTH_STATE_COOKIE)?.value;
+  if (!expectedState || expectedState !== state) {
     return failRedirect("invalid_state");
   }
 
+  const codeVerifier = req.cookies.get(TWITTER_PKCE_VERIFIER_COOKIE)?.value;
+  if (!codeVerifier) return failRedirect("session_expired");
+
   // ── Exchange code for token ───────────────────────────────────────────────
 
-  const basicAuth = Buffer.from(`${CLIENT_ID}:${CLIENT_SECRET}`).toString("base64");
+  const basicAuth = Buffer.from(
+    `${env.TWITTER_CLIENT_ID}:${env.TWITTER_CLIENT_SECRET}`,
+  ).toString("base64");
 
   const tokenRes = await fetch("https://api.twitter.com/2/oauth2/token", {
     method: "POST",
@@ -75,7 +145,7 @@ export async function GET(req: NextRequest) {
     body: new URLSearchParams({
       code,
       grant_type: "authorization_code",
-      client_id: CLIENT_ID,
+      client_id: env.TWITTER_CLIENT_ID,
       redirect_uri: redirectUri,
       code_verifier: codeVerifier,
     }).toString(),
@@ -105,10 +175,26 @@ export async function GET(req: NextRequest) {
 
   // ── Upsert connection in DB ───────────────────────────────────────────────
 
+  const existingClaim = await db
+    .select({
+      twitterId: TwitterConnection.twitterId,
+      walletAddress: TwitterConnection.walletAddress,
+    })
+    .from(TwitterConnection)
+    .where(eq(TwitterConnection.twitterId, twitterUser.id))
+    .limit(1);
+
+  if (
+    existingClaim[0] &&
+    existingClaim[0].walletAddress !== claimContext.walletAddress
+  ) {
+    return failRedirect("twitter_account_already_claimed");
+  }
+
   await db
     .insert(TwitterConnection)
     .values({
-      walletAddress,
+      walletAddress: claimContext.walletAddress,
       twitterId: twitterUser.id,
       twitterUsername: twitterUser.username,
       twitterName: twitterUser.name,
@@ -123,11 +209,13 @@ export async function GET(req: NextRequest) {
       },
     });
 
-  // ── Clean up cookie and redirect ─────────────────────────────────────────
-
-  cookieStore.delete("tw_pkce_verifier");
-
-  return NextResponse.redirect(
-    `${appUrl}/profile/${twitterUser.username}?twitter_connected=1`,
+  const response = NextResponse.redirect(
+    buildReturnRedirect({
+      appUrl,
+      returnTo,
+      searchParams: { twitter_connected: "1" },
+    }),
   );
+  clearTwitterCookies(response);
+  return response;
 }

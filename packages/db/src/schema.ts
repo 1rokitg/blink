@@ -144,17 +144,14 @@ export const BlinkMembership = pgTable("blink_membership", (t) => ({
  * Social follow graph — who follows whom, keyed by wallet address.
  * Enables follower/following counts and "people you follow" feeds.
  */
-export const Follow = pgTable(
-  "follow",
-  (t) => ({
-    id: t.uuid().notNull().primaryKey().defaultRandom(),
-    /** Wallet address of the user who is following. */
-    followerAddress: t.varchar({ length: 42 }).notNull(),
-    /** Wallet address of the trader being followed. */
-    followingAddress: t.varchar({ length: 42 }).notNull(),
-    createdAt: t.timestamp().defaultNow().notNull(),
-  }),
-);
+export const Follow = pgTable("follow", (t) => ({
+  id: t.uuid().notNull().primaryKey().defaultRandom(),
+  /** Wallet address of the user who is following. */
+  followerAddress: t.varchar({ length: 42 }).notNull(),
+  /** Wallet address of the trader being followed. */
+  followingAddress: t.varchar({ length: 42 }).notNull(),
+  createdAt: t.timestamp().defaultNow().notNull(),
+}));
 
 /**
  * User profile metadata stored in Neon.
@@ -253,6 +250,22 @@ export const FeatureFlag = pgTable("feature_flag", (t) => ({
   enabled: t.boolean().notNull().default(false),
   description: t.varchar({ length: 255 }),
   updatedBy: t.varchar({ length: 42 }),
+  createdAt: t.timestamp().defaultNow().notNull(),
+  updatedAt: t
+    .timestamp({ mode: "date", withTimezone: true })
+    .$onUpdateFn(() => sql`now()`),
+}));
+
+/**
+ * Internal RBAC for Blink admin surfaces.
+ * Source of truth for admin/superuser access.
+ */
+export const InternalRole = pgTable("internal_role", (t) => ({
+  id: t.uuid().notNull().primaryKey().defaultRandom(),
+  walletAddress: t.varchar({ length: 42 }).notNull().unique(),
+  role: t.varchar({ length: 24 }).notNull().default("viewer"),
+  note: t.varchar({ length: 255 }),
+  grantedBy: t.varchar({ length: 42 }),
   createdAt: t.timestamp().defaultNow().notNull(),
   updatedAt: t
     .timestamp({ mode: "date", withTimezone: true })

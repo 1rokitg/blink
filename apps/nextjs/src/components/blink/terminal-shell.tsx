@@ -134,14 +134,6 @@ function getEventIdentityHeaders() {
   } as Record<string, string>;
 }
 
-function readAdminAllowlist() {
-  const source = process.env.NEXT_PUBLIC_ADMIN_WALLET_ALLOWLIST ?? "";
-  return source
-    .split(",")
-    .map((entry) => entry.trim().toLowerCase())
-    .filter(Boolean);
-}
-
 function asHexAddress(address: string) {
   return address as `0x${string}`;
 }
@@ -2509,10 +2501,6 @@ export function TerminalShell(props: { market: string }) {
   const profileSlug = effectiveWalletAddress || "me";
   const effectiveReady = e2eConfig.enabled ? true : ready;
   const effectiveAuthenticated = e2eConfig.enabled ? true : authenticated;
-  const allowlist = useMemo(() => readAdminAllowlist(), []);
-  const isAdmin = effectiveWalletAddress
-    ? allowlist.includes(effectiveWalletAddress.toLowerCase())
-    : false;
   useEffect(() => {
     if (!e2eModeEnabled || typeof window === "undefined") return;
     const search = new URLSearchParams(window.location.search);

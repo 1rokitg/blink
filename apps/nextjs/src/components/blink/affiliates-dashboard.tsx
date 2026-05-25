@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 
@@ -10,24 +10,75 @@ import { toast } from "sonner";
 
 import { Badge } from "@acme/ui/badge";
 
-import { getWalletRole, isAdminWallet } from "~/lib/blink/admin-allowlist";
+import {
+  getAdminAccess,
+  type AdminAccessResult,
+} from "~/app/actions/get-admin-access";
 import { AFFILIATE_SEEDS } from "~/lib/blink/affiliate-seeds";
 
 export function AffiliatesDashboard() {
   const { wallets } = useWallets();
-  const connectedWallets = wallets
-    .map((wallet) => wallet.address?.toLowerCase())
-    .filter((address): address is string => Boolean(address));
-  const matchedAdminWallet =
-    connectedWallets.find((address) => isAdminWallet(address)) ?? "";
-  const isAllowed = Boolean(matchedAdminWallet);
-  const role = getWalletRole(matchedAdminWallet);
+  const connectedWallets = useMemo(
+    () =>
+      wallets
+        .map((wallet) => wallet.address?.toLowerCase())
+        .filter((address): address is string => Boolean(address)),
+    [wallets],
+  );
+  const [adminAccess, setAdminAccess] = useState<AdminAccessResult>({
+    allowed: false,
+    role: "viewer",
+    walletAddress: "",
+  });
+  const [checkingAccess, setCheckingAccess] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveAccess() {
+      setCheckingAccess(true);
+      try {
+        const access = await getAdminAccess(connectedWallets);
+        if (!cancelled) setAdminAccess(access);
+      } catch (err) {
+        console.error("[affiliates] Failed to resolve admin access:", err);
+      } finally {
+        if (!cancelled) setCheckingAccess(false);
+      }
+    }
+
+    void resolveAccess();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [connectedWallets]);
+
+  const isAllowed = adminAccess.allowed;
+  const role = adminAccess.role;
 
   const primaryAffiliate = AFFILIATE_SEEDS[0];
   const referralLink = useMemo(() => {
     if (!primaryAffiliate) return "https://blink.lat/r/BLINK";
     return `https://blink.lat/r/${primaryAffiliate.code}`;
   }, [primaryAffiliate]);
+
+  if (checkingAccess) {
+    return (
+      <main className="min-h-screen bg-[#06070b] px-6 py-8 text-foreground">
+        <div className="mx-auto max-w-3xl">
+          <section className="rounded-2xl border border-white/10 bg-[#0f121a] p-8">
+            <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
+              Admin
+            </Badge>
+            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">
+              Verifying access…
+            </h1>
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   if (!isAllowed) {
     return (
@@ -38,10 +89,11 @@ export function AffiliatesDashboard() {
               Admin
             </Badge>
             <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">
-              Allowlisted wallet required.
+              Admin role required.
             </h1>
             <p className="mt-3 text-base leading-7 text-foreground/58">
-              Blink internal tools are gated behind the wallet allowlist.
+              Blink internal tools use Neon-backed RBAC. Ask a superuser to
+              grant your connected wallet an admin or superuser role.
             </p>
             <Link
               href="/trade/BTC"

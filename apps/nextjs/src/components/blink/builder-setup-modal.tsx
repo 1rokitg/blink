@@ -395,7 +395,7 @@ export function BuilderSetupModal(props: {
                                         : "Waiting for wallet…"}
                                     </>
                                   ) : (
-                                    "Sign in wallet →"
+                                    "Confirm"
                                   )}
                                 </button>
                               )}
@@ -459,7 +459,7 @@ export function BuilderSetupModal(props: {
                                       Waiting for wallet…
                                     </>
                                   ) : (
-                                    "Sign in wallet →"
+                                    "Enable Trading"
                                   )}
                                 </button>
                               )}

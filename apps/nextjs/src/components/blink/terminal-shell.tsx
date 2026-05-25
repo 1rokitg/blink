@@ -7,17 +7,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLogout, usePrivy, useWallets } from "@privy-io/react-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  AnimatePresence,
-  motion,
-  useMotionValue,
-  useTransform,
-  animate,
-} from "motion/react";
-import {
   ArrowDown,
+  ArrowDownRight,
   ArrowRight,
-  ArrowUpRight,
   ArrowUp,
+  ArrowUpRight,
+  Banknote,
   Check,
   CircleDot,
   Compass,
@@ -29,24 +24,29 @@ import {
   LayoutDashboard,
   Loader2,
   LogOut,
+  PlayCircle,
+  Search,
+  Settings2,
+  Share,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  TicketPercent,
   TrendingDown,
   TrendingUp,
   User,
   UserCog,
   Users,
-  PlayCircle,
-  Search,
-  Settings2,
-  ShieldCheck,
-  Sparkles,
-  Star,
   Wallet,
   X,
-  Banknote,
-  ArrowDownRight,
-  Share,
-  TicketPercent,
 } from "lucide-react";
+import {
+  AnimatePresence,
+  animate,
+  motion,
+  useMotionValue,
+  useTransform,
+} from "motion/react";
 import { toast } from "sonner";
 
 import { Badge } from "@acme/ui/badge";
@@ -70,6 +70,7 @@ import {
 import { Input } from "@acme/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@acme/ui/tabs";
 
+import { createAgentExchangeClient } from "~/lib/blink/agent-wallet";
 import {
   BUILDER_ADDRESS,
   BUILDER_FEE_UNITS,
@@ -81,16 +82,15 @@ import {
   isGrowthModeEnabled,
 } from "~/lib/blink/growth-mode";
 import {
-  getAssetIndex,
-  getAssetIndexSync,
-  infoClient,
-} from "~/lib/blink/hyperliquid";
-import { createAgentExchangeClient } from "~/lib/blink/agent-wallet";
-import {
   maskNumberish,
   maskValue,
   useHideBalances,
 } from "~/lib/blink/hide-balances";
+import {
+  getAssetIndex,
+  getAssetIndexSync,
+  infoClient,
+} from "~/lib/blink/hyperliquid";
 import {
   fetchTopMarketsByVolume,
   formatCompactNumber,
@@ -98,17 +98,17 @@ import {
   marketToSlug,
 } from "~/lib/blink/markets";
 
+import { emitTradingEvent } from "~/lib/blink/island-bus";
 import { AccountManagementModal } from "./account-management-modal";
+import { AssetIcon } from "./asset-icon";
 import { BuilderSetupModal } from "./builder-setup-modal";
 import { MarketInfoBar } from "./market-info-bar";
-import { PnlShareModal, type PnlPositionData } from "./pnl-share-modal";
-import { TradingIsland } from "./trading-island";
+import { type PnlPositionData, PnlShareModal } from "./pnl-share-modal";
 import { ReferralWelcomeBanner } from "./referral-welcome-banner";
-import { emitTradingEvent } from "~/lib/blink/island-bus";
 import { ReferralsModal } from "./referrals-modal";
 import { TerminalOrderBook } from "./terminal-order-book";
+import { TradingIsland } from "./trading-island";
 import { TradingViewPanel } from "./trading-view-panel";
-import { AssetIcon } from "./asset-icon";
 
 function truncateAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -3165,6 +3165,12 @@ export function TerminalShell(props: { market: string }) {
             </Link>
           </div>
           <div className="flex items-center gap-3 text-foreground/55">
+            <Link href="/privacy" className="transition hover:text-white">
+              Privacy
+            </Link>
+            <Link href="/tos" className="transition hover:text-white">
+              Terms
+            </Link>
             <a
               href="https://discord.gg/Myu962DMMA"
               target="_blank"

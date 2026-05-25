@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { useWallets } from "@privy-io/react-auth";
-import { Check, CircleHelp, Gift, Shield, Zap } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -12,6 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@acme/ui/select";
+import { useWallets } from "@privy-io/react-auth";
+import { Check, CircleHelp, Gift, Shield, Zap } from "lucide-react";
 import { toast } from "sonner";
 import {
   getGrowthProDiscountRate,
@@ -339,8 +339,21 @@ export default function BlinkProPage() {
             </div>
 
             <p className="mt-5 text-sm text-white/55">
-              By clicking Join now, you accept terms and authorize recurring
-              charges.
+              By clicking Join now, you agree to the{" "}
+              <Link
+                href="/tos"
+                className="text-[#9bddff] underline-offset-4 transition hover:text-white hover:underline"
+              >
+                Terms of Service
+              </Link>{" "}
+              and acknowledge the{" "}
+              <Link
+                href="/privacy"
+                className="text-[#9bddff] underline-offset-4 transition hover:text-white hover:underline"
+              >
+                Privacy Policy
+              </Link>
+              . Recurring charges apply unless canceled.
             </p>
 
             <div className="mt-6 flex items-center gap-3">

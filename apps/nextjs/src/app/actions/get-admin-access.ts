@@ -1,6 +1,9 @@
 "use server";
 
-import { getWalletRoleFromDb, type BlinkRole } from "~/lib/blink/admin-roles.server";
+import {
+  getRoleFromIdentities,
+  type BlinkRole,
+} from "~/lib/blink/admin-roles.server";
 
 export type AdminAccessResult = {
   allowed: boolean;
@@ -10,14 +13,14 @@ export type AdminAccessResult = {
 
 export async function getAdminAccess(
   walletAddresses: string[],
+  emailAddresses: string[] = [],
 ): Promise<AdminAccessResult> {
-  for (const raw of walletAddresses) {
-    if (!raw) continue;
-    const wallet = raw.toLowerCase();
-    const role = await getWalletRoleFromDb(wallet);
-    if (role === "admin" || role === "superuser") {
-      return { allowed: true, role, walletAddress: wallet };
-    }
+  const { role, walletAddress } = await getRoleFromIdentities({
+    walletAddresses,
+    emailAddresses,
+  });
+  if (role === "admin" || role === "superuser") {
+    return { allowed: true, role, walletAddress };
   }
 
   return {

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 
-import { useWallets } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { Copy, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 
@@ -17,6 +17,7 @@ import {
 import { AFFILIATE_SEEDS } from "~/lib/blink/affiliate-seeds";
 
 export function AffiliatesDashboard() {
+  const { user } = usePrivy();
   const { wallets } = useWallets();
   const connectedWallets = useMemo(
     () =>
@@ -24,6 +25,14 @@ export function AffiliatesDashboard() {
         .map((wallet) => wallet.address?.toLowerCase())
         .filter((address): address is string => Boolean(address)),
     [wallets],
+  );
+  const identityEmails = useMemo(
+    () =>
+      [
+        user?.email?.address,
+        user?.google?.email,
+      ].filter((email): email is string => Boolean(email)),
+    [user],
   );
   const [adminAccess, setAdminAccess] = useState<AdminAccessResult>({
     allowed: false,
@@ -38,7 +47,7 @@ export function AffiliatesDashboard() {
     async function resolveAccess() {
       setCheckingAccess(true);
       try {
-        const access = await getAdminAccess(connectedWallets);
+        const access = await getAdminAccess(connectedWallets, identityEmails);
         if (!cancelled) setAdminAccess(access);
       } catch (err) {
         console.error("[affiliates] Failed to resolve admin access:", err);
@@ -52,7 +61,7 @@ export function AffiliatesDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [connectedWallets]);
+  }, [connectedWallets, identityEmails]);
 
   const isAllowed = adminAccess.allowed;
   const role = adminAccess.role;

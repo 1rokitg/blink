@@ -11,12 +11,21 @@ const FOUNDER_BOOTSTRAP: Record<string, BlinkRole> = {
   "0xc7bcb2eee9bbfbf875499960746bc52b2e1a75c6": "superuser",
 };
 
+const FOUNDER_EMAIL_BOOTSTRAP: Record<string, BlinkRole> = {
+  "pintosdsgn@gmail.com": "superuser",
+};
+
 function normalize(address: string) {
   return address.trim().toLowerCase();
 }
 
 function getBootstrapRole(walletAddress: string): BlinkRole {
   return FOUNDER_BOOTSTRAP[normalize(walletAddress)] ?? "viewer";
+}
+
+function getBootstrapRoleFromEmail(emailAddress?: string | null): BlinkRole {
+  if (!emailAddress) return "viewer";
+  return FOUNDER_EMAIL_BOOTSTRAP[emailAddress.trim().toLowerCase()] ?? "viewer";
 }
 
 function toLevel(role: BlinkRole) {
@@ -95,6 +104,29 @@ export async function getWalletRoleFromDb(
 export async function isAdminWalletDb(walletAddress?: string | null) {
   const role = await getWalletRoleFromDb(walletAddress);
   return role === "admin" || role === "superuser";
+}
+
+export async function getRoleFromIdentities(params: {
+  walletAddresses?: string[];
+  emailAddresses?: string[];
+}): Promise<{ role: BlinkRole; walletAddress: string }> {
+  const wallets = (params.walletAddresses ?? []).filter(Boolean);
+  for (const wallet of wallets) {
+    const role = await getWalletRoleFromDb(wallet);
+    if (role === "admin" || role === "superuser") {
+      return { role, walletAddress: normalize(wallet) };
+    }
+  }
+
+  const emails = (params.emailAddresses ?? []).filter(Boolean);
+  for (const email of emails) {
+    const role = getBootstrapRoleFromEmail(email);
+    if (role === "admin" || role === "superuser") {
+      return { role, walletAddress: normalize(wallets[0] ?? "") };
+    }
+  }
+
+  return { role: "viewer", walletAddress: normalize(wallets[0] ?? "") };
 }
 
 export async function grantInternalRole(params: {

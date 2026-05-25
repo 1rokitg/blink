@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
 
-import { useWallets } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { Loader2, RefreshCw, Search } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
 
@@ -112,6 +112,7 @@ function getRangeConfig(range: AdminRange) {
 }
 
 export function AdminDashboard() {
+  const { user } = usePrivy();
   const { wallets } = useWallets();
   const connectedWallets = useMemo(
     () =>
@@ -119,6 +120,14 @@ export function AdminDashboard() {
         .map((wallet) => wallet.address?.toLowerCase())
         .filter((address): address is string => Boolean(address)),
     [wallets],
+  );
+  const identityEmails = useMemo(
+    () =>
+      [
+        user?.email?.address,
+        user?.google?.email,
+      ].filter((email): email is string => Boolean(email)),
+    [user],
   );
   const [adminAccess, setAdminAccess] = useState<AdminAccessResult>({
     allowed: false,
@@ -133,7 +142,7 @@ export function AdminDashboard() {
     async function resolveAccess() {
       setCheckingAccess(true);
       try {
-        const access = await getAdminAccess(connectedWallets);
+        const access = await getAdminAccess(connectedWallets, identityEmails);
         if (!cancelled) setAdminAccess(access);
       } catch (err) {
         console.error("[admin] Failed to resolve admin access:", err);
@@ -154,7 +163,7 @@ export function AdminDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [connectedWallets]);
+  }, [connectedWallets, identityEmails]);
 
   const walletAddress = adminAccess.walletAddress || connectedWallets[0] || "";
   const isAllowed = adminAccess.allowed;

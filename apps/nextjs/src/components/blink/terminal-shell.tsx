@@ -2506,6 +2506,7 @@ export function TerminalShell(props: { market: string }) {
   const effectiveWalletAddress = e2eConfig.enabled
     ? e2eConfig.walletAddress
     : walletAddress;
+  const profileSlug = effectiveWalletAddress || "me";
   const effectiveReady = e2eConfig.enabled ? true : ready;
   const effectiveAuthenticated = e2eConfig.enabled ? true : authenticated;
   const allowlist = useMemo(() => readAdminAllowlist(), []);
@@ -2910,9 +2911,7 @@ export function TerminalShell(props: { market: string }) {
                           asChild
                           className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
                         >
-                          <Link
-                            href={`/profile/${encodeURIComponent(user?.twitter?.username ?? user?.google?.email?.split("@")[0] ?? user?.email?.address?.split("@")[0] ?? user?.twitter?.username ?? user?.id ?? "me")}`}
-                          >
+                          <Link href={`/profile/${encodeURIComponent(profileSlug)}`}>
                             <User className="size-4" />
                             Your profile
                           </Link>

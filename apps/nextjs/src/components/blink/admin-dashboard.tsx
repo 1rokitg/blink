@@ -63,13 +63,13 @@ function sourceBadge(source: "canonical" | "pipeline") {
   if (source === "canonical") {
     return (
       <Badge className="rounded-full border border-emerald-400/35 bg-emerald-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-emerald-300">
-        L1 Canonical
+        Hyperliquid L1
       </Badge>
     );
   }
   return (
     <Badge className="rounded-full border border-sky-400/35 bg-sky-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-sky-300">
-      Pipeline
+      Off-Chain
     </Badge>
   );
 }

@@ -16,7 +16,11 @@ import {
 } from "@acme/ui/accordion";
 import { Button } from "@acme/ui/button";
 
-import { maskNumberish, useHideBalances } from "~/lib/blink/hide-balances";
+import {
+  maskNumberish,
+  maskValue,
+  useHideBalances,
+} from "~/lib/blink/hide-balances";
 import { infoClient } from "~/lib/blink/hyperliquid";
 import { formatUsd } from "~/lib/blink/markets";
 
@@ -44,6 +48,22 @@ function DetailRow({
       <p className="font-mono text-sm text-white/82">{value}</p>
     </div>
   );
+}
+
+function formatTokenAmount(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
+  }).format(value);
+}
+
+function formatTimestamp(timestamp: number) {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
 }
 
 function BreakdownRow({
@@ -167,6 +187,22 @@ export function ProfileEquitySection({
     staleTime: 30_000,
   });
 
+  const assetLocationQuery = useQuery({
+    queryKey: ["blink", "profile-asset-locations", walletAddress],
+    queryFn: async () => {
+      if (!walletAddress) return null;
+      const [spot, stakingSummary, delegations] = await Promise.all([
+        infoClient.spotClearinghouseState({ user: walletAddress }),
+        infoClient.delegatorSummary({ user: walletAddress }),
+        infoClient.delegations({ user: walletAddress }),
+      ]);
+      return { spot, stakingSummary, delegations };
+    },
+    enabled: !!walletAddress,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
   const [followLoading, setFollowLoading] = useState(false);
   const toggleFollow = useCallback(async () => {
     if (!ownAddress || !walletAddress || isOwnProfile) return;
@@ -223,6 +259,17 @@ export function ProfileEquitySection({
     0,
   );
   const openOrderCount = openOrders.length;
+  const spotBalances = assetLocationQuery.data?.spot?.balances ?? [];
+  const spotEscrows = assetLocationQuery.data?.spot?.evmEscrows ?? [];
+  const stakingSummary = assetLocationQuery.data?.stakingSummary;
+  const stakingDelegations = assetLocationQuery.data?.delegations ?? [];
+  const spotMeta =
+    spotBalances.length > 0 || spotEscrows.length > 0
+      ? `${spotBalances.length} spot asset${spotBalances.length === 1 ? "" : "s"}${spotEscrows.length ? ` • ${spotEscrows.length} escrowed` : ""}`
+      : `${spotPct.toFixed(0)}% of account value`;
+  const stakingMeta = stakingSummary
+    ? `${stakingDelegations.length} validator${stakingDelegations.length === 1 ? "" : "s"} • ${stakingSummary.nPendingWithdrawals} pending withdrawal${stakingSummary.nPendingWithdrawals === 1 ? "" : "s"}`
+    : `${stakingPct.toFixed(0)}% of account value`;
 
   const follows = followQuery.data;
 
@@ -389,21 +436,103 @@ export function ProfileEquitySection({
             <BreakdownRow
               itemValue="spot"
               label="Spot wallet"
-              meta={`${spotPct.toFixed(0)}% of account value`}
+              meta={spotMeta}
               value={maskNumberish(spotWalletValue, formatUsd, hideBalances)}
               color="#2c6bff"
             >
               <div className="space-y-3">
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <DetailRow
+                    label="Withdrawable balance"
+                    value={maskNumberish(withdrawable, formatUsd, hideBalances)}
+                  />
+                  <DetailRow
+                    label="Share of total equity"
+                    value={`${spotPct.toFixed(1)}%`}
+                  />
+                </div>
+
+                {spotBalances.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-white/35">
+                      Spot balances
+                    </p>
+                    {spotBalances.map((balance) => {
+                      const total = Number(balance.total);
+                      const hold = Number(balance.hold);
+                      const available = Math.max(total - hold, 0);
+
+                      return (
+                        <div
+                          key={`${balance.token}-${balance.coin}`}
+                          className="rounded-[12px] border border-white/[0.06] bg-white/[0.03] px-4 py-3"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-medium text-white">
+                              {balance.coin}
+                            </p>
+                            <p className="font-mono text-sm text-white/82">
+                              {maskValue(
+                                `${formatTokenAmount(total)} ${balance.coin}`,
+                                hideBalances,
+                              )}
+                            </p>
+                          </div>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <DetailRow
+                              label="Available"
+                              value={maskValue(
+                                `${formatTokenAmount(available)} ${balance.coin}`,
+                                hideBalances,
+                              )}
+                            />
+                            <DetailRow
+                              label="On hold"
+                              value={maskValue(
+                                `${formatTokenAmount(hold)} ${balance.coin}`,
+                                hideBalances,
+                              )}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-white/42">
+                    No spot balances tracked in spot clearinghouse state.
+                  </p>
+                )}
+
+                {spotEscrows.length > 0 ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-white/35">
+                      Escrowed balances
+                    </p>
+                    {spotEscrows.map((escrow) => (
+                      <div
+                        key={`${escrow.token}-${escrow.coin}`}
+                        className="flex items-center justify-between rounded-[12px] border border-white/[0.06] bg-white/[0.03] px-4 py-3"
+                      >
+                        <p className="font-medium text-white">{escrow.coin}</p>
+                        <p className="font-mono text-sm text-white/82">
+                          {maskValue(
+                            `${formatTokenAmount(Number(escrow.total))} ${escrow.coin}`,
+                            hideBalances,
+                          )}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+
                 <DetailRow
-                  label="Withdrawable balance"
-                  value={maskNumberish(withdrawable, formatUsd, hideBalances)}
-                />
-                <DetailRow
-                  label="Share of total equity"
-                  value={`${spotPct.toFixed(1)}%`}
+                  label="Tracked asset buckets"
+                  value={String(spotBalances.length + spotEscrows.length)}
                 />
                 <p className="text-xs text-white/42">
-                  Liquid balance available in the account right now.
+                  Spot clearinghouse data reports token balances plus escrowed
+                  balances separately.
                 </p>
               </div>
             </BreakdownRow>
@@ -510,23 +639,106 @@ export function ProfileEquitySection({
             <BreakdownRow
               itemValue="staking"
               label="Staking / vaults"
-              meta={`${stakingPct.toFixed(0)}% of account value`}
+              meta={stakingMeta}
               value={maskNumberish(stakingValue, formatUsd, hideBalances)}
               color="#2b8dcc"
             >
               <div className="space-y-3">
-                <DetailRow
-                  label="Estimated strategy balance"
-                  value={maskNumberish(stakingValue, formatUsd, hideBalances)}
-                />
-                <DetailRow
-                  label="Share of total equity"
-                  value={`${stakingPct.toFixed(1)}%`}
-                />
-                <p className="text-xs text-white/42">
-                  This is the residual balance after spot wallet liquidity and
-                  perps margin usage are accounted for.
-                </p>
+                {stakingSummary ? (
+                  <>
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                      <DetailRow
+                        label="Delegated"
+                        value={maskValue(
+                          `${formatTokenAmount(Number(stakingSummary.delegated))} HYPE`,
+                          hideBalances,
+                        )}
+                      />
+                      <DetailRow
+                        label="Undelegated"
+                        value={maskValue(
+                          `${formatTokenAmount(Number(stakingSummary.undelegated))} HYPE`,
+                          hideBalances,
+                        )}
+                      />
+                      <DetailRow
+                        label="Pending withdrawal"
+                        value={maskValue(
+                          `${formatTokenAmount(
+                            Number(stakingSummary.totalPendingWithdrawal),
+                          )} HYPE`,
+                          hideBalances,
+                        )}
+                      />
+                      <DetailRow
+                        label="Pending requests"
+                        value={String(stakingSummary.nPendingWithdrawals)}
+                      />
+                    </div>
+
+                    {stakingDelegations.length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-xs font-medium uppercase tracking-[0.14em] text-white/35">
+                          Validator delegations
+                        </p>
+                        {stakingDelegations.map((delegation) => (
+                          <div
+                            key={delegation.validator}
+                            className="rounded-[12px] border border-white/[0.06] bg-white/[0.03] px-4 py-3"
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-mono text-xs text-white/62">
+                                {delegation.validator.slice(0, 6)}…
+                                {delegation.validator.slice(-4)}
+                              </p>
+                              <p className="font-mono text-sm text-white/82">
+                                {maskValue(
+                                  `${formatTokenAmount(Number(delegation.amount))} HYPE`,
+                                  hideBalances,
+                                )}
+                              </p>
+                            </div>
+                            <p className="mt-2 text-xs text-white/42">
+                              Locked until{" "}
+                              {formatTimestamp(delegation.lockedUntilTimestamp)}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    {Number(stakingSummary.totalPendingWithdrawal) > 0 ? (
+                      <p className="text-xs text-white/42">
+                        Pending staking-to-spot withdrawals sit in the unstaking
+                        queue until Hyperliquid releases them.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-white/42">
+                        No pending staking withdrawal queue detected for this
+                        wallet right now.
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <DetailRow
+                      label="Estimated strategy balance"
+                      value={maskNumberish(
+                        stakingValue,
+                        formatUsd,
+                        hideBalances,
+                      )}
+                    />
+                    <DetailRow
+                      label="Share of total equity"
+                      value={`${stakingPct.toFixed(1)}%`}
+                    />
+                    <p className="text-xs text-white/42">
+                      This residual bucket is shown because no live staking
+                      summary was available yet.
+                    </p>
+                  </>
+                )}
               </div>
             </BreakdownRow>
 

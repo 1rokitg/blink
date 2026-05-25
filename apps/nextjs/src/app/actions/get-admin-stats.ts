@@ -111,8 +111,10 @@ export async function getAdminStats(options?: {
   liveWindowMinutes?: number;
   liveLimit?: number;
 }): Promise<AdminStats> {
+  const canonicalWindowDays = 1;
+
   if (options?.syncHyperliquid) {
-    await syncBuilderDailyMetrics(90);
+    await syncBuilderDailyMetrics(canonicalWindowDays);
   }
 
   const now = Date.now();
@@ -147,9 +149,9 @@ export async function getAdminStats(options?: {
       .from(MetricEvent)
       .orderBy(desc(MetricEvent.createdAt))
       .limit(3000),
-    getBuilderMetricsSnapshot(90),
+    getBuilderMetricsSnapshot(canonicalWindowDays),
     includeAttribution
-      ? getBuilderAttributionSnapshot(90)
+      ? getBuilderAttributionSnapshot(canonicalWindowDays)
       : Promise.resolve({
           byUser: [],
           bySource: [],

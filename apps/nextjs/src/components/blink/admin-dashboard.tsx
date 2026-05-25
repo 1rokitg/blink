@@ -238,14 +238,14 @@ export function AdminDashboard() {
               value: loading
                 ? "—"
                 : formatMoney(stats?.builder.totalRevenueUsd ?? 0),
-              sub: "last 90d (est.)",
+              sub: "today window",
             },
             {
               label: "Routed volume",
               value: loading
                 ? "—"
                 : formatCompact(stats?.builder.totalVolumeUsd ?? 0),
-              sub: "last 90d",
+              sub: "today window",
             },
           ].map((card) => (
             <div key={card.label} className="glass-panel p-5">
@@ -273,7 +273,7 @@ export function AdminDashboard() {
               value: loading
                 ? "—"
                 : formatMoney(stats?.builder.avgRevenuePerUser ?? 0),
-              sub: "90d window",
+              sub: "today window",
             },
             {
               label: "Active Pro",
@@ -302,11 +302,11 @@ export function AdminDashboard() {
             </p>
             <div className="mt-4 space-y-2 text-sm">
               <div className="flex justify-between text-foreground/60">
-                <span>Revenue (90d)</span>
+                <span>Revenue (today)</span>
                 <span className="text-white">{formatMoney(stats?.builder.totalRevenueUsd ?? 0)}</span>
               </div>
               <div className="flex justify-between text-foreground/60">
-                <span>Volume (90d)</span>
+                <span>Volume (today)</span>
                 <span className="text-white">{formatCompact(stats?.builder.totalVolumeUsd ?? 0)}</span>
               </div>
               <div className="flex justify-between text-foreground/60">
@@ -472,7 +472,7 @@ export function AdminDashboard() {
             <h2 className="text-base font-semibold text-white">
               Daily revenue + volume (Hyperliquid sync)
             </h2>
-            <span className="text-xs text-foreground/40">90d</span>
+            <span className="text-xs text-foreground/40">today</span>
           </div>
           <div className="h-[300px]">
             <ChartContainer config={chartConfig} className="h-full w-full">

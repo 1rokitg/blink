@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import {
   CheckCircle2,
   ExternalLink,
@@ -11,7 +13,6 @@ import {
   Wallet,
   XCircle,
 } from "lucide-react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
 
 import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
 import { Input } from "@acme/ui/input";
@@ -29,6 +30,17 @@ function truncateAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
+function VerificationRouteLink() {
+  return (
+    <Link
+      href="/profile/verify"
+      className="inline-flex text-xs font-medium text-[#9bddff] underline-offset-4 transition hover:text-white hover:underline"
+    >
+      Open the full verification page
+    </Link>
+  );
+}
+
 type Tab = "Account" | "Connections" | "Security" | "Preferences" | "Settings";
 
 type ApprovalStatus =
@@ -40,7 +52,9 @@ type ApprovalStatus =
   | "error";
 
 // ── Per-wallet builder approval card ─────────────────────────────────────────
-function WalletApprovalCard({ wallet }: { wallet: { address: string; walletClientType: string } }) {
+function WalletApprovalCard({
+  wallet,
+}: { wallet: { address: string; walletClientType: string } }) {
   const [status, setStatus] = useState<ApprovalStatus>("idle");
   const [errMsg, setErrMsg] = useState("");
 
@@ -67,13 +81,14 @@ function WalletApprovalCard({ wallet }: { wallet: { address: string; walletClien
     }
   }, [wallet]);
 
-  const label = wallet.walletClientType === "privy"
-    ? "Embedded wallet"
-    : wallet.walletClientType === "metamask"
-    ? "MetaMask"
-    : wallet.walletClientType === "coinbase_wallet"
-    ? "Coinbase Wallet"
-    : wallet.walletClientType;
+  const label =
+    wallet.walletClientType === "privy"
+      ? "Embedded wallet"
+      : wallet.walletClientType === "metamask"
+        ? "MetaMask"
+        : wallet.walletClientType === "coinbase_wallet"
+          ? "Coinbase Wallet"
+          : wallet.walletClientType;
 
   return (
     <div className="rounded-[12px] border border-white/10 bg-white/[0.03] p-4">
@@ -127,7 +142,8 @@ function WalletApprovalCard({ wallet }: { wallet: { address: string; walletClien
         </p>
       )}
       <p className="mt-2 text-xs text-foreground/40">
-        One-time on-chain approval lets Blink route your orders through Hyperliquid builder codes.
+        One-time on-chain approval lets Blink route your orders through
+        Hyperliquid builder codes.
       </p>
     </div>
   );
@@ -167,9 +183,12 @@ function ConnectionsTab() {
             <ExternalLink className="size-5 text-[#6fa8ff]" />
           </div>
           <div>
-            <p className="font-semibold text-white">Import Hyperliquid Account</p>
+            <p className="font-semibold text-white">
+              Import Hyperliquid Account
+            </p>
             <p className="text-sm text-foreground/50">
-              Already trading on Hyperliquid? Link your existing wallet to Blink in 2 signatures.
+              Already trading on Hyperliquid? Link your existing wallet to Blink
+              in 2 signatures.
             </p>
           </div>
         </div>
@@ -187,7 +206,8 @@ function ConnectionsTab() {
           {linking ? "Connecting…" : "Connect external wallet"}
         </button>
         <p className="mt-3 text-xs text-foreground/35">
-          Sig 1: Privy wallet link · Sig 2: Blink builder code approval on Hyperliquid L1
+          Sig 1: Privy wallet link · Sig 2: Blink builder code approval on
+          Hyperliquid L1
         </p>
       </div>
 
@@ -209,10 +229,14 @@ function ConnectionsTab() {
       <div className="mt-5 rounded-[12px] border border-white/10 bg-white/[0.03] p-4">
         <p className="font-medium text-white">X / Twitter</p>
         <p className="mt-1 text-sm text-foreground/58">
-          Verify ownership to unlock your verified badge and social proof on Blink.
+          Verify ownership to unlock your verified badge and social proof on
+          Blink.
         </p>
         <div className="mt-3">
           <ConnectTwitterButton showSuccessCard={false} />
+        </div>
+        <div className="mt-2">
+          <VerificationRouteLink />
         </div>
       </div>
     </div>
@@ -227,7 +251,9 @@ export function AccountManagementModal(props: {
   /** Open directly to a specific tab */
   initialTab?: Tab;
 }) {
-  const [activeTab, setActiveTab] = useState<Tab>(props.initialTab ?? "Account");
+  const [activeTab, setActiveTab] = useState<Tab>(
+    props.initialTab ?? "Account",
+  );
   const short = truncateAddress(props.walletAddress);
   const avatarUrl = `https://avatar.vercel.sh/${props.walletAddress}.png?size=96`;
 
@@ -236,7 +262,13 @@ export function AccountManagementModal(props: {
     if (props.open) setActiveTab(props.initialTab ?? "Account");
   }, [props.open, props.initialTab]);
 
-  const tabs: Tab[] = ["Account", "Connections", "Security", "Preferences", "Settings"];
+  const tabs: Tab[] = [
+    "Account",
+    "Connections",
+    "Security",
+    "Preferences",
+    "Settings",
+  ];
 
   return (
     <Dialog open={props.open} onOpenChange={(open) => !open && props.onClose()}>
@@ -311,12 +343,18 @@ export function AccountManagementModal(props: {
                   </div>
                 </div>
                 <div className="mt-4 rounded-[12px] border border-white/10 bg-white/[0.03] p-4">
-                  <p className="font-medium text-white">X / Twitter verification</p>
+                  <p className="font-medium text-white">
+                    X / Twitter verification
+                  </p>
                   <p className="mt-1 text-sm text-foreground/58">
-                    Verify account ownership to unlock your verified badge and social proof on Blink.
+                    Verify account ownership to unlock your verified badge and
+                    social proof on Blink.
                   </p>
                   <div className="mt-3">
                     <ConnectTwitterButton showSuccessCard={false} />
+                  </div>
+                  <div className="mt-2">
+                    <VerificationRouteLink />
                   </div>
                 </div>
                 <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4">

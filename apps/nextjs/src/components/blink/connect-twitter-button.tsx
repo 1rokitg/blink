@@ -225,12 +225,18 @@ interface ConnectTwitterButtonProps {
   className?: string;
   /** Wallet whose verification state should be displayed on the page. */
   targetWalletAddress?: string;
+  /** Optional label when a wallet must be connected before verification can start. */
+  connectWalletLabel?: string;
+  /** Optional label for the verification CTA once a wallet is connected. */
+  claimLabel?: string;
 }
 
 export function ConnectTwitterButton({
   showSuccessCard = true,
   className,
   targetWalletAddress,
+  connectWalletLabel,
+  claimLabel = "Claim Ownership",
 }: ConnectTwitterButtonProps) {
   const { login, authenticated, linkWallet } = usePrivy();
   const { wallets } = useWallets();
@@ -433,7 +439,7 @@ export function ConnectTwitterButton({
   }
 
   // Not connected
-  if (normalizedTargetWalletAddress && !normalizedConnectedWalletAddress) {
+  if (!normalizedConnectedWalletAddress) {
     return (
       <button
         type="button"
@@ -448,7 +454,10 @@ export function ConnectTwitterButton({
         >
           <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.736l7.73-8.835L1.254 2.25H8.08l4.263 5.634 5.9-5.634Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
         </svg>
-        Connect Wallet to Claim
+        {connectWalletLabel ??
+          (normalizedTargetWalletAddress
+            ? "Connect Wallet to Claim"
+            : "Connect Wallet to Start")}
       </button>
     );
   }
@@ -493,7 +502,7 @@ export function ConnectTwitterButton({
         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.736l7.73-8.835L1.254 2.25H8.08l4.263 5.634 5.9-5.634Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
       </svg>
       <Sparkles className="size-3.5 text-[#7dd3fc]" />
-      Claim Ownership
+      {claimLabel}
     </button>
   );
 }

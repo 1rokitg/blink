@@ -19,11 +19,11 @@ export const env = createEnv({
   server: {
     POSTGRES_URL: z.string().url(),
     /** Twitter API v2 OAuth 2.0 Client ID (Consumer Key). */
-    TWITTER_CLIENT_ID: z.string().default("UDdlbFNGbFgzdmpiVXVHRER0eXA6MTpjaQ"),
+    TWITTER_CLIENT_ID: z.string().default("SXBHdDFnRnVvbWl2M19jdm95R2Q6MTpjaQ"),
     /** Twitter API v2 OAuth 2.0 Client Secret. */
     TWITTER_CLIENT_SECRET: z
       .string()
-      .default("ab0AW5uo84Lduo0TdwZgkVyQH_AciURoCT1d0NHM0jsoHzhMFX"),
+      .default("jjPyx7ARneyBc3UqdSxMMY6De86SPQwV_HXQugr9GQFvvJhBv"),
     /** Stripe secret key used to create Blink Pro checkout sessions. */
     STRIPE_SECRET_KEY: z.string().default(""),
     /** Blink Pro reduced builder fee in HL units (1 unit = 0.001%). e.g. 7 = 0.007%. */

@@ -62,13 +62,19 @@ export const AFFILIATE_SEEDS: AffiliateSeed[] = [
     xProfileUrl: "https://x.com/BasedBuilder007",
     code: "BASED",
     rewardBoostLabel: "2.0x",
-    payoutSplitLabel: "65/35",
+    payoutSplitLabel: "50/50",
   }),
   createAffiliateFromXProfile({
     xProfileUrl: "https://x.com/zolandinho",
     code: "ZOLAN",
     rewardBoostLabel: "2.0x",
-    payoutSplitLabel: "80/20",
+    payoutSplitLabel: "50/50",
+  }),
+  createAffiliateFromXProfile({
+    xProfileUrl: "https://x.com/secretodefi",
+    code: "SECRETODEFI",
+    rewardBoostLabel: "2.0x",
+    payoutSplitLabel: "50/50",
   }),
 ];
 

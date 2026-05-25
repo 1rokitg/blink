@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 
 import Link from "next/link";
 
@@ -8,6 +8,12 @@ import { useWallets } from "@privy-io/react-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Share2, Users } from "lucide-react";
 
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@acme/ui/accordion";
 import { Button } from "@acme/ui/button";
 
 import { maskNumberish, useHideBalances } from "~/lib/blink/hide-balances";
@@ -25,26 +31,63 @@ function SkeletonLine({ w }: { w: string }) {
   );
 }
 
-function StatRow({
+function DetailRow({
   label,
   value,
-  color,
 }: {
   label: string;
   value: string;
-  color: string;
 }) {
   return (
     <div className="flex items-center justify-between">
-      <p className="inline-flex items-center gap-2 text-2xl text-white/85">
-        <span
-          className="size-3 rounded-sm"
-          style={{ backgroundColor: color }}
-        />
-        {label}
-      </p>
-      <p className="font-medium text-2xl text-white">{value}</p>
+      <p className="text-sm text-white/52">{label}</p>
+      <p className="font-mono text-sm text-white/82">{value}</p>
     </div>
+  );
+}
+
+function BreakdownRow({
+  itemValue,
+  label,
+  meta,
+  value,
+  color,
+  children,
+}: {
+  itemValue: string;
+  label: string;
+  meta: string;
+  value: string;
+  color: string;
+  children: ReactNode;
+}) {
+  return (
+    <AccordionItem
+      value={itemValue}
+      className="overflow-hidden rounded-[14px] border border-white/[0.07] bg-white/[0.025] px-4"
+      style={{ borderLeft: `2px solid ${color}66` }}
+    >
+      <AccordionTrigger className="py-3 hover:no-underline">
+        <div className="flex flex-1 items-center justify-between gap-3 pr-4">
+          <div className="min-w-0 text-left">
+            <p className="inline-flex items-center gap-2 text-xl text-white/88">
+              <span
+                className="size-3 rounded-sm"
+                style={{ backgroundColor: color }}
+              />
+              {label}
+            </p>
+            <p className="mt-1 text-xs text-white/42">{meta}</p>
+          </div>
+          <p className="shrink-0 text-right text-2xl font-medium text-white">
+            {value}
+          </p>
+        </div>
+      </AccordionTrigger>
+      <AccordionContent className="border-t border-white/[0.06] pb-4 pt-3">
+        {children}
+      </AccordionContent>
+    </AccordionItem>
   );
 }
 
@@ -175,6 +218,11 @@ export function ProfileEquitySection({
       sum + Number(order.limitPx || 0) * Math.abs(Number(order.sz || 0)),
     0,
   );
+  const totalUnrealizedPnl = activePositions.reduce(
+    (sum, { position }) => sum + Number(position.unrealizedPnl ?? 0),
+    0,
+  );
+  const openOrderCount = openOrders.length;
 
   const follows = followQuery.data;
 
@@ -328,68 +376,266 @@ export function ProfileEquitySection({
       </div>
 
       {/* Live balance rows */}
-      <div className="mt-4 space-y-2.5">
-        <StatRow
-          label="Spot wallet"
-          value={maskNumberish(spotWalletValue, formatUsd, hideBalances)}
-          color="#2c6bff"
-        />
-        <StatRow
-          label="Perps margin"
-          value={maskNumberish(perpsValue, formatUsd, hideBalances)}
-          color="#41d38f"
-        />
-        <StatRow
-          label="Staking / vaults"
-          value={maskNumberish(stakingValue, formatUsd, hideBalances)}
-          color="#2b8dcc"
-        />
-        <StatRow
-          label="Pending orders (notional)"
-          value={maskNumberish(pendingOrderNotional, formatUsd, hideBalances)}
-          color="#788395"
-        />
+      <div className="mt-4">
+        {loading ? (
+          <div className="space-y-2.5">
+            <SkeletonLine w="w-full" />
+            <SkeletonLine w="w-full" />
+            <SkeletonLine w="w-full" />
+            <SkeletonLine w="w-full" />
+          </div>
+        ) : (
+          <Accordion type="single" collapsible className="space-y-2.5">
+            <BreakdownRow
+              itemValue="spot"
+              label="Spot wallet"
+              meta={`${spotPct.toFixed(0)}% of account value`}
+              value={maskNumberish(spotWalletValue, formatUsd, hideBalances)}
+              color="#2c6bff"
+            >
+              <div className="space-y-3">
+                <DetailRow
+                  label="Withdrawable balance"
+                  value={maskNumberish(withdrawable, formatUsd, hideBalances)}
+                />
+                <DetailRow
+                  label="Share of total equity"
+                  value={`${spotPct.toFixed(1)}%`}
+                />
+                <p className="text-xs text-white/42">
+                  Liquid balance available in the account right now.
+                </p>
+              </div>
+            </BreakdownRow>
+
+            <BreakdownRow
+              itemValue="perps"
+              label="Perps margin"
+              meta={`${activePositions.length} open positions${openOrders.length ? ` • ${openOrders.length} working orders` : ""}`}
+              value={maskNumberish(perpsValue, formatUsd, hideBalances)}
+              color="#41d38f"
+            >
+              <div className="space-y-4">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <DetailRow
+                    label="Margin used"
+                    value={maskNumberish(
+                      perpsMarginUsed,
+                      formatUsd,
+                      hideBalances,
+                    )}
+                  />
+                  <DetailRow
+                    label="Unrealized PnL"
+                    value={maskNumberish(
+                      totalUnrealizedPnl,
+                      formatUsd,
+                      hideBalances,
+                    )}
+                  />
+                  <DetailRow
+                    label="Open positions"
+                    value={String(activePositions.length)}
+                  />
+                </div>
+
+                {activePositions.length > 0 ? (
+                  <div className="space-y-2">
+                    {activePositions.map(({ position }) => {
+                      const pnl = Number(position.unrealizedPnl);
+                      const size = Number(position.szi);
+                      const entry = Number(position.entryPx);
+                      const positionValue = Number(position.positionValue);
+                      const leverage = Number(position.leverage?.value ?? 1);
+
+                      return (
+                        <div
+                          key={`${position.coin}-${position.entryPx}`}
+                          className="rounded-[12px] border border-white/[0.06] bg-white/[0.03] px-4 py-3"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="font-medium text-white">
+                                {position.coin}
+                              </p>
+                              <p className="mt-1 text-xs text-white/45">
+                                {size > 0 ? "Long" : "Short"}{" "}
+                                {Math.abs(size).toFixed(4)} @{" "}
+                                {hideBalances ? "••••" : formatUsd(entry)}
+                              </p>
+                            </div>
+                            <p
+                              className={`text-sm font-medium ${
+                                pnl >= 0 ? "text-emerald-300" : "text-rose-300"
+                              }`}
+                            >
+                              {pnl >= 0 ? "+" : ""}
+                              {maskNumberish(pnl, formatUsd, hideBalances)}
+                            </p>
+                          </div>
+                          <div className="mt-3 grid gap-2 text-xs text-white/50 sm:grid-cols-3">
+                            <DetailRow
+                              label="Position value"
+                              value={maskNumberish(
+                                positionValue,
+                                formatUsd,
+                                hideBalances,
+                              )}
+                            />
+                            <DetailRow
+                              label="Leverage"
+                              value={`${leverage.toFixed(1)}x`}
+                            />
+                            <DetailRow
+                              label="Entry price"
+                              value={maskNumberish(
+                                entry,
+                                formatUsd,
+                                hideBalances,
+                              )}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-white/42">
+                    No open positions right now.
+                  </p>
+                )}
+              </div>
+            </BreakdownRow>
+
+            <BreakdownRow
+              itemValue="staking"
+              label="Staking / vaults"
+              meta={`${stakingPct.toFixed(0)}% of account value`}
+              value={maskNumberish(stakingValue, formatUsd, hideBalances)}
+              color="#2b8dcc"
+            >
+              <div className="space-y-3">
+                <DetailRow
+                  label="Estimated strategy balance"
+                  value={maskNumberish(stakingValue, formatUsd, hideBalances)}
+                />
+                <DetailRow
+                  label="Share of total equity"
+                  value={`${stakingPct.toFixed(1)}%`}
+                />
+                <p className="text-xs text-white/42">
+                  This is the residual balance after spot wallet liquidity and
+                  perps margin usage are accounted for.
+                </p>
+              </div>
+            </BreakdownRow>
+
+            <BreakdownRow
+              itemValue="orders"
+              label="Pending orders (notional)"
+              meta={`${openOrderCount} working orders`}
+              value={maskNumberish(
+                pendingOrderNotional,
+                formatUsd,
+                hideBalances,
+              )}
+              color="#788395"
+            >
+              <div className="space-y-4">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <DetailRow
+                    label="Working orders"
+                    value={String(openOrderCount)}
+                  />
+                  <DetailRow
+                    label="Pending notional"
+                    value={maskNumberish(
+                      pendingOrderNotional,
+                      formatUsd,
+                      hideBalances,
+                    )}
+                  />
+                  <DetailRow
+                    label="Average order size"
+                    value={
+                      openOrderCount > 0
+                        ? maskNumberish(
+                            pendingOrderNotional / openOrderCount,
+                            formatUsd,
+                            hideBalances,
+                          )
+                        : "—"
+                    }
+                  />
+                </div>
+
+                {openOrders.length > 0 ? (
+                  <div className="space-y-2">
+                    {openOrders.map((order) => {
+                      const isBuy = order.side === "B";
+                      return (
+                        <div
+                          key={order.oid}
+                          className="flex items-center justify-between rounded-[12px] border border-white/[0.06] bg-white/[0.03] px-4 py-3"
+                        >
+                          <div>
+                            <p className="font-medium text-white">
+                              {order.coin}{" "}
+                              <span
+                                className={
+                                  isBuy ? "text-emerald-300" : "text-rose-300"
+                                }
+                              >
+                                {isBuy ? "Buy" : "Sell"}
+                              </span>
+                            </p>
+                            <p className="mt-1 text-xs text-white/45">
+                              {order.sz} @{" "}
+                              {maskNumberish(
+                                Number(order.limitPx),
+                                formatUsd,
+                                hideBalances,
+                              )}
+                            </p>
+                          </div>
+                          <div className="text-right text-xs text-white/45">
+                            <p>
+                              Original size{" "}
+                              <span className="font-mono text-white/75">
+                                {order.origSz}
+                              </span>
+                            </p>
+                            <p className="mt-1">
+                              Notional{" "}
+                              <span className="font-mono text-white/75">
+                                {maskNumberish(
+                                  Number(order.limitPx) *
+                                    Math.abs(Number(order.sz || 0)),
+                                  formatUsd,
+                                  hideBalances,
+                                )}
+                              </span>
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-white/42">
+                    No pending orders on the book.
+                  </p>
+                )}
+              </div>
+            </BreakdownRow>
+          </Accordion>
+        )}
       </div>
 
       <p className="mt-2 text-xs text-white/35">
         Realized PnL sums all closed fills. Equity includes spot + perps margin
         + staking.
       </p>
-
-      {/* Open positions */}
-      {!loading && activePositions.length > 0 && (
-        <div className="mt-6">
-          <p className="mb-3 text-sm font-medium uppercase tracking-[0.14em] text-white/40">
-            Open positions ({activePositions.length})
-          </p>
-          <div className="space-y-2">
-            {activePositions.map(({ position }) => {
-              const pnl = Number(position.unrealizedPnl);
-              const size = Number(position.szi);
-              return (
-                <div
-                  key={position.coin}
-                  className="flex items-center justify-between rounded-[10px] bg-white/[0.03] px-4 py-3"
-                >
-                  <div>
-                    <p className="font-medium text-white">{position.coin}</p>
-                    <p className="text-sm text-white/50">
-                      {size > 0 ? "Long" : "Short"} {Math.abs(size).toFixed(4)}{" "}
-                      @ {hideBalances ? "••••" : position.entryPx}
-                    </p>
-                  </div>
-                  <p
-                    className={`text-sm font-medium ${pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
-                  >
-                    {pnl >= 0 ? "+" : ""}
-                    {maskNumberish(pnl, formatUsd, hideBalances)}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {!loading && !walletAddress && hasExplicitTarget && (
         <p className="mt-6 text-center text-sm text-white/35">

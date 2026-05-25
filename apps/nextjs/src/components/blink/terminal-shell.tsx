@@ -3176,12 +3176,12 @@ export function TerminalShell(props: { market: string }) {
               X
             </a>
             <a
-              href="https://discord.gg"
+              href="https://whop.com/the-circle-vip"
               target="_blank"
               rel="noreferrer"
               className="transition hover:text-white"
             >
-              Discord
+              Community
             </a>
             <a
               href="https://t.me"

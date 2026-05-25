@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { checkBotId } from "botid/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -22,6 +23,11 @@ const bodySchema = z.object({
  * Otherwise generates one from the wallet address.
  */
 export async function POST(request: Request) {
+  const verification = await checkBotId();
+  if (verification.isBot) {
+    return NextResponse.json({ error: "Access denied" }, { status: 403 });
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {

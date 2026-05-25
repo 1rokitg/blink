@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { checkBotId } from "botid/server";
 import Stripe from "stripe";
 import { z } from "zod";
 
@@ -53,6 +54,11 @@ function resolveAppUrl(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const verification = await checkBotId();
+  if (verification.isBot) {
+    return NextResponse.json({ error: "Access denied" }, { status: 403 });
+  }
+
   if (!env.STRIPE_SECRET_KEY) {
     return NextResponse.json(
       { error: "Stripe is not configured yet." },

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { checkBotId } from "botid/server";
 import { z } from "zod";
 
 import { trackMetricEvent } from "~/lib/blink/internal-metrics.server";
@@ -18,6 +19,11 @@ const bodySchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
+  const verification = await checkBotId();
+  if (verification.isBot) {
+    return NextResponse.json({ error: "Access denied" }, { status: 403 });
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { checkBotId } from "botid/server";
 import { and, count, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
@@ -58,6 +59,11 @@ export async function GET(request: Request) {
 
 /** POST /api/follow — toggle follow state */
 export async function POST(request: Request) {
+  const verification = await checkBotId();
+  if (verification.isBot) {
+    return NextResponse.json({ error: "Access denied" }, { status: 403 });
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(body);
   if (!parsed.success) {

@@ -3174,7 +3174,7 @@ export function TerminalShell(props: { market: string }) {
               X
             </a>
             <a
-              href="https://whop.com/joined/the-circle-vip/products/the-circle-monthly/"
+              href="https://discord.gg/Myu962DMMA"
               target="_blank"
               rel="noreferrer"
               className="transition hover:text-white"

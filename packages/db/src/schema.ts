@@ -215,7 +215,12 @@ export const MetricEvent = pgTable("metric_event", (t) => ({
   id: t.uuid().notNull().primaryKey().defaultRandom(),
   eventType: t.varchar({ length: 64 }).notNull(),
   walletAddress: t.varchar({ length: 42 }),
+  visitorId: t.varchar({ length: 96 }),
+  sessionId: t.varchar({ length: 96 }),
   source: t.varchar({ length: 64 }),
+  requestId: t.varchar({ length: 128 }),
+  isBot: t.boolean().default(false),
+  botId: t.varchar({ length: 128 }),
   metadata: jsonb(),
   createdAt: t.timestamp().defaultNow().notNull(),
 }));

@@ -26,6 +26,22 @@ export interface AdminStats {
     window: "today" | "7d" | "30d" | "90d";
     freshness: "fresh" | "stale" | "unknown";
   };
+  internalAnalytics: {
+    uniqueVisitors24h: number;
+    uniqueVisitors7d: number;
+    botEvents24h: number;
+    humanEvents24h: number;
+    topSources7d: Array<{
+      source: string;
+      events: number;
+      uniqueVisitors: number;
+    }>;
+    topCountries7d: Array<{
+      country: string;
+      events: number;
+      uniqueVisitors: number;
+    }>;
+  };
   today: {
     revenueUsd: number;
     volumeUsd: number;
@@ -194,6 +210,10 @@ export async function getAdminStats(options?: {
     db
       .select({
         eventType: MetricEvent.eventType,
+        source: MetricEvent.source,
+        visitorId: MetricEvent.visitorId,
+        isBot: MetricEvent.isBot,
+        metadata: MetricEvent.metadata,
         createdAt: MetricEvent.createdAt,
       })
       .from(MetricEvent)
@@ -242,6 +262,42 @@ export async function getAdminStats(options?: {
     firstTrade: funnelEvents.filter((e) => e.eventType === "first_trade").length,
     proStarted: funnelEvents.filter((e) => e.eventType === "pro_started").length,
   };
+
+  const event24h = metricRows.filter(
+    (row) => new Date(row.createdAt).getTime() > now - ms24h,
+  );
+  const event7d = metricRows.filter(
+    (row) => new Date(row.createdAt).getTime() > now - ms7d,
+  );
+  const uniqueVisitors24h = new Set(
+    event24h
+      .map((row) => row.visitorId)
+      .filter((value): value is string => Boolean(value)),
+  ).size;
+  const uniqueVisitors7d = new Set(
+    event7d
+      .map((row) => row.visitorId)
+      .filter((value): value is string => Boolean(value)),
+  ).size;
+  const botEvents24h = event24h.filter((row) => Boolean(row.isBot)).length;
+  const humanEvents24h = event24h.length - botEvents24h;
+
+  const sourceMap = new Map<string, { events: number; visitors: Set<string> }>();
+  const countryMap = new Map<string, { events: number; visitors: Set<string> }>();
+  for (const row of event7d) {
+    const source = String(row.source ?? "unknown").toLowerCase();
+    const meta = (row.metadata ?? {}) as Record<string, unknown>;
+    const country = String(meta.country ?? "unknown").toUpperCase();
+    const sourceItem = sourceMap.get(source) ?? { events: 0, visitors: new Set<string>() };
+    sourceItem.events += 1;
+    if (row.visitorId) sourceItem.visitors.add(row.visitorId);
+    sourceMap.set(source, sourceItem);
+
+    const countryItem = countryMap.get(country) ?? { events: 0, visitors: new Set<string>() };
+    countryItem.events += 1;
+    if (row.visitorId) countryItem.visitors.add(row.visitorId);
+    countryMap.set(country, countryItem);
+  }
 
   const weeklyMap = new Map<
     string,
@@ -329,6 +385,28 @@ export async function getAdminStats(options?: {
       lastSyncedAt: canonicalSnapshot.lastSyncedAt,
       window: windowLabel,
       freshness: canonicalSnapshot.freshness,
+    },
+    internalAnalytics: {
+      uniqueVisitors24h,
+      uniqueVisitors7d,
+      botEvents24h,
+      humanEvents24h,
+      topSources7d: Array.from(sourceMap.entries())
+        .map(([source, value]) => ({
+          source,
+          events: value.events,
+          uniqueVisitors: value.visitors.size,
+        }))
+        .sort((a, b) => b.events - a.events)
+        .slice(0, 8),
+      topCountries7d: Array.from(countryMap.entries())
+        .map(([country, value]) => ({
+          country,
+          events: value.events,
+          uniqueVisitors: value.visitors.size,
+        }))
+        .sort((a, b) => b.events - a.events)
+        .slice(0, 8),
     },
     today: {
       revenueUsd: todayRow?.revenue ?? 0,

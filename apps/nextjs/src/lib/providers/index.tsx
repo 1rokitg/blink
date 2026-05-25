@@ -92,15 +92,15 @@ export function ContextProviders({ children }: { children: React.ReactNode }) {
             config={{
               appearance: {
                 theme: "dark",
-                showWalletLoginFirst: true,
+                showWalletLoginFirst: false,
               },
               embeddedWallets: {
                 ethereum: {
-                  createOnLogin: "off",
+                  createOnLogin: "users-without-wallets",
                 },
                 showWalletUIs: false,
               },
-              loginMethods: ["wallet"],
+              loginMethods: ["google", "wallet"],
             }}
           >
             {children}

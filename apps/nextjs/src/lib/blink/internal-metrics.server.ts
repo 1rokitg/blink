@@ -12,7 +12,12 @@ import { infoClient } from "./hyperliquid";
 type TrackMetricEventInput = {
   eventType: string;
   walletAddress?: string | null;
+  visitorId?: string | null;
+  sessionId?: string | null;
   source?: string;
+  requestId?: string | null;
+  isBot?: boolean;
+  botId?: string | null;
   metadata?: Record<string, unknown>;
 };
 
@@ -120,7 +125,12 @@ export async function trackMetricEvent(input: TrackMetricEventInput) {
     await db.insert(MetricEvent).values({
       eventType: input.eventType,
       walletAddress: input.walletAddress?.toLowerCase(),
+      visitorId: input.visitorId ?? null,
+      sessionId: input.sessionId ?? null,
       source: input.source ?? "app",
+      requestId: input.requestId ?? null,
+      isBot: input.isBot ?? false,
+      botId: input.botId ?? null,
       metadata: input.metadata ?? {},
     });
   } catch (error) {

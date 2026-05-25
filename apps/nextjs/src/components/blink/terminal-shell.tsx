@@ -114,6 +114,26 @@ function truncateAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
+function getEventIdentityHeaders() {
+  if (typeof window === "undefined") return {} as Record<string, string>;
+  const visitorKey = "blink:visitor-id";
+  const sessionKey = "blink:session-id";
+  let visitorId = window.localStorage.getItem(visitorKey);
+  let sessionId = window.sessionStorage.getItem(sessionKey);
+  if (!visitorId) {
+    visitorId = `v1_${crypto.randomUUID().replaceAll("-", "")}`;
+    window.localStorage.setItem(visitorKey, visitorId);
+  }
+  if (!sessionId) {
+    sessionId = `s1_${crypto.randomUUID().replaceAll("-", "")}`;
+    window.sessionStorage.setItem(sessionKey, sessionId);
+  }
+  return {
+    "x-blink-visitor-id": visitorId,
+    "x-blink-session-id": sessionId,
+  } as Record<string, string>;
+}
+
 function readAdminAllowlist() {
   const source = process.env.NEXT_PUBLIC_ADMIN_WALLET_ALLOWLIST ?? "";
   return source
@@ -200,7 +220,7 @@ function ConnectGate() {
             className="flex h-11 w-full items-center justify-center gap-2 rounded-[14px] border border-white/[0.09] bg-white/[0.04] text-sm font-medium text-white/80 transition hover:border-white/[0.16] hover:bg-white/[0.07] active:scale-[0.98]"
           >
             <Wallet className="size-4 text-white/55" />
-            Connect wallet
+            Continue with Google or wallet
           </button>
 
           {/* Feature pills */}
@@ -607,9 +627,11 @@ function LeftRail(props: {
               ⚡
             </div>
             <div>
-              <p className="text-sm font-semibold text-white">Quick Setup</p>
+              <p className="text-sm font-semibold text-white">
+                One-Click Setup
+              </p>
               <p className="text-xs text-foreground/50">
-                Import your Hyperliquid account — 2 sigs
+                Import your Hyperliquid account — live in seconds
               </p>
             </div>
             <ArrowRight className="ml-auto size-4 text-[#3be1ba] opacity-60 transition group-hover:translate-x-0.5 group-hover:opacity-100" />
@@ -1236,7 +1258,10 @@ function OrderEntryPanel(props: {
           window.localStorage.setItem(firstTradeKey, "1");
           void fetch("/api/metrics/event", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...getEventIdentityHeaders(),
+            },
             body: JSON.stringify({
               eventType: "first_trade",
               walletAddress: props.walletAddress,
@@ -2576,7 +2601,10 @@ export function TerminalShell(props: { market: string }) {
 
     void fetch("/api/metrics/event", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...getEventIdentityHeaders(),
+      },
       body: JSON.stringify({
         eventType: "signup",
         walletAddress,

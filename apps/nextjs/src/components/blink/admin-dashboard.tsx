@@ -450,6 +450,59 @@ export function AdminDashboard() {
           </section>
 
           <section className="glass-card mt-4 p-5">
+            <h2 className="text-base font-semibold text-white">Internal analytics (Vercel + Blink)</h2>
+            <p className="mt-1 text-xs text-foreground/45">
+              Unique visitor IDs use Vercel request signals + first-party visitor/session IDs.
+            </p>
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <div className="rounded-[10px] border border-white/10 bg-white/[0.03] p-3">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">Unique visitors 24h</p>
+                <p className="mt-2 text-2xl font-semibold text-white">{stats?.internalAnalytics.uniqueVisitors24h ?? 0}</p>
+              </div>
+              <div className="rounded-[10px] border border-white/10 bg-white/[0.03] p-3">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">Unique visitors 7d</p>
+                <p className="mt-2 text-2xl font-semibold text-white">{stats?.internalAnalytics.uniqueVisitors7d ?? 0}</p>
+              </div>
+              <div className="rounded-[10px] border border-white/10 bg-white/[0.03] p-3">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">Human events 24h</p>
+                <p className="mt-2 text-2xl font-semibold text-emerald-300">{stats?.internalAnalytics.humanEvents24h ?? 0}</p>
+              </div>
+              <div className="rounded-[10px] border border-white/10 bg-white/[0.03] p-3">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">Bot events 24h</p>
+                <p className="mt-2 text-2xl font-semibold text-amber-300">{stats?.internalAnalytics.botEvents24h ?? 0}</p>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-[12px] border border-white/10 bg-white/[0.02] p-3">
+                <p className="mb-2 text-sm font-medium text-white">Top sources (7d)</p>
+                <div className="space-y-2">
+                  {(stats?.internalAnalytics.topSources7d ?? []).map((row) => (
+                    <div key={row.source} className="flex items-center justify-between text-sm">
+                      <span className="text-foreground/75">{formatLabel(row.source)}</span>
+                      <span className="text-white/85">
+                        {row.events} ev · {row.uniqueVisitors} uv
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-[12px] border border-white/10 bg-white/[0.02] p-3">
+                <p className="mb-2 text-sm font-medium text-white">Top countries (7d)</p>
+                <div className="space-y-2">
+                  {(stats?.internalAnalytics.topCountries7d ?? []).map((row) => (
+                    <div key={row.country} className="flex items-center justify-between text-sm">
+                      <span className="text-foreground/75">{row.country}</span>
+                      <span className="text-white/85">
+                        {row.events} ev · {row.uniqueVisitors} uv
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="glass-card mt-4 p-5">
             <div className="mb-2 flex items-center justify-between">
               <h2 className="text-base font-semibold text-white">Reconciliation</h2>
               <Badge className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] ${recTone}`}>

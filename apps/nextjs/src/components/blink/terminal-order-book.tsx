@@ -22,13 +22,14 @@ type FormattedTrade = {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const LEVELS = 8;
+const LEVELS = 16;
 
 function formatBookLevels(
   levels: hl.Book["levels"][0],
   reverse = false,
 ): BookLevelRow[] {
-  const rows = levels.slice(0, LEVELS).map((level, index) => ({
+  const depth = Math.min(LEVELS, levels.length);
+  const rows = levels.slice(0, depth).map((level, index) => ({
     price: Number(level.px),
     size: Number(level.sz),
     total: levels.slice(0, index + 1).reduce((sum, l) => sum + Number(l.sz), 0),
@@ -246,7 +247,7 @@ export function TerminalOrderBook(props: { market: string }) {
                 return (
                   <div
                     key={key}
-                    className="relative grid grid-cols-3 rounded-[5px] px-2 py-[5px] text-xs"
+                    className="relative grid grid-cols-3 rounded-[5px] px-2 py-[4px] text-xs"
                     style={{ opacity }}
                   >
                     {/* depth bar */}
@@ -311,7 +312,7 @@ export function TerminalOrderBook(props: { market: string }) {
                 return (
                   <div
                     key={key}
-                    className="relative grid grid-cols-3 rounded-[5px] px-2 py-[5px] text-xs"
+                    className="relative grid grid-cols-3 rounded-[5px] px-2 py-[4px] text-xs"
                     style={{ opacity }}
                   >
                     {/* depth bar */}

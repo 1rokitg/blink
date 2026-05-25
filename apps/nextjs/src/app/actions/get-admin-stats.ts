@@ -20,7 +20,7 @@ import {
 } from "~/lib/blink/internal-metrics.server";
 import { getFeatureFlags } from "~/lib/blink/feature-flags.server";
 
-type KpiSource = "hyperliquid" | "pipeline";
+type KpiSource = "hyperliquid" | "offchain";
 
 export interface AdminStats {
   windowDays: number;
@@ -68,7 +68,7 @@ export interface AdminStats {
       avgRevenuePerUser: number;
       fillsCount: number;
     };
-    pipeline: {
+    offchain: {
       totalRevenueUsd: number;
       totalVolumeUsd: number;
       totalUsers: number;
@@ -76,10 +76,10 @@ export interface AdminStats {
       fillsCount: number;
     };
     reconciliation: {
-      revenue: { hyperliquid: number; pipeline: number; delta: number };
-      volume: { hyperliquid: number; pipeline: number; delta: number };
-      fills: { hyperliquid: number; pipeline: number; delta: number };
-      users: { hyperliquid: number; pipeline: number; delta: number };
+      revenue: { hyperliquid: number; offchain: number; delta: number };
+      volume: { hyperliquid: number; offchain: number; delta: number };
+      fills: { hyperliquid: number; offchain: number; delta: number };
+      users: { hyperliquid: number; offchain: number; delta: number };
       status: "ok" | "warning" | "critical";
     };
   };
@@ -410,11 +410,11 @@ export async function getAdminStats(options?: {
       fills: "hyperliquid",
       activeUsers: "hyperliquid",
       avgRevenuePerUser: "hyperliquid",
-      signups: "pipeline",
-      builderApprovals: "pipeline",
-      firstTrade: "pipeline",
-      proStarted: "pipeline",
-      referrals: "pipeline",
+      signups: "offchain",
+      builderApprovals: "offchain",
+      firstTrade: "offchain",
+      proStarted: "offchain",
+      referrals: "offchain",
     },
     hyperliquidSync: {
       lastSyncedAt: hyperliquidSnapshot.lastSyncedAt,
@@ -467,7 +467,7 @@ export async function getAdminStats(options?: {
         avgRevenuePerUser: hyperliquidSnapshot.totals.avgRevenuePerUser,
         fillsCount: hyperliquidSnapshot.totals.fillsCount,
       },
-      pipeline: {
+      offchain: {
         totalRevenueUsd: builderSnapshot.totals.builderFeeUsd,
         totalVolumeUsd: builderSnapshot.totals.volumeUsd,
         totalUsers: builderSnapshot.totals.totalUsers,
@@ -477,22 +477,22 @@ export async function getAdminStats(options?: {
       reconciliation: {
         revenue: {
           hyperliquid: hyperliquidSnapshot.totals.builderFeeUsd,
-          pipeline: builderSnapshot.totals.builderFeeUsd,
+          offchain: builderSnapshot.totals.builderFeeUsd,
           delta: revDelta,
         },
         volume: {
           hyperliquid: hyperliquidSnapshot.totals.volumeUsd,
-          pipeline: builderSnapshot.totals.volumeUsd,
+          offchain: builderSnapshot.totals.volumeUsd,
           delta: volDelta,
         },
         fills: {
           hyperliquid: hyperliquidSnapshot.totals.fillsCount,
-          pipeline: builderSnapshot.totals.fillsCount,
+          offchain: builderSnapshot.totals.fillsCount,
           delta: fillsDelta,
         },
         users: {
           hyperliquid: hyperliquidSnapshot.totals.totalUsers,
-          pipeline: builderSnapshot.totals.totalUsers,
+          offchain: builderSnapshot.totals.totalUsers,
           delta: usersDelta,
         },
         status: reconciliationStatus,

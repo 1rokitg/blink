@@ -22,13 +22,7 @@ export async function generateMetadata(props: {
   };
 }
 
-import {
-  CalendarDays,
-  Gift,
-  Pencil,
-  Search,
-  Verified,
-} from "lucide-react";
+import { CalendarDays, Gift, Pencil, Search, Verified } from "lucide-react";
 
 import { BlinkAvatar } from "~/components/blink/blink-avatar";
 import { BlinkUsername } from "~/components/blink/blink-username";
@@ -113,7 +107,10 @@ export default async function ProfilePage(props: {
 
               {/* Twitter connect / verified badge */}
               <div className="mt-3">
-                <ConnectTwitterButton showSuccessCard={false} />
+                <ConnectTwitterButton
+                  showSuccessCard={false}
+                  targetWalletAddress={resolvedAddress ?? undefined}
+                />
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-5 text-sm text-white/55">

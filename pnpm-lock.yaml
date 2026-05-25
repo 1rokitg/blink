@@ -99,7 +99,7 @@ importers:
         version: 3.2.0(@planetscale/database@1.19.0)(@types/react@19.0.12)(bufferutil@4.0.8)(permissionless@0.2.57(viem@2.38.0(bufferutil@4.0.8)(typescript@5.8.2)(zod@3.24.2)))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(typescript@5.8.2)(use-sync-external-store@1.6.0(react@19.0.0))(zod@3.24.2)
       '@statelyai/inspect':
         specifier: ^0.4.0
-        version: 0.4.0(ws@8.18.0(bufferutil@4.0.8))(xstate@5.22.1)
+        version: 0.4.0(ws@8.18.2(bufferutil@4.0.8))(xstate@5.22.1)
       '@t3-oss/env-nextjs':
         specifier: ^0.12.0
         version: 0.12.0(typescript@5.8.2)(zod@3.24.2)
@@ -127,6 +127,9 @@ importers:
       botid:
         specifier: ^1.5.11
         version: 1.5.11(next@15.5.18(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(react@19.0.0)
+      canvas-confetti:
+        specifier: ^1.9.4
+        version: 1.9.4
       geist:
         specifier: ^1.3.1
         version: 1.3.1(next@15.5.18(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))
@@ -179,6 +182,9 @@ importers:
       '@playwright/test':
         specifier: ^1.54.2
         version: 1.60.0
+      '@types/canvas-confetti':
+        specifier: ^1.9.0
+        version: 1.9.0
       '@types/node':
         specifier: ^22.13.11
         version: 22.13.11
@@ -2819,6 +2825,9 @@ packages:
     resolution: {integrity: sha512-TmY25GmxzgX+395Fwl/F0te6S4RHdJtYl1QjZr+wlxVvKJ0IBOACpnpAvnLM3dpTgXuQukGtSWcRz7Zi9mZqcQ==}
     hasBin: true
 
+  '@types/canvas-confetti@1.9.0':
+    resolution: {integrity: sha512-aBGj/dULrimR1XDZLtG9JwxX1b4HPRF6CX9Yfwh3NvstZEm1ZL7RBnel4keCPSqs1ANRu1u2Aoz9R+VmtjYuTg==}
+
   '@types/d3-array@3.2.1':
     resolution: {integrity: sha512-Y2Jn2idRrLzUfAKV2LyRImR+y4oa2AntrgID95SHJxuMUrkNXmanDSed71sRNZysveJVt1hLLemQZIady0FpEg==}
 
@@ -3290,6 +3299,9 @@ packages:
   canonicalize@2.1.0:
     resolution: {integrity: sha512-F705O3xrsUtgt98j7leetNhTWPe+5S72rlL5O4jA1pKqBVQ/dT1O1D6PFxmSXvc0SUOinWS57DKx0I3CHrXJHQ==}
     hasBin: true
+
+  canvas-confetti@1.9.4:
+    resolution: {integrity: sha512-yxQbJkAVrFXWNbTUjPqjF7G+g6pDotOUHGbkZq2NELZUMDpiJ85rIEazVb8GTaAptNW2miJAXbs1BtioA251Pw==}
 
   chalk@2.4.2:
     resolution: {integrity: sha512-Mti+f9lpJNcwF4tWV8/OrTTtF1gZi+f8FqlyAdouralcFWFQWF2+NgCHShjkCb+IFBLq9buZwE1xckQU4peSuQ==}
@@ -8222,10 +8234,10 @@ snapshots:
 
   '@standard-schema/utils@0.3.0': {}
 
-  '@statelyai/inspect@0.4.0(ws@8.18.0(bufferutil@4.0.8))(xstate@5.22.1)':
+  '@statelyai/inspect@0.4.0(ws@8.18.2(bufferutil@4.0.8))(xstate@5.22.1)':
     dependencies:
       fast-safe-stringify: 2.1.1
-      isomorphic-ws: 5.0.0(ws@8.18.0(bufferutil@4.0.8))
+      isomorphic-ws: 5.0.0(ws@8.18.2(bufferutil@4.0.8))
       partysocket: 0.0.25
       safe-stable-stringify: 2.5.0
       superjson: 1.13.3
@@ -8326,6 +8338,8 @@ snapshots:
       picocolors: 1.0.1
       semver: 7.6.2
       update-check: 1.5.4
+
+  '@types/canvas-confetti@1.9.0': {}
 
   '@types/d3-array@3.2.1': {}
 
@@ -9185,6 +9199,8 @@ snapshots:
 
   canonicalize@2.1.0: {}
 
+  canvas-confetti@1.9.4: {}
+
   chalk@2.4.2:
     dependencies:
       ansi-styles: 3.2.1
@@ -10009,9 +10025,9 @@ snapshots:
 
   isexe@3.1.1: {}
 
-  isomorphic-ws@5.0.0(ws@8.18.0(bufferutil@4.0.8)):
+  isomorphic-ws@5.0.0(ws@8.18.2(bufferutil@4.0.8)):
     dependencies:
-      ws: 8.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.4)
+      ws: 8.18.2(bufferutil@4.0.8)
 
   isows@1.0.6(ws@8.18.0(bufferutil@4.0.8)):
     dependencies:

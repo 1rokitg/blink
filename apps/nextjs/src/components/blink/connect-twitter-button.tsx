@@ -1,11 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useSearchParams } from "next/navigation";
 
-import { type ConnectedWallet, useWallets } from "@privy-io/react-auth";
-import { Check, ExternalLink, Loader2 } from "lucide-react";
+import {
+  type ConnectedWallet,
+  usePrivy,
+  useWallets,
+} from "@privy-io/react-auth";
+import { ArrowUpRight, Check, Loader2, Sparkles } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 
@@ -17,6 +21,45 @@ import { createTwitterOwnershipMessage } from "~/lib/blink/twitter-ownership";
 interface TwitterConnectionData {
   twitterUsername: string;
   twitterName: string | null;
+}
+
+async function launchVerificationConfetti() {
+  const { default: confetti } = await import("canvas-confetti");
+
+  const defaults = {
+    gravity: 0.95,
+    scalar: 0.95,
+    ticks: 220,
+    zIndex: 2000,
+  } as const;
+
+  confetti({
+    ...defaults,
+    particleCount: 90,
+    spread: 78,
+    origin: { x: 0.25, y: 0.35 },
+    colors: ["#38bdf8", "#60a5fa", "#22d3ee", "#ffffff"],
+  });
+  confetti({
+    ...defaults,
+    particleCount: 90,
+    spread: 78,
+    origin: { x: 0.75, y: 0.35 },
+    colors: ["#38bdf8", "#60a5fa", "#22d3ee", "#ffffff"],
+  });
+}
+
+function getCanonicalBrowserOrigin() {
+  if (typeof window === "undefined") return "";
+
+  const configuredUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!configuredUrl) return window.location.origin;
+
+  try {
+    return new URL(configuredUrl).origin;
+  } catch {
+    return window.location.origin;
+  }
 }
 
 function formatTwitterError(errorCode?: string | null) {
@@ -85,18 +128,19 @@ async function signTwitterOwnershipClaim(params: {
 
 export function TwitterVerifiedBadge({ username }: { username?: string }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#1d9bf0]/30 bg-[#1d9bf0]/10 px-2.5 py-0.5 text-xs font-medium text-[#7ecfff]">
-      {/* Twitter/X bird-ish checkmark mark */}
+    <span className="inline-flex items-center gap-2 rounded-full border border-[#38bdf8]/30 bg-[linear-gradient(180deg,rgba(14,28,51,0.96),rgba(9,18,34,0.96))] px-3 py-1 text-xs font-semibold text-[#a5e3ff] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+      <span className="flex size-5 items-center justify-center rounded-full bg-[#38bdf8]/16 text-[#7dd3fc]">
+        <Check className="size-3" />
+      </span>
       <svg
-        className="size-3.5 shrink-0"
+        className="size-3.5 shrink-0 text-[#7dd3fc]"
         viewBox="0 0 24 24"
         fill="currentColor"
         aria-hidden="true"
       >
         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.736l7.73-8.835L1.254 2.25H8.08l4.263 5.634 5.9-5.634Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
       </svg>
-      {username ? `@${username}` : "Verified"}
-      <Check className="size-3 text-[#7ecfff]" />
+      <span>{username ? `@${username}` : "Verified on X"}</span>
     </span>
   );
 }
@@ -116,30 +160,57 @@ export function VerifiedTweetCard({ username }: { username: string }) {
       transition={{ type: "spring", stiffness: 280, damping: 20 }}
       className="group block w-full [transform-style:preserve-3d]"
     >
-      <div className="rounded-2xl border border-[#1d9bf030] bg-[linear-gradient(145deg,#061525,#091e35)] p-4 text-left shadow-[0_16px_40px_rgba(0,0,0,0.45)]">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {/* X / Twitter logo */}
+      <div className="overflow-hidden rounded-2xl border border-[#38bdf8]/25 bg-[linear-gradient(145deg,#071427,#0a1c32_58%,#0d2642)] p-4 text-left shadow-[0_18px_48px_rgba(0,0,0,0.42)]">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-9 items-center justify-center rounded-xl border border-[#38bdf8]/18 bg-[#38bdf8]/10 text-[#7dd3fc]">
+              <Sparkles className="size-4" />
+            </div>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.18em] text-[#8ad9ff]">
+                X verified
+              </p>
+              <p className="mt-1 text-sm font-semibold text-white">
+                @{username} is now verified on Blink
+              </p>
+            </div>
+          </div>
+          <div className="flex size-8 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] text-foreground/65 transition group-hover:border-[#38bdf8]/35 group-hover:text-white">
+            <ArrowUpRight className="size-4" />
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center gap-2 rounded-xl border border-white/10 bg-[#020817]/45 px-3 py-2 text-xs text-foreground/68">
+          <svg
+            className="size-3.5 shrink-0 text-[#7dd3fc]"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.736l7.73-8.835L1.254 2.25H8.08l4.263 5.634 5.9-5.634Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+          </svg>
+          Social proof unlocked for your profile and share cards.
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-white">Share verification</p>
+            <p className="mt-1 text-xs text-foreground/55">
+              Post it on X and let your crew know you&apos;re in.
+            </p>
+          </div>
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-[#38bdf8]/30 bg-[#38bdf8]/12 px-3 py-1 text-xs font-medium text-[#9bddff]">
             <svg
-              className="size-4 shrink-0 text-[#1d9bf0]"
+              className="size-3.5 shrink-0"
               viewBox="0 0 24 24"
               fill="currentColor"
               aria-hidden="true"
             >
               <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.736l7.73-8.835L1.254 2.25H8.08l4.263 5.634 5.9-5.634Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
             </svg>
-            <p className="text-xs uppercase tracking-[0.16em] text-[#7ecfff]">
-              Share verification
-            </p>
+            Share
           </div>
-          <ExternalLink className="size-4 text-foreground/60 transition group-hover:text-white" />
         </div>
-        <p className="mt-2 text-sm font-medium text-white">
-          Just got verified on Blink.
-        </p>
-        <p className="mt-1 text-xs text-foreground/55">
-          Post to X and let your crew know you're in.
-        </p>
       </div>
     </motion.a>
   );
@@ -152,16 +223,29 @@ interface ConnectTwitterButtonProps {
   showSuccessCard?: boolean;
   /** Extra class on the button itself. */
   className?: string;
+  /** Wallet whose verification state should be displayed on the page. */
+  targetWalletAddress?: string;
 }
 
 export function ConnectTwitterButton({
   showSuccessCard = true,
   className,
+  targetWalletAddress,
 }: ConnectTwitterButtonProps) {
+  const { login, authenticated, linkWallet } = usePrivy();
   const { wallets } = useWallets();
   const wallet = wallets[0];
-  const walletAddress = wallet?.address ?? "";
+  const connectedWalletAddress = wallet?.address ?? "";
   const searchParams = useSearchParams();
+  const connectWallet = authenticated ? linkWallet : login;
+  const normalizedTargetWalletAddress =
+    targetWalletAddress?.toLowerCase() ?? "";
+  const normalizedConnectedWalletAddress = connectedWalletAddress.toLowerCase();
+  const displayedWalletAddress =
+    normalizedTargetWalletAddress || normalizedConnectedWalletAddress;
+  const isClaimingOwnProfile =
+    !normalizedTargetWalletAddress ||
+    normalizedTargetWalletAddress === normalizedConnectedWalletAddress;
 
   const [connection, setConnection] = useState<TwitterConnectionData | null>(
     null,
@@ -169,24 +253,25 @@ export function ConnectTwitterButton({
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState(false);
   const [justConnected, setJustConnected] = useState(false);
+  const hasCelebratedRef = useRef(false);
 
   // Check DB for existing connection
   const checkConnection = useCallback(async () => {
-    if (!walletAddress) {
+    if (!displayedWalletAddress) {
       setConnection(null);
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
-      const data = await getTwitterConnection(walletAddress);
+      const data = await getTwitterConnection(displayedWalletAddress);
       setConnection(data);
     } catch {
       // Non-fatal
     } finally {
       setLoading(false);
     }
-  }, [walletAddress]);
+  }, [displayedWalletAddress]);
 
   useEffect(() => {
     void checkConnection();
@@ -194,9 +279,14 @@ export function ConnectTwitterButton({
 
   // Detect post-OAuth redirect
   useEffect(() => {
-    if (searchParams.get("twitter_connected") === "1") {
+    if (
+      searchParams.get("twitter_connected") === "1" &&
+      !hasCelebratedRef.current
+    ) {
+      hasCelebratedRef.current = true;
       setJustConnected(true);
       toast.success("X connected! Ownership verified on Blink.");
+      void launchVerificationConfetti();
       void checkConnection();
     }
     if (searchParams.get("twitter_error")) {
@@ -205,23 +295,40 @@ export function ConnectTwitterButton({
   }, [searchParams, checkConnection]);
 
   const handleConnect = async () => {
-    if (!walletAddress) {
-      toast.error("Connect your wallet first.");
+    if (!normalizedConnectedWalletAddress) {
+      toast.error("Connect the wallet for this profile first.");
       return;
     }
     if (!wallet) {
       toast.error("Wallet provider unavailable.");
       return;
     }
+    if (!isClaimingOwnProfile) {
+      toast.error("Connect the matching profile wallet to claim ownership.");
+      return;
+    }
+
+    const currentUrl = new URL(window.location.href);
+    const canonicalOrigin = getCanonicalBrowserOrigin();
+
+    if (canonicalOrigin && currentUrl.origin !== canonicalOrigin) {
+      window.location.replace(
+        `${canonicalOrigin}${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`,
+      );
+      return;
+    }
 
     setClaiming(true);
 
     try {
-      const returnTo = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const returnTo = `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`;
       const challengeResponse = await fetch("/api/twitter/connect/challenge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ returnTo, walletAddress }),
+        body: JSON.stringify({
+          returnTo,
+          walletAddress: normalizedConnectedWalletAddress,
+        }),
       });
       const challengeData = (await challengeResponse
         .json()
@@ -233,14 +340,17 @@ export function ConnectTwitterButton({
 
       const signature = await signTwitterOwnershipClaim({
         wallet,
-        walletAddress,
+        walletAddress: normalizedConnectedWalletAddress,
         nonce: challengeData.nonce,
       });
 
       const connectResponse = await fetch("/api/twitter/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ signature, walletAddress }),
+        body: JSON.stringify({
+          signature,
+          walletAddress: normalizedConnectedWalletAddress,
+        }),
       });
       const connectData = (await connectResponse.json().catch(() => null)) as {
         authorizeUrl?: string;
@@ -262,11 +372,13 @@ export function ConnectTwitterButton({
 
   if (loading || claiming) {
     return (
-      <div className={`flex items-center gap-2 ${className}`}>
-        <Loader2 className="size-4 animate-spin text-foreground/40" />
-        {claiming ? (
-          <span className="text-sm text-foreground/55">Verifying wallet…</span>
-        ) : null}
+      <div
+        className={`flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 ${className}`}
+      >
+        <Loader2 className="size-4 animate-spin text-[#7dd3fc]" />
+        <span className="text-sm text-foreground/55">
+          {claiming ? "Verifying wallet..." : "Checking X verification..."}
+        </span>
       </div>
     );
   }
@@ -275,7 +387,36 @@ export function ConnectTwitterButton({
   if (connection) {
     return (
       <div className={`flex flex-col gap-3 ${className}`}>
-        <TwitterVerifiedBadge username={connection.twitterUsername} />
+        <motion.div
+          initial={justConnected ? { opacity: 0, y: 8 } : false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.28 }}
+          className="overflow-hidden rounded-2xl border border-[#38bdf8]/22 bg-[linear-gradient(135deg,rgba(6,18,35,0.96),rgba(8,25,45,0.98)_65%,rgba(11,36,58,0.95))] p-4 shadow-[0_18px_44px_rgba(0,0,0,0.35)]"
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <TwitterVerifiedBadge username={connection.twitterUsername} />
+                {justConnected ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-medium text-emerald-200">
+                    <Sparkles className="size-3" />
+                    Just verified
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-3 text-base font-semibold text-white">
+                {connection.twitterName ?? `@${connection.twitterUsername}`}
+              </p>
+              <p className="mt-1 text-sm text-foreground/58">
+                Your Blink profile now shows verified X ownership and stronger
+                social proof.
+              </p>
+            </div>
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-[#38bdf8]/15 bg-[#38bdf8]/10 text-[#8ad9ff]">
+              <Sparkles className="size-4" />
+            </div>
+          </div>
+        </motion.div>
         {(justConnected || showSuccessCard) && (
           <AnimatePresence>
             <motion.div
@@ -292,11 +433,56 @@ export function ConnectTwitterButton({
   }
 
   // Not connected
+  if (normalizedTargetWalletAddress && !normalizedConnectedWalletAddress) {
+    return (
+      <button
+        type="button"
+        onClick={() => void connectWallet()}
+        className={`inline-flex items-center gap-2 rounded-xl border border-[#38bdf8]/25 bg-[#38bdf8]/8 px-4 py-2 text-sm font-medium text-[#9bddff] transition hover:border-[#38bdf8]/55 hover:bg-[#38bdf8]/14 ${className}`}
+      >
+        <svg
+          className="size-4 shrink-0"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.736l7.73-8.835L1.254 2.25H8.08l4.263 5.634 5.9-5.634Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+        </svg>
+        Connect Wallet to Claim
+      </button>
+    );
+  }
+
+  if (normalizedTargetWalletAddress && !isClaimingOwnProfile) {
+    return (
+      <div className={`flex flex-col gap-2 ${className}`}>
+        <button
+          type="button"
+          disabled
+          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-medium text-white/45"
+        >
+          <svg
+            className="size-4 shrink-0"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.736l7.73-8.835L1.254 2.25H8.08l4.263 5.634 5.9-5.634Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+          </svg>
+          Claim Ownership
+        </button>
+        <p className="text-xs text-foreground/45">
+          Connect the wallet that owns this profile to verify its X account.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <button
       type="button"
       onClick={() => void handleConnect()}
-      className={`inline-flex items-center gap-2 rounded-xl border border-[#1d9bf0]/30 bg-[#1d9bf0]/10 px-4 py-2 text-sm font-medium text-[#7ecfff] transition hover:border-[#1d9bf0]/60 hover:bg-[#1d9bf0]/20 ${className}`}
+      className={`inline-flex items-center gap-2 rounded-xl border border-[#38bdf8]/30 bg-[linear-gradient(180deg,rgba(17,64,108,0.28),rgba(11,31,52,0.28))] px-4 py-2 text-sm font-medium text-[#a5e3ff] transition hover:border-[#38bdf8]/60 hover:bg-[linear-gradient(180deg,rgba(24,92,153,0.32),rgba(13,42,69,0.32))] ${className}`}
     >
       <svg
         className="size-4 shrink-0"
@@ -306,6 +492,7 @@ export function ConnectTwitterButton({
       >
         <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.736l7.73-8.835L1.254 2.25H8.08l4.263 5.634 5.9-5.634Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
       </svg>
+      <Sparkles className="size-3.5 text-[#7dd3fc]" />
       Claim Ownership
     </button>
   );

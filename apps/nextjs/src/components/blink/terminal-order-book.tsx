@@ -63,6 +63,9 @@ function depthOpacity(index: number, total: number, closestIsLow: boolean) {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export function TerminalOrderBook(props: { market: string }) {
+  const [activeTab, setActiveTab] = useState<"orderbook" | "trades">(
+    "orderbook",
+  );
   const [book, setBook] = useState<hl.Book | null>(null);
   const [trades, setTrades] = useState<FormattedTrade[]>([]);
   const [changedRows, setChangedRows] = useState<Record<string, "up" | "down">>(
@@ -71,6 +74,7 @@ export function TerminalOrderBook(props: { market: string }) {
   const [spreadPulse, setSpreadPulse] = useState<"up" | "down" | null>(null);
   const lastSizesRef = useRef<Map<string, number>>(new Map());
   const lastSpreadRef = useRef<number | null>(null);
+  const tradesListRef = useRef<HTMLDivElement | null>(null);
 
   // ── WebSocket subscriptions ───────────────────────────────────────────────
   useEffect(() => {
@@ -174,6 +178,11 @@ export function TerminalOrderBook(props: { market: string }) {
     lastSpreadRef.current = spread;
   }, [spread]);
 
+  useEffect(() => {
+    if (activeTab !== "trades") return;
+    tradesListRef.current?.scrollTo({ top: 0, behavior: "auto" });
+  }, [activeTab]);
+
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
     <section className="glass-panel flex h-full flex-col overflow-hidden p-3">
@@ -186,7 +195,12 @@ export function TerminalOrderBook(props: { market: string }) {
       </div>
 
       <Tabs
-        defaultValue="orderbook"
+        value={activeTab}
+        onValueChange={(value) => {
+          if (value === "orderbook" || value === "trades") {
+            setActiveTab(value);
+          }
+        }}
         className="flex min-h-0 flex-1 flex-col rounded-[12px] border border-[#88b3ff18] bg-[#060c18]"
       >
         {/* Tab bar */}
@@ -341,7 +355,10 @@ export function TerminalOrderBook(props: { market: string }) {
             <span className="text-right">Time</span>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-1.5 pb-1.5">
+          <div
+            ref={tradesListRef}
+            className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-1.5"
+          >
             {trades.length === 0 ? (
               <div className="mt-4 rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center text-xs text-foreground/35">
                 Waiting for trades…

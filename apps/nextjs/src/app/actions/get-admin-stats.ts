@@ -111,7 +111,8 @@ export async function getAdminStats(options?: {
   liveWindowMinutes?: number;
   liveLimit?: number;
 }): Promise<AdminStats> {
-  const canonicalWindowDays = 1;
+  // Keep UI on "Today" mode but fetch 2 days so yesterday deltas remain accurate.
+  const canonicalWindowDays = 2;
 
   if (options?.syncHyperliquid) {
     await syncBuilderDailyMetrics(canonicalWindowDays);

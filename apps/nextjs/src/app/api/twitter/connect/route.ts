@@ -58,6 +58,10 @@ function parseClaimContext(value?: string) {
   }
 }
 
+function getCanonicalAppUrl() {
+  return env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 /**
@@ -120,7 +124,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const appUrl = req.nextUrl.origin;
+  const appUrl = getCanonicalAppUrl();
   const redirectUri = `${appUrl}/api/twitter/callback`;
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = generateCodeChallenge(codeVerifier);

@@ -79,6 +79,10 @@ function buildReturnRedirect(params: {
   return redirectUrl;
 }
 
+function getCanonicalAppUrl() {
+  return env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
+}
+
 /**
  * GET /api/twitter/callback?code=...&state=...
  *
@@ -87,7 +91,7 @@ function buildReturnRedirect(params: {
  * store the connection in DB, then redirect back to the profile page.
  */
 export async function GET(req: NextRequest) {
-  const appUrl = req.nextUrl.origin;
+  const appUrl = getCanonicalAppUrl();
   const redirectUri = `${appUrl}/api/twitter/callback`;
   const url = req.nextUrl;
   const code = url.searchParams.get("code");

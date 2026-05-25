@@ -32,6 +32,7 @@ import {
   TwitterConnection,
   UserProfile,
 } from "@acme/db/schema";
+import { AssetIcon } from "~/components/blink/asset-icon";
 import { ConnectTwitterButton } from "~/components/blink/connect-twitter-button";
 import { ProfileEquitySection } from "~/components/blink/profile-equity-section";
 import { ProfileShareButton } from "~/components/blink/profile-share-button";
@@ -404,9 +405,10 @@ export default async function ProfilePage(props: {
               </div>
               <ProfileEquitySection targetAddress={resolvedAddress} />
 
-              <p className="mt-7 text-center text-sm text-white/35">
-                Powered by Hyperliquid
-              </p>
+              <div className="mt-7 flex items-center justify-center gap-2 text-sm text-white/35">
+                <AssetIcon asset="HYPE" className="size-4" />
+                <p>Powered by Hyperliquid</p>
+              </div>
               <div className="mt-4 flex justify-center">
                 <Link
                   href="/trade/BTC"

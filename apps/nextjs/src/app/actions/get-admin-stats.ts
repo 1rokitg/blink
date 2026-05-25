@@ -44,6 +44,7 @@ export interface AdminStats {
       revenue: number;
       volume: number;
       users: number;
+      fills: number;
     }>;
     attribution: {
       byUser: Array<{

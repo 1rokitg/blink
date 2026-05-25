@@ -259,6 +259,7 @@ export async function getBuilderMetricsSnapshot(days = 30) {
       revenue: numberOrZero(r.builderFeeUsd),
       volume: numberOrZero(r.volumeUsd),
       users: Number(r.activeUsers ?? 0),
+      fills: Number(r.fillsCount ?? 0),
     })),
   };
 }

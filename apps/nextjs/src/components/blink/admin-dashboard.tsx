@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { useWallets } from "@privy-io/react-auth";
 import { Loader2, RefreshCw } from "lucide-react";
-import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 import { Badge } from "@acme/ui/badge";
 import { Switch } from "@acme/ui/switch";
@@ -126,6 +126,14 @@ export function AdminDashboard() {
     volume: {
       label: "Volume",
       color: "#2c6bff",
+    },
+    fills: {
+      label: "Fills",
+      color: "#7fa8ff",
+    },
+    users: {
+      label: "Active users",
+      color: "#67e8f9",
     },
   } satisfies ChartConfig;
 
@@ -376,6 +384,86 @@ export function AdminDashboard() {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+
+        <section className="glass-card mt-6 p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-base font-semibold text-white">Backlog trends</h2>
+            <span className="text-xs text-foreground/40">Daily users + fills</span>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-[12px] border border-white/10 bg-white/[0.02] p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  Daily fills
+                </p>
+                <p className="text-xs text-foreground/45">
+                  {formatCompact(stats?.builder.fillsCount ?? 0)} total
+                </p>
+              </div>
+              <div className="h-[220px]">
+                <ChartContainer
+                  config={{ fills: chartConfig.fills }}
+                  className="h-full w-full"
+                >
+                  <BarChart
+                    accessibilityLayer
+                    data={stats?.builder.series ?? []}
+                    margin={{ left: 0, right: 0, top: 6, bottom: 0 }}
+                  >
+                    <CartesianGrid vertical={false} stroke="#1a2437" strokeDasharray="2 8" />
+                    <XAxis dataKey="day" tickLine={false} axisLine={false} tickMargin={8} />
+                    <YAxis hide />
+                    <ChartTooltip
+                      cursor={false}
+                      content={<ChartTooltipContent indicator="line" />}
+                    />
+                    <Bar
+                      dataKey="fills"
+                      fill="var(--color-fills)"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ChartContainer>
+              </div>
+            </div>
+
+            <div className="rounded-[12px] border border-white/10 bg-white/[0.02] p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  Daily active users
+                </p>
+                <p className="text-xs text-foreground/45">
+                  {formatCompact(stats?.builder.totalUsers ?? 0)} approved
+                </p>
+              </div>
+              <div className="h-[220px]">
+                <ChartContainer
+                  config={{ users: chartConfig.users }}
+                  className="h-full w-full"
+                >
+                  <BarChart
+                    accessibilityLayer
+                    data={stats?.builder.series ?? []}
+                    margin={{ left: 0, right: 0, top: 6, bottom: 0 }}
+                  >
+                    <CartesianGrid vertical={false} stroke="#1a2437" strokeDasharray="2 8" />
+                    <XAxis dataKey="day" tickLine={false} axisLine={false} tickMargin={8} />
+                    <YAxis hide />
+                    <ChartTooltip
+                      cursor={false}
+                      content={<ChartTooltipContent indicator="line" />}
+                    />
+                    <Bar
+                      dataKey="users"
+                      fill="var(--color-users)"
+                      radius={[4, 4, 0, 0]}
+                    />
+                  </BarChart>
+                </ChartContainer>
+              </div>
+            </div>
           </div>
         </section>
 

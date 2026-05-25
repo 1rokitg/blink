@@ -108,6 +108,7 @@ export interface AdminStats {
       revenue: number;
       volume: number;
       users: number;
+      fills: number;
     }>;
     attribution: {
       byUser: Array<{
@@ -175,8 +176,11 @@ export async function getAdminStats(options?: {
   liveLimit?: number;
   windowDays?: 1 | 7 | 30 | 90;
 }): Promise<AdminStats> {
+  // Keep UI on "Today" mode but fetch 2 days so yesterday deltas remain accurate.
+  const canonicalWindowDays = 2;
+
   if (options?.syncHyperliquid) {
-    await syncBuilderDailyMetrics(90);
+    await syncBuilderDailyMetrics(canonicalWindowDays);
   }
 
   const now = Date.now();

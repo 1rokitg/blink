@@ -181,6 +181,14 @@ export function AdminDashboard() {
       label: "Users",
       color: "#8aa4ff",
     },
+    fills: {
+      label: "Fills",
+      color: "#7fa8ff",
+    },
+    users: {
+      label: "Active users",
+      color: "#67e8f9",
+    },
   } satisfies ChartConfig;
 
   const statsCards = useMemo(() => {

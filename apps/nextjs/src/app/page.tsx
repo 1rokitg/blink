@@ -56,6 +56,14 @@ export default function HomePage() {
         >
           rokitg.fun
         </a>
+        <a
+          href="https://docs.blink.lat"
+          target="_blank"
+          rel="noreferrer"
+          className="mt-1 text-sm text-[#8fb9ff] underline-offset-4 transition hover:text-[#b8d3ff] hover:underline"
+        >
+          docs.blink.lat
+        </a>
         <p className="mt-6 text-xs text-foreground/45">
           Blink is not available to U.S. persons. U.S. users are redirected to{" "}
           <a

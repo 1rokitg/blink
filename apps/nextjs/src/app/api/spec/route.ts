@@ -7,12 +7,15 @@ const openAPIGenerator = new OpenAPIGenerator({
 });
 
 export async function GET(request: Request) {
+  const origin = new URL(request.url).origin;
   const spec = await openAPIGenerator.generate(router, {
     info: {
-      title: "ORPC Playground",
+      title: "Blink API",
+      description:
+        "Blink public API for trading, rewards, referrals, and internal protocol operations.",
       version: "1.0.0",
     },
-    servers: [{ url: "/api" /** Should use absolute URLs in production */ }],
+    servers: [{ url: `${origin}/api` }],
     security: [{ bearerAuth: [] }],
     components: {
       securitySchemes: {
@@ -27,6 +30,7 @@ export async function GET(request: Request) {
   return new Response(JSON.stringify(spec), {
     headers: {
       "Content-Type": "application/json",
+      "Cache-Control": "public, max-age=300, s-maxage=300",
     },
   });
 }

@@ -40,7 +40,7 @@ export default function HomePage() {
           href="/pro"
           className="mt-9 inline-flex h-14 w-full items-center justify-center rounded-2xl border border-[#8fbaff80] bg-[linear-gradient(180deg,#3c76ff,#2457db)] px-8 text-base font-semibold text-white shadow-[0_22px_70px_rgba(37,90,224,0.5)] transition hover:scale-[1.01] hover:brightness-110"
         >
-          Blink Pro
+          Unlock Access
         </Link>
         <Link
           href="/trade/BTC"

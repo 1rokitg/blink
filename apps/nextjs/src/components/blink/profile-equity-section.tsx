@@ -20,7 +20,9 @@ import { ProfileEquityChart } from "./profile-equity-chart";
 type Period = "24H" | "7D" | "30D" | "ALL";
 
 function SkeletonLine({ w }: { w: string }) {
-  return <div className={`animate-pulse rounded-md bg-white/[0.07] ${w} h-7`} />;
+  return (
+    <div className={`animate-pulse rounded-md bg-white/[0.07] ${w} h-7`} />
+  );
 }
 
 function StatRow({
@@ -35,7 +37,10 @@ function StatRow({
   return (
     <div className="flex items-center justify-between">
       <p className="inline-flex items-center gap-2 text-2xl text-white/85">
-        <span className="size-3 rounded-sm" style={{ backgroundColor: color }} />
+        <span
+          className="size-3 rounded-sm"
+          style={{ backgroundColor: color }}
+        />
         {label}
       </p>
       <p className="font-medium text-2xl text-white">{value}</p>
@@ -47,17 +52,21 @@ export function ProfileEquitySection({
   /** If provided, show this wallet's data (public profile). Falls back to Privy wallet. */
   targetAddress,
 }: {
-  targetAddress?: string;
+  targetAddress?: string | null;
 }) {
   const { wallets } = useWallets();
   const ownAddress = wallets[0]?.address as `0x${string}` | undefined;
-  const walletAddress = (
-    targetAddress?.toLowerCase() ?? ownAddress?.toLowerCase()
-  ) as `0x${string}` | undefined;
+  const hasExplicitTarget = targetAddress !== undefined;
+  const normalizedTargetAddress = targetAddress?.toLowerCase() as
+    | `0x${string}`
+    | undefined;
+  const walletAddress = hasExplicitTarget
+    ? normalizedTargetAddress
+    : (ownAddress?.toLowerCase() as `0x${string}` | undefined);
 
-  const isOwnProfile =
-    !targetAddress ||
-    targetAddress.toLowerCase() === ownAddress?.toLowerCase();
+  const isOwnProfile = hasExplicitTarget
+    ? normalizedTargetAddress === ownAddress?.toLowerCase()
+    : true;
 
   const [period, setPeriod] = useState<Period>("24H");
   const [shareOpen, setShareOpen] = useState(false);
@@ -157,17 +166,13 @@ export function ProfileEquitySection({
   const spotWalletValue = Math.max(withdrawable, 0);
   const perpsValue = Math.max(perpsMarginUsed, 0);
   const stakingValue = Math.max(accountValue - spotWalletValue - perpsValue, 0);
-  const allocTotal = Math.max(
-    spotWalletValue + perpsValue + stakingValue,
-    1,
-  );
+  const allocTotal = Math.max(spotWalletValue + perpsValue + stakingValue, 1);
   const spotPct = (spotWalletValue / allocTotal) * 100;
   const perpsPct = (perpsValue / allocTotal) * 100;
   const stakingPct = (stakingValue / allocTotal) * 100;
   const pendingOrderNotional = openOrders.reduce(
     (sum, order) =>
-      sum +
-      Number(order.limitPx || 0) * Math.abs(Number(order.sz || 0)),
+      sum + Number(order.limitPx || 0) * Math.abs(Number(order.sz || 0)),
     0,
   );
 
@@ -178,7 +183,7 @@ export function ProfileEquitySection({
       {/* Equity header + follow counts */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xl text-white/70">Total Equity</p>
+          <p className="text-xl text-white/70">Account value</p>
           {loading ? (
             <div className="mt-2 space-y-2">
               <SkeletonLine w="w-56" />
@@ -347,8 +352,8 @@ export function ProfileEquitySection({
       </div>
 
       <p className="mt-2 text-xs text-white/35">
-        Realized PnL sums all closed fills. Equity includes spot + perps margin +
-        staking.
+        Realized PnL sums all closed fills. Equity includes spot + perps margin
+        + staking.
       </p>
 
       {/* Open positions */}
@@ -369,9 +374,8 @@ export function ProfileEquitySection({
                   <div>
                     <p className="font-medium text-white">{position.coin}</p>
                     <p className="text-sm text-white/50">
-                      {size > 0 ? "Long" : "Short"}{" "}
-                      {Math.abs(size).toFixed(4)} @{" "}
-                      {hideBalances ? "••••" : position.entryPx}
+                      {size > 0 ? "Long" : "Short"} {Math.abs(size).toFixed(4)}{" "}
+                      @ {hideBalances ? "••••" : position.entryPx}
                     </p>
                   </div>
                   <p
@@ -387,7 +391,14 @@ export function ProfileEquitySection({
         </div>
       )}
 
-      {!loading && !walletAddress && (
+      {!loading && !walletAddress && hasExplicitTarget && (
+        <p className="mt-6 text-center text-sm text-white/35">
+          This Blink profile does not have a live Hyperliquid account linked
+          yet.
+        </p>
+      )}
+
+      {!loading && !walletAddress && !hasExplicitTarget && (
         <p className="mt-6 text-center text-sm text-white/35">
           Connect a wallet to see your live account.
         </p>

@@ -2,7 +2,7 @@ const html = `
 <!doctype html>
 <html>
 <head>
-    <title>Starter Kit API</title>
+    <title>Blink API Reference</title>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="https://orpc.unnoq.com/icon.svg" />
@@ -12,11 +12,12 @@ const html = `
       id="api-reference"
       data-url="/api/spec"
       data-configuration="${JSON.stringify({
+        theme: "purple",
         authentication: {
           preferredSecurityScheme: "bearerAuth",
           http: {
             bearer: {
-              token: "default-token",
+              token: "",
             },
           },
         },

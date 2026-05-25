@@ -55,3 +55,79 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
+
+  notify_discord_release:
+    needs: [lint, format, typecheck]
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    env:
+      DISCORD_RELEASE_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK_URL }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      GITHUB_SHA: ${{ github.sha }}
+      GITHUB_ACTOR: ${{ github.actor }}
+      COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+      COMMIT_URL: https://github.com/${{ github.repository }}/commit/${{ github.sha }}
+      COMPARE_URL: ${{ github.event.compare }}
+    steps:
+      - name: Skip if webhook is not configured
+        if: ${{ env.DISCORD_RELEASE_WEBHOOK_URL == '' }}
+        run: echo "DISCORD_RELEASE_WEBHOOK_URL not configured; skipping."
+
+      - name: Post production release to Discord
+        if: ${{ env.DISCORD_RELEASE_WEBHOOK_URL != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          payload="$(python3 <<'PY'
+          import json
+          import os
+
+          commit_sha = os.environ["GITHUB_SHA"][:7]
+          commit_message = os.environ.get("COMMIT_MESSAGE", "").strip() or "New production release"
+          compare_url = os.environ.get("COMPARE_URL", "").strip()
+          fields = [
+              {
+                  "name": "Commit",
+                  "value": f"[`{commit_sha}`]({os.environ['COMMIT_URL']})",
+                  "inline": True,
+              },
+              {
+                  "name": "Actor",
+                  "value": os.environ["GITHUB_ACTOR"],
+                  "inline": True,
+              },
+          ]
+
+          if compare_url:
+              fields.append(
+                  {
+                      "name": "Compare",
+                      "value": f"[View changes]({compare_url})",
+                      "inline": False,
+                  }
+              )
+
+          payload = {
+              "content": "Blink just shipped to production.",
+              "embeds": [
+                  {
+                      "title": "New Blink release",
+                      "description": commit_message,
+                      "color": 2782207,
+                      "fields": fields,
+                      "footer": {
+                          "text": f"Repo: {os.environ['GITHUB_REPOSITORY']}"
+                      },
+                  }
+              ],
+          }
+
+          print(json.dumps(payload))
+          PY
+          )"
+
+          curl -fsSL \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$DISCORD_RELEASE_WEBHOOK_URL"

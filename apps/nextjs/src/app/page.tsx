@@ -1,5 +1,6 @@
 "use client";
 
+import { BadgeCheck } from "lucide-react";
 import Link from "next/link";
 
 import { motion } from "motion/react";
@@ -47,6 +48,23 @@ export default function HomePage() {
           className="mt-3 text-sm text-foreground/55 underline-offset-4 transition hover:text-foreground/85 hover:underline"
         >
           Continue with free terminal
+        </Link>
+        <Link
+          href="/profile/verify"
+          className="mt-5 flex w-full items-start gap-3 rounded-2xl border border-[#6cc6ff33] bg-[linear-gradient(180deg,rgba(10,23,42,0.92),rgba(6,16,30,0.96))] px-4 py-4 text-left shadow-[0_18px_50px_rgba(0,0,0,0.25)] transition hover:border-[#6cc6ff66] hover:bg-[linear-gradient(180deg,rgba(12,28,50,0.96),rgba(7,20,36,0.98))]"
+        >
+          <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#38bdf8]/12 text-[#8ad9ff]">
+            <BadgeCheck className="size-5" />
+          </span>
+          <span className="block">
+            <span className="block text-sm font-semibold text-white">
+              Verify your X profile
+            </span>
+            <span className="mt-1 block text-sm leading-6 text-foreground/60">
+              Build a public Blink identity, unlock the verified badge, and make
+              your profile easier to share.
+            </span>
+          </span>
         </Link>
         <a
           href="https://rokitg.fun"

@@ -419,6 +419,18 @@ export default async function ProfilePage(props: {
                   showSuccessCard={false}
                   targetWalletAddress={resolvedAddress ?? undefined}
                 />
+                {!hero.twitterUsername ? (
+                  <p className="mt-2 text-xs text-white/45">
+                    Want this badge on your own Blink profile?{" "}
+                    <Link
+                      href="/profile/verify"
+                      className="text-[#9bddff] underline-offset-4 transition hover:text-white hover:underline"
+                    >
+                      Use the dedicated verification flow
+                    </Link>
+                    .
+                  </p>
+                ) : null}
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-5 text-sm text-white/55">

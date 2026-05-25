@@ -482,7 +482,6 @@ export default async function ProfilePage(props: {
               <ProfileEquitySection targetAddress={resolvedAddress} />
 
               <div className="mt-7 flex items-center justify-center gap-2 text-sm text-white/35">
-                <AssetIcon asset="HYPE" className="size-4" />
                 <p>Powered by Hyperliquid</p>
               </div>
               <div className="mt-4 flex justify-center">

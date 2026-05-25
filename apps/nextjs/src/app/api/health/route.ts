@@ -38,7 +38,7 @@ export async function GET() {
       await db.execute(sql`select 1`);
     }),
     runHealthCheck(async () => {
-      await infoClient.metaAndAssetCtxs();
+      await infoClient.exchangeStatus();
     }),
   ]);
 

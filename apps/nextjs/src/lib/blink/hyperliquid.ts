@@ -2,8 +2,15 @@ import * as hl from "@nktkas/hyperliquid";
 import type { ConnectedWallet } from "@privy-io/react-auth";
 import { getAddress } from "viem";
 
+function createHttpTransport() {
+  return new hl.HttpTransport({
+    // Some production runtimes reject RequestInit.keepalive on server-side fetches.
+    fetchOptions: { keepalive: false },
+  });
+}
+
 export const infoClient = new hl.InfoClient({
-  transport: new hl.HttpTransport(),
+  transport: createHttpTransport(),
 });
 
 export function createSubscriptionClient() {
@@ -20,7 +27,9 @@ export function createSubscriptionClient() {
  */
 export async function createExchangeClient(wallet: ConnectedWallet) {
   const provider = await wallet.getEthereumProvider();
-  const chainIdHex = (await provider.request({ method: "eth_chainId" })) as string;
+  const chainIdHex = (await provider.request({
+    method: "eth_chainId",
+  })) as string;
   const chainId = Number.parseInt(chainIdHex, 16);
 
   // Fetch the address directly from the provider — the authoritative source.
@@ -28,7 +37,9 @@ export async function createExchangeClient(wallet: ConnectedWallet) {
   // provider's internal account state. Both Rabby and Privy's own EIP-1193
   // wrapper validate that params[0] matches the provider's current account,
   // so we must use exactly what eth_accounts returns.
-  const accounts = (await provider.request({ method: "eth_accounts" })) as string[];
+  const accounts = (await provider.request({
+    method: "eth_accounts",
+  })) as string[];
   const providerAddress = accounts[0];
   // EIP-55 checksum every candidate — Rabby and Privy's EIP-1193 wrapper both
   // compare params[0] against the current account case-sensitively. The SDK also
@@ -133,7 +144,7 @@ export async function createExchangeClient(wallet: ConnectedWallet) {
 
   return new hl.ExchangeClient({
     wallet: signer as unknown as hl.ExchangeClientParameters["wallet"],
-    transport: new hl.HttpTransport(),
+    transport: createHttpTransport(),
   });
 }
 

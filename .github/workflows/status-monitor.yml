@@ -33,57 +33,29 @@ jobs:
           summary="$(
             jq -r '
               if (.checks // null) == null then
-                "Health endpoint returned an unexpected payload."
+                "health endpoint returned an unexpected payload"
               else
                 "database=" + (.checks.database.status // "unknown") + ", hyperliquid=" + (.checks.hyperliquid.status // "unknown")
               end
-            ' "$body_file" 2>/dev/null || echo "Health endpoint returned an unreadable payload."
+            ' "$body_file" 2>/dev/null || echo "health endpoint returned an unreadable payload"
           )"
-
-          title=""
-          description=""
-          color="15158332"
 
           if [[ "$http_code" == "200" && "$status" == "ok" ]]; then
             echo "Blink health check is passing."
             exit 0
           fi
 
+          message=""
           if [[ "$http_code" == "000" || "$http_code" =~ ^5 ]]; then
-            title="Blink outage detected"
-            description="Blink did not respond successfully at the public health endpoint."
+            message="Blink outage: public health endpoint did not respond successfully.\nChecked: ${health_url}\nHTTP: ${http_code}"
           else
-            title="Blink degraded service detected"
-            description="Blink is reachable, but the health endpoint reported a degraded state."
-            color="16033049"
+            message="Blink degraded: ${summary}\nChecked: ${health_url}\nHTTP: ${http_code}\nStatus: ${status}"
           fi
 
           payload="$(
             jq -n \
-              --arg title "$title" \
-              --arg description "$description" \
-              --arg health_url "$health_url" \
-              --arg http_code "$http_code" \
-              --arg status "$status" \
-              --arg summary "$summary" \
-              --argjson color "$color" \
-              '{
-                content: "Blink status alert.",
-                embeds: [
-                  {
-                    title: $title,
-                    description: $description,
-                    color: $color,
-                    fields: [
-                      { name: "Health URL", value: $health_url, inline: false },
-                      { name: "HTTP", value: $http_code, inline: true },
-                      { name: "Status", value: $status, inline: true },
-                      { name: "Checks", value: $summary, inline: false }
-                    ],
-                    footer: { text: "Simple Blink status monitor" }
-                  }
-                ]
-              }'
+              --arg content "$message" \
+              '{ content: $content }'
           )"
 
           curl -fsSL \

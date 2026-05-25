@@ -75,6 +75,28 @@ function sourceBadge(source: "canonical" | "pipeline") {
 }
 
 type NavItem = { label: string; active: boolean };
+type AdminRange = "5m" | "15m" | "1h" | "1d" | "7d" | "30d" | "90d";
+
+const ADMIN_RANGE_OPTIONS: Array<{
+  value: AdminRange;
+  label: string;
+  windowDays: 1 | 7 | 30 | 90;
+  liveMinutes: number;
+}> = [
+  { value: "5m", label: "5m", windowDays: 1, liveMinutes: 5 },
+  { value: "15m", label: "15m", windowDays: 1, liveMinutes: 15 },
+  { value: "1h", label: "1h", windowDays: 1, liveMinutes: 60 },
+  { value: "1d", label: "Today", windowDays: 1, liveMinutes: 60 },
+  { value: "7d", label: "7d", windowDays: 7, liveMinutes: 180 },
+  { value: "30d", label: "30d", windowDays: 30, liveMinutes: 360 },
+  { value: "90d", label: "90d", windowDays: 90, liveMinutes: 720 },
+];
+
+function getRangeConfig(range: AdminRange) {
+  const found = ADMIN_RANGE_OPTIONS.find((option) => option.value === range);
+  if (found) return found;
+  return ADMIN_RANGE_OPTIONS[0] as (typeof ADMIN_RANGE_OPTIONS)[number];
+}
 
 export function AdminDashboard() {
   const { wallets } = useWallets();
@@ -91,7 +113,7 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(false);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [flagSaving, setFlagSaving] = useState<string | null>(null);
-  const [selectedWindow, setSelectedWindow] = useState<1 | 7 | 30 | 90>(7);
+  const [selectedRange, setSelectedRange] = useState<AdminRange>("7d");
 
   const fetchStats = useCallback(
     async (options?: {
@@ -103,12 +125,13 @@ export function AdminDashboard() {
         setLoading(true);
       }
       try {
+        const rangeConfig = getRangeConfig(selectedRange);
         const data = await getAdminStats({
           syncHyperliquid: options?.syncHyperliquid,
           includeAttribution: options?.includeAttribution,
-          liveWindowMinutes: 30,
+          liveWindowMinutes: rangeConfig.liveMinutes,
           liveLimit: 120,
-          windowDays: selectedWindow,
+          windowDays: rangeConfig.windowDays,
         });
         setStats(data);
         setLastFetched(new Date());
@@ -120,7 +143,7 @@ export function AdminDashboard() {
         }
       }
     },
-    [selectedWindow],
+    [selectedRange],
   );
 
   useEffect(() => {
@@ -310,16 +333,15 @@ export function AdminDashboard() {
 
             <div className="flex items-center gap-2">
               <select
-                value={selectedWindow}
-                onChange={(event) =>
-                  setSelectedWindow(Number(event.target.value) as 1 | 7 | 30 | 90)
-                }
+                value={selectedRange}
+                onChange={(event) => setSelectedRange(event.target.value as AdminRange)}
                 className="h-10 rounded-[10px] border border-white/10 bg-white/[0.03] px-3 text-sm text-white outline-none"
               >
-                <option value={1}>Today</option>
-                <option value={7}>7d</option>
-                <option value={30}>30d</option>
-                <option value={90}>90d</option>
+                {ADMIN_RANGE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
               <button
                 type="button"
@@ -420,7 +442,7 @@ export function AdminDashboard() {
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-white">Daily revenue + users</h3>
                 <span className="text-xs text-foreground/45">
-                  window {stats?.canonicalSync.window ?? "—"}
+                  window {selectedRange}
                 </span>
               </div>
               <div className="h-[220px]">

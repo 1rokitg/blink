@@ -383,7 +383,7 @@ function LeaderboardPanel() {
 
       {/* footer note */}
       <p className="px-3 py-2.5 text-center text-[10px] text-foreground/25">
-        Mock data · Live leaderboard coming soon
+        Mock data
       </p>
     </div>
   );
@@ -547,9 +547,7 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
             </div>
           ))}
         </div>
-        <p className="mt-2 px-2 text-[10px] text-foreground/30">
-          Mock data · Live leaderboard coming soon
-        </p>
+        <p className="mt-2 px-2 text-[10px] text-foreground/30">Mock data</p>
       </div>
     </div>
   );

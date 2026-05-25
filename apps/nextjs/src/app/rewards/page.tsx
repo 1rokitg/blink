@@ -42,6 +42,10 @@ function timeAgo(date: string | Date) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+function pct(value: number) {
+  return `${value.toFixed(1)}%`;
+}
+
 // ─── Copy row ─────────────────────────────────────────────────────────────────
 
 function CopyRow({
@@ -134,7 +138,7 @@ export default function RewardsPage() {
       return res.json() as Promise<{ code: string; created: boolean }>;
     },
     enabled: !!address,
-    staleTime: Infinity,
+    staleTime: Number.POSITIVE_INFINITY,
   });
 
   // Fetch referral stats
@@ -157,6 +161,38 @@ export default function RewardsPage() {
   const referralLink = code ? `https://blink.lat/r/${code}` : null;
   const referrals = statsQuery.data?.referrals ?? [];
   const count = statsQuery.data?.count ?? 0;
+
+  const affiliateQuery = useQuery({
+    queryKey: ["affiliate-rewards", address],
+    queryFn: async () => {
+      if (!address) return null;
+      const res = await fetch(`/api/affiliates/me?address=${address}`);
+      if (!res.ok) return null;
+      return res.json() as Promise<{
+        isAffiliate: true;
+        profile: {
+          name: string;
+          xHandle: string;
+          xUrl: string;
+          boostedCode: string;
+          boostLabel: string;
+        };
+        code: string;
+        metrics: {
+          referrals: number;
+          builderApproved: number;
+          firstTrade: number;
+          proStarted: number;
+          signupToApprovalPct: number;
+          approvalToTradePct: number;
+          signupToTradePct: number;
+          tradeToProPct: number;
+        };
+      }>;
+    },
+    enabled: !!address,
+    refetchInterval: 60_000,
+  });
 
   const twitterText = referralLink
     ? `Just started trading on @blink_perps — fastest way to trade perps on Hyperliquid, zero maker fees 🔥\n\nJoin via my link: ${referralLink}`
@@ -389,6 +425,78 @@ export default function RewardsPage() {
 
             {/* ── Right: how it works ─────────────────────────────────────── */}
             <div className="space-y-4">
+              {affiliateQuery.data?.isAffiliate ? (
+                <div className="overflow-hidden rounded-[20px] border border-emerald-400/30 bg-[linear-gradient(180deg,rgba(13,34,25,0.9),rgba(9,24,32,0.9))]">
+                  <div className="border-b border-emerald-400/20 px-5 py-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-300/85">
+                      Affiliate Performance
+                    </p>
+                    <p className="mt-1 text-sm text-white/70">
+                      Code locked:{" "}
+                      <span className="font-mono text-white">
+                        {affiliateQuery.data.code}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 p-4">
+                    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.13em] text-white/35">
+                        Referrals
+                      </p>
+                      <p className="mt-1 text-2xl font-bold text-white">
+                        {affiliateQuery.data.metrics.referrals}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.13em] text-white/35">
+                        First trades
+                      </p>
+                      <p className="mt-1 text-2xl font-bold text-white">
+                        {affiliateQuery.data.metrics.firstTrade}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.13em] text-white/35">
+                        Signup → approval
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-emerald-300">
+                        {pct(affiliateQuery.data.metrics.signupToApprovalPct)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.13em] text-white/35">
+                        Approval → trade
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-emerald-300">
+                        {pct(affiliateQuery.data.metrics.approvalToTradePct)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.13em] text-white/35">
+                        Signup → trade
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-white">
+                        {pct(affiliateQuery.data.metrics.signupToTradePct)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3">
+                      <p className="text-[10px] uppercase tracking-[0.13em] text-white/35">
+                        Trade → Pro
+                      </p>
+                      <p className="mt-1 text-lg font-semibold text-white">
+                        {pct(affiliateQuery.data.metrics.tradeToProPct)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="px-4 pb-4">
+                    <p className="text-xs text-white/45">
+                      Your affiliate code is managed by Blink and cannot be
+                      changed.
+                    </p>
+                  </div>
+                </div>
+              ) : null}
+
               {/* How it works */}
               <div className="overflow-hidden rounded-[20px] border border-white/[0.08] bg-[#080d1a]">
                 <div className="border-b border-white/[0.06] px-5 py-4">

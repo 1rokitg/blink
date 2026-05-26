@@ -27,3 +27,5 @@ export const BASE_WETH_ADDRESS = getAddress(
 
 export const BLINK_TOKEN_CLANKER_URL =
   "https://www.clanker.world/clanker/0x13a34e71bb46Eb20eBedd5cBA68210d663127b07";
+
+export const BLINK_TOKEN_FOMO_URL = "https://fomo.family/r/rokitg";

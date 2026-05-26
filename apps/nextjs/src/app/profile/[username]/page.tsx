@@ -349,8 +349,8 @@ export default async function ProfilePage(props: {
                       ) : null}
                       {hero.isPro ? (
                         <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-gradient-to-r from-amber-300/15 to-yellow-300/10 px-2.5 py-1 text-[10px] font-medium text-amber-200">
-                          <Verified className="size-3" />
-                          Blink Pro
+                      <Verified className="size-3" />
+                      Blink Pro
                         </div>
                       ) : null}
                     </div>

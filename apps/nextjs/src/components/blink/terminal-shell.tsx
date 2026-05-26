@@ -398,12 +398,72 @@ const DISCOVER_TRADERS = [
   { handle: "allheart", pnl: 7_640, rank: 5 },
 ];
 
+function SidePanelMarketRow(props: {
+  item: MarketRow;
+  selected?: boolean;
+  compact?: boolean;
+}) {
+  const positive = props.item.changePct >= 0;
+  const compact = props.compact ?? false;
+
+  return (
+    <Link
+      href={`/trade/${marketToSlug(props.item.coin)}`}
+      className={`flex items-center gap-2 border transition ${
+        compact ? "rounded-[8px] px-2 py-1.5" : "rounded-[10px] px-2.5 py-2"
+      } ${
+        props.selected
+          ? "border-[#3be1ba9e] bg-[#2dc9ff2b]"
+          : props.item.isHip3
+            ? "border-white/[0.06] bg-white/[0.02] hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
+            : compact
+              ? "border-white/0 hover:bg-white/[0.04]"
+              : "border-white/0 bg-transparent hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
+      }`}
+    >
+      <CoinIcon coin={props.item.coin} size={compact ? 22 : 28} />
+      <div className="min-w-0 flex-1">
+        <p
+          className={`flex items-center gap-1.5 font-medium leading-none text-white ${compact ? "text-xs" : "text-sm"}`}
+        >
+          <span className="truncate">{props.item.coin}</span>
+          {props.item.isHip3 ? (
+            <span className="rounded-full border border-[#7ea9ff33] bg-[#7ea9ff1a] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#a8c3ff]">
+              HIP-3
+            </span>
+          ) : null}
+          {ZERO_FEE_MARKETS.has(props.item.coin) ? (
+            <span
+              className="size-1.5 shrink-0 rounded-full bg-[#39e5b6]"
+              style={{ boxShadow: "0 0 5px 1px #39e5b688" }}
+              title="Zero maker fee"
+            />
+          ) : null}
+        </p>
+        <p className="mt-0.5 text-xs text-foreground/45">
+          {formatUsd(props.item.markPx)}
+        </p>
+      </div>
+      <span
+        className={`shrink-0 text-xs tabular-nums ${positive ? "text-emerald-300" : "text-rose-300"}`}
+      >
+        {positive ? "+" : ""}
+        {props.item.changePct.toFixed(2)}%
+      </span>
+    </Link>
+  );
+}
+
 function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
   const sorted = [...markets].sort((a, b) => b.changePct - a.changePct);
   const gainers = sorted.slice(0, 4);
   const losers = [...markets]
     .sort((a, b) => a.changePct - b.changePct)
     .slice(0, 4);
+  const hip3Markets = [...markets]
+    .filter((market) => market.isHip3)
+    .sort((left, right) => right.dailyVolume - left.dailyVolume)
+    .slice(0, 5);
 
   return (
     <div className="flex flex-col gap-4 p-3">
@@ -416,52 +476,9 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
           </span>
         </div>
         <div className="space-y-0.5">
-          {gainers.map((m) =>
-            m.isHip3 ? (
-              <Link
-                key={m.coin}
-                href={`/trade/${marketToSlug(m.coin)}`}
-                className="flex items-center gap-2 rounded-[8px] border border-white/[0.06] px-2 py-1.5 transition hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
-              >
-                <CoinIcon coin={m.coin} size={22} />
-                <span className="flex-1 text-xs font-medium text-white/85">
-                  {m.coin}
-                </span>
-                <span className="rounded-full border border-[#7ea9ff33] bg-[#7ea9ff1a] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#a8c3ff]">
-                  HIP-3
-                </span>
-                <span className="font-mono text-xs text-white/45">
-                  {formatUsd(m.markPx)}
-                </span>
-                <span className="w-14 text-right font-mono text-xs font-medium text-emerald-300">
-                  +{m.changePct.toFixed(2)}%
-                </span>
-              </Link>
-            ) : (
-              <Link
-                key={m.coin}
-                href={`/trade/${marketToSlug(m.coin)}`}
-                className="flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-white/[0.04]"
-              >
-                <CoinIcon coin={m.coin} size={22} />
-                <span className="flex-1 text-xs font-medium text-white/85">
-                  {m.coin}
-                </span>
-                {ZERO_FEE_MARKETS.has(m.coin) && (
-                  <span
-                    className="size-1.5 rounded-full bg-[#39e5b6]"
-                    style={{ boxShadow: "0 0 5px 1px #39e5b688" }}
-                  />
-                )}
-                <span className="font-mono text-xs text-white/45">
-                  {formatUsd(m.markPx)}
-                </span>
-                <span className="w-14 text-right font-mono text-xs font-medium text-emerald-300">
-                  +{m.changePct.toFixed(2)}%
-                </span>
-              </Link>
-            ),
-          )}
+          {gainers.map((market) => (
+            <SidePanelMarketRow key={market.coin} item={market} compact />
+          ))}
         </div>
       </div>
 
@@ -476,48 +493,31 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
           </span>
         </div>
         <div className="space-y-0.5">
-          {losers.map((m) =>
-            m.isHip3 ? (
-              <Link
-                key={m.coin}
-                href={`/trade/${marketToSlug(m.coin)}`}
-                className="flex items-center gap-2 rounded-[8px] border border-white/[0.06] px-2 py-1.5 transition hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
-              >
-                <CoinIcon coin={m.coin} size={22} />
-                <span className="flex-1 text-xs font-medium text-white/85">
-                  {m.coin}
-                </span>
-                <span className="rounded-full border border-[#7ea9ff33] bg-[#7ea9ff1a] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#a8c3ff]">
-                  HIP-3
-                </span>
-                <span className="font-mono text-xs text-white/45">
-                  {formatUsd(m.markPx)}
-                </span>
-                <span className="w-14 text-right font-mono text-xs font-medium text-rose-300">
-                  {m.changePct.toFixed(2)}%
-                </span>
-              </Link>
-            ) : (
-              <Link
-                key={m.coin}
-                href={`/trade/${marketToSlug(m.coin)}`}
-                className="flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-white/[0.04]"
-              >
-                <CoinIcon coin={m.coin} size={22} />
-                <span className="flex-1 text-xs font-medium text-white/85">
-                  {m.coin}
-                </span>
-                <span className="font-mono text-xs text-white/45">
-                  {formatUsd(m.markPx)}
-                </span>
-                <span className="w-14 text-right font-mono text-xs font-medium text-rose-300">
-                  {m.changePct.toFixed(2)}%
-                </span>
-              </Link>
-            ),
-          )}
+          {losers.map((market) => (
+            <SidePanelMarketRow key={market.coin} item={market} compact />
+          ))}
         </div>
       </div>
+
+      {hip3Markets.length > 0 ? (
+        <>
+          <div className="h-px bg-white/[0.06]" />
+
+          <div>
+            <div className="mb-2 flex items-center gap-1.5">
+              <Banknote className="size-3.5 text-[#8fbaff]" />
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8fbaff]/80">
+                HIP-3 Spotlight
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              {hip3Markets.map((market) => (
+                <SidePanelMarketRow key={market.coin} item={market} compact />
+              ))}
+            </div>
+          </div>
+        </>
+      ) : null}
 
       <div className="h-px bg-white/[0.06]" />
 
@@ -616,6 +616,8 @@ function LeftRail(props: {
         m.coin.toLowerCase().includes(searchQuery.trim().toLowerCase()),
       )
     : allRows;
+  const coreRows = marketRows.filter((market) => !market.isHip3);
+  const hip3Rows = marketRows.filter((market) => market.isHip3);
 
   return (
     <aside className="flex min-h-[calc(100vh-7rem)] w-[366px] flex-col gap-2.5">
@@ -749,51 +751,43 @@ function LeftRail(props: {
                 No markets found
               </p>
             ) : (
-              marketRows.map((item) => {
-                const selected = item.coin === props.market;
-                const positive = item.changePct >= 0;
-                return (
-                  <Link
-                    key={item.coin}
-                    href={`/trade/${marketToSlug(item.coin)}`}
-                    className={`flex items-center gap-2.5 rounded-[10px] border px-2.5 py-2 transition ${
-                      selected
-                        ? "border-[#3be1ba9e] bg-[#2dc9ff2b]"
-                        : item.isHip3
-                          ? "border-white/[0.06] bg-white/[0.02] hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
-                          : "border-white/0 bg-transparent hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
-                    }`}
-                  >
-                    <CoinIcon coin={item.coin} size={28} />
-                    <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-1.5 text-sm font-medium leading-none text-white">
-                        <span className="truncate">{item.coin}</span>
-                        {item.isHip3 ? (
-                          <span className="rounded-full border border-[#7ea9ff33] bg-[#7ea9ff1a] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#a8c3ff]">
-                            HIP-3
-                          </span>
-                        ) : null}
-                        {ZERO_FEE_MARKETS.has(item.coin) ? (
-                          <span
-                            className="size-1.5 shrink-0 rounded-full bg-[#39e5b6]"
-                            style={{ boxShadow: "0 0 5px 1px #39e5b688" }}
-                            title="Zero maker fee"
-                          />
-                        ) : null}
-                      </p>
-                      <p className="mt-0.5 text-xs text-foreground/45">
-                        {formatUsd(item.markPx)}
+              <>
+                {coreRows.length > 0 ? (
+                  <div className="space-y-0.5">
+                    <div className="px-1.5 pb-1 pt-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/30">
+                        Core Perps
                       </p>
                     </div>
-                    <span
-                      className={`shrink-0 text-xs tabular-nums ${positive ? "text-emerald-300" : "text-rose-300"}`}
-                    >
-                      {positive ? "+" : ""}
-                      {item.changePct.toFixed(2)}%
-                    </span>
-                  </Link>
-                );
-              })
+                    {coreRows.map((item) => (
+                      <SidePanelMarketRow
+                        key={item.coin}
+                        item={item}
+                        selected={item.coin === props.market}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+                {hip3Rows.length > 0 ? (
+                  <div className="pt-2">
+                    <div className="mb-1 h-px bg-white/[0.06]" />
+                    <div className="px-1.5 pb-1 pt-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8fbaff80]">
+                        HIP-3
+                      </p>
+                    </div>
+                    <div className="space-y-0.5">
+                      {hip3Rows.map((item) => (
+                        <SidePanelMarketRow
+                          key={item.coin}
+                          item={item}
+                          selected={item.coin === props.market}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </>
             )}
           </div>
         )}

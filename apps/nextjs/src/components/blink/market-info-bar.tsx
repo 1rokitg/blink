@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 import { useQuery } from "@tanstack/react-query";
 import { Check, Copy, Megaphone, Twitter } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@acme/ui/popover";
 
-import { createSubscriptionClient, infoClient } from "~/lib/blink/hyperliquid";
-import { formatCompactNumber, formatUsd } from "~/lib/blink/markets";
+import { resolvePerpMarket } from "~/lib/blink/hyperliquid";
+import {
+  formatCompactNumber,
+  formatUsd,
+  marketToSlug,
+} from "~/lib/blink/markets";
 
 // ─── Shill popover ─────────────────────────────────────────────────────────────
 
@@ -28,7 +32,7 @@ function ShillButton({
   const changeStr = `${positive ? "+" : ""}${changePct.toFixed(2)}%`;
   const priceStr = price > 0 ? formatUsd(price) : "—";
 
-  const shillText = `$${market} ${changeStr} 24h — trading on blink with 0 fees 🔥\n\nblink.lat/trade/${market}`;
+  const shillText = `$${market} ${changeStr} 24h — trading on blink with 0 fees 🔥\n\nblink.lat/trade/${marketToSlug(market)}`;
   const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shillText)}`;
 
   function handleCopy() {
@@ -58,7 +62,9 @@ function ShillButton({
           <div className="flex items-center justify-between">
             <div className="flex items-baseline gap-2">
               <span className="text-base font-bold text-white">${market}</span>
-              <span className="font-mono text-sm text-white/55">{priceStr}</span>
+              <span className="font-mono text-sm text-white/55">
+                {priceStr}
+              </span>
             </div>
             <span
               className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
@@ -87,9 +93,13 @@ function ShillButton({
             className="flex flex-1 items-center justify-center gap-1.5 rounded-[10px] border border-white/[0.09] bg-white/[0.04] py-2 text-xs font-semibold text-white/65 transition hover:bg-white/[0.09] hover:text-white"
           >
             {copied ? (
-              <><Check className="size-3.5 text-emerald-400" /> Copied</>
+              <>
+                <Check className="size-3.5 text-emerald-400" /> Copied
+              </>
             ) : (
-              <><Copy className="size-3.5" /> Copy</>
+              <>
+                <Copy className="size-3.5" /> Copy
+              </>
             )}
           </button>
           <a
@@ -128,77 +138,36 @@ function formatHourlyFunding(hourly: number) {
   return `${sign}${(hourly * 100).toFixed(4)}%/hr`;
 }
 
-export function MarketInfoBar(props: { market: string; rightSlot?: ReactNode }) {
-  // Polling context: 24h data, OI, funding — refresh every 30s
+export function MarketInfoBar(props: {
+  market: string;
+  rightSlot?: ReactNode;
+}) {
   const ctxQuery = useQuery({
     queryKey: ["blink", "market-ctx", props.market],
     queryFn: async (): Promise<MarketCtx | null> => {
-      const [meta, assetCtxs] = await infoClient.metaAndAssetCtxs();
-      const idx = meta.universe.findIndex((m) => m.name === props.market);
-      if (idx === -1) return null;
-      const ctx = assetCtxs[idx];
+      const market = await resolvePerpMarket(props.market);
+      const ctx = market.assetCtx;
       if (!ctx) return null;
       return {
-        markPx: Number(ctx.markPx),
-        prevDayPx: Number(ctx.prevDayPx),
-        oraclePx: Number(ctx.oraclePx),
-        dayNtlVlm: Number(ctx.dayNtlVlm),
-        openInterest: Number(ctx.openInterest),
-        funding: Number(ctx.funding),
+        dayNtlVlm: Number(ctx.dayNtlVlm ?? 0),
+        funding: Number(ctx.funding ?? 0),
+        markPx: Number(ctx.markPx ?? 0),
+        openInterest: Number(ctx.openInterest ?? 0),
+        oraclePx: Number(ctx.oraclePx ?? 0),
+        prevDayPx: Number(ctx.prevDayPx ?? 0),
       };
     },
-    staleTime: 30_000,
-    refetchInterval: 30_000,
+    staleTime: 2_000,
+    refetchInterval: 3_000,
   });
 
-  // Live mark price via WebSocket allMids subscription
-  const [liveMark, setLiveMark] = useState<number | null>(null);
-  const prevMarkRef = useRef<number | null>(null);
-  const [flash, setFlash] = useState<"up" | "down" | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    let subscription: { unsubscribe: () => Promise<void> } | null = null;
-
-    async function subscribe() {
-      const client = createSubscriptionClient();
-      subscription = await client.allMids((data) => {
-        if (!active) return;
-        const raw = data.mids[props.market];
-        if (!raw) return;
-        const price = Number(raw);
-        setLiveMark((prev) => {
-          if (prev !== null && price !== prev) {
-            setFlash(price > prev ? "up" : "down");
-            setTimeout(() => setFlash(null), 400);
-          }
-          prevMarkRef.current = prev;
-          return price;
-        });
-      });
-    }
-
-    void subscribe();
-    return () => {
-      active = false;
-      if (subscription) void subscription.unsubscribe();
-    };
-  }, [props.market]);
-
   const ctx = ctxQuery.data;
-  const displayPrice = liveMark ?? ctx?.markPx ?? 0;
+  const displayPrice = ctx?.markPx ?? 0;
   const changePct =
     ctx && ctx.prevDayPx > 0
       ? ((ctx.markPx - ctx.prevDayPx) / ctx.prevDayPx) * 100
       : 0;
   const positive = changePct >= 0;
-
-  const priceColor =
-    flash === "up"
-      ? "text-emerald-300"
-      : flash === "down"
-        ? "text-rose-300"
-        : "text-white";
 
   const stats = [
     {
@@ -241,9 +210,7 @@ export function MarketInfoBar(props: { market: string; rightSlot?: ReactNode }) 
         <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/45">
           {props.market}
         </span>
-        <span
-          className={`font-mono text-xl font-semibold tabular-nums transition-colors duration-150 ${priceColor}`}
-        >
+        <span className="font-mono text-xl font-semibold tabular-nums text-white">
           {displayPrice > 0 ? formatUsd(displayPrice) : "Loading…"}
         </span>
       </div>

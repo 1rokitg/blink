@@ -40,13 +40,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import {
-  AnimatePresence,
-  animate,
-  motion,
-  useMotionValue,
-  useTransform,
-} from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 
 import { Badge } from "@acme/ui/badge";
@@ -74,7 +68,6 @@ import { createAgentExchangeClient } from "~/lib/blink/agent-wallet";
 import {
   BUILDER_ADDRESS,
   BUILDER_FEE_UNITS,
-  getApprovedBuilderFeeUnits,
   isBuilderApproved,
 } from "~/lib/blink/builder";
 import {
@@ -90,8 +83,11 @@ import {
   getAssetIndex,
   getAssetIndexSync,
   infoClient,
+  resolvePerpMarket,
 } from "~/lib/blink/hyperliquid";
 import {
+  type MarketSummary,
+  PRIORITY_TRADFI_MARKETS,
   fetchTopMarketsByVolume,
   formatCompactNumber,
   formatUsd,
@@ -392,13 +388,7 @@ function LeaderboardPanel() {
 
 // ─── Discover Panel ──────────────────────────────────────────────────────────
 
-type MarketRow = {
-  coin: string;
-  slug: string;
-  markPx: number;
-  changePct: number;
-  dailyVolume: number;
-};
+type MarketRow = MarketSummary;
 
 const DISCOVER_TRADERS = [
   { handle: "rokitg.eth", pnl: 21_420, rank: 1 },
@@ -408,12 +398,72 @@ const DISCOVER_TRADERS = [
   { handle: "allheart", pnl: 7_640, rank: 5 },
 ];
 
+function SidePanelMarketRow(props: {
+  item: MarketRow;
+  selected?: boolean;
+  compact?: boolean;
+}) {
+  const positive = props.item.changePct >= 0;
+  const compact = props.compact ?? false;
+
+  return (
+    <Link
+      href={`/trade/${marketToSlug(props.item.coin)}`}
+      className={`flex items-center gap-2 border transition ${
+        compact ? "rounded-[8px] px-2 py-1.5" : "rounded-[10px] px-2.5 py-2"
+      } ${
+        props.selected
+          ? "border-[#3be1ba9e] bg-[#2dc9ff2b]"
+          : props.item.isHip3
+            ? "border-white/[0.06] bg-white/[0.02] hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
+            : compact
+              ? "border-white/0 hover:bg-white/[0.04]"
+              : "border-white/0 bg-transparent hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
+      }`}
+    >
+      <CoinIcon coin={props.item.coin} size={compact ? 22 : 28} />
+      <div className="min-w-0 flex-1">
+        <p
+          className={`flex items-center gap-1.5 font-medium leading-none text-white ${compact ? "text-xs" : "text-sm"}`}
+        >
+          <span className="truncate">{props.item.coin}</span>
+          {props.item.isHip3 ? (
+            <span className="rounded-full border border-[#7ea9ff33] bg-[#7ea9ff1a] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#a8c3ff]">
+              HIP-3
+            </span>
+          ) : null}
+          {ZERO_FEE_MARKETS.has(props.item.coin) ? (
+            <span
+              className="size-1.5 shrink-0 rounded-full bg-[#39e5b6]"
+              style={{ boxShadow: "0 0 5px 1px #39e5b688" }}
+              title="Zero maker fee"
+            />
+          ) : null}
+        </p>
+        <p className="mt-0.5 text-xs text-foreground/45">
+          {formatUsd(props.item.markPx)}
+        </p>
+      </div>
+      <span
+        className={`shrink-0 text-xs tabular-nums ${positive ? "text-emerald-300" : "text-rose-300"}`}
+      >
+        {positive ? "+" : ""}
+        {props.item.changePct.toFixed(2)}%
+      </span>
+    </Link>
+  );
+}
+
 function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
   const sorted = [...markets].sort((a, b) => b.changePct - a.changePct);
   const gainers = sorted.slice(0, 4);
   const losers = [...markets]
     .sort((a, b) => a.changePct - b.changePct)
     .slice(0, 4);
+  const hip3Markets = [...markets]
+    .filter((market) => market.isHip3)
+    .sort((left, right) => right.dailyVolume - left.dailyVolume)
+    .slice(0, 5);
 
   return (
     <div className="flex flex-col gap-4 p-3">
@@ -426,29 +476,8 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
           </span>
         </div>
         <div className="space-y-0.5">
-          {gainers.map((m) => (
-            <Link
-              key={m.coin}
-              href={`/trade/${marketToSlug(m.coin)}`}
-              className="flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-white/[0.04]"
-            >
-              <CoinIcon coin={m.coin} size={22} />
-              <span className="flex-1 text-xs font-medium text-white/85">
-                {m.coin}
-              </span>
-              {ZERO_FEE_MARKETS.has(m.coin) && (
-                <span
-                  className="size-1.5 rounded-full bg-[#39e5b6]"
-                  style={{ boxShadow: "0 0 5px 1px #39e5b688" }}
-                />
-              )}
-              <span className="font-mono text-xs text-white/45">
-                {formatUsd(m.markPx)}
-              </span>
-              <span className="w-14 text-right font-mono text-xs font-medium text-emerald-300">
-                +{m.changePct.toFixed(2)}%
-              </span>
-            </Link>
+          {gainers.map((market) => (
+            <SidePanelMarketRow key={market.coin} item={market} compact />
           ))}
         </div>
       </div>
@@ -464,26 +493,31 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
           </span>
         </div>
         <div className="space-y-0.5">
-          {losers.map((m) => (
-            <Link
-              key={m.coin}
-              href={`/trade/${marketToSlug(m.coin)}`}
-              className="flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-white/[0.04]"
-            >
-              <CoinIcon coin={m.coin} size={22} />
-              <span className="flex-1 text-xs font-medium text-white/85">
-                {m.coin}
-              </span>
-              <span className="font-mono text-xs text-white/45">
-                {formatUsd(m.markPx)}
-              </span>
-              <span className="w-14 text-right font-mono text-xs font-medium text-rose-300">
-                {m.changePct.toFixed(2)}%
-              </span>
-            </Link>
+          {losers.map((market) => (
+            <SidePanelMarketRow key={market.coin} item={market} compact />
           ))}
         </div>
       </div>
+
+      {hip3Markets.length > 0 ? (
+        <>
+          <div className="h-px bg-white/[0.06]" />
+
+          <div>
+            <div className="mb-2 flex items-center gap-1.5">
+              <Banknote className="size-3.5 text-[#8fbaff]" />
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8fbaff]/80">
+                HIP-3 Spotlight
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              {hip3Markets.map((market) => (
+                <SidePanelMarketRow key={market.coin} item={market} compact />
+              ))}
+            </div>
+          </div>
+        </>
+      ) : null}
 
       <div className="h-px bg-white/[0.06]" />
 
@@ -567,7 +601,11 @@ function LeftRail(props: {
 
   const marketsQuery = useQuery({
     queryKey: ["blink", "watchlist"],
-    queryFn: () => fetchTopMarketsByVolume(25),
+    queryFn: () =>
+      fetchTopMarketsByVolume(25, {
+        includeHip3Offers: true,
+        priorityCoins: PRIORITY_TRADFI_MARKETS,
+      }),
     staleTime: 86_400_000,
     refetchInterval: 86_400_000,
   });
@@ -578,6 +616,8 @@ function LeftRail(props: {
         m.coin.toLowerCase().includes(searchQuery.trim().toLowerCase()),
       )
     : allRows;
+  const coreRows = marketRows.filter((market) => !market.isHip3);
+  const hip3Rows = marketRows.filter((market) => market.isHip3);
 
   return (
     <aside className="flex min-h-[calc(100vh-7rem)] w-[366px] flex-col gap-2.5">
@@ -711,44 +751,43 @@ function LeftRail(props: {
                 No markets found
               </p>
             ) : (
-              marketRows.map((item) => {
-                const selected = item.coin === props.market;
-                const positive = item.changePct >= 0;
-                return (
-                  <Link
-                    key={item.coin}
-                    href={`/trade/${marketToSlug(item.coin)}`}
-                    className={`flex items-center gap-2.5 rounded-[10px] border px-2.5 py-2 transition ${
-                      selected
-                        ? "border-[#3be1ba9e] bg-[#2dc9ff2b]"
-                        : "border-white/0 bg-transparent hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
-                    }`}
-                  >
-                    <CoinIcon coin={item.coin} size={28} />
-                    <div className="flex-1 min-w-0">
-                      <p className="flex items-center gap-1.5 text-sm font-medium text-white leading-none">
-                        <span className="truncate">{item.coin}</span>
-                        {ZERO_FEE_MARKETS.has(item.coin) ? (
-                          <span
-                            className="size-1.5 shrink-0 rounded-full bg-[#39e5b6]"
-                            style={{ boxShadow: "0 0 5px 1px #39e5b688" }}
-                            title="Zero maker fee"
-                          />
-                        ) : null}
-                      </p>
-                      <p className="mt-0.5 text-xs text-foreground/45">
-                        {formatUsd(item.markPx)}
+              <>
+                {coreRows.length > 0 ? (
+                  <div className="space-y-0.5">
+                    <div className="px-1.5 pb-1 pt-1">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-foreground/30">
+                        Core Perps
                       </p>
                     </div>
-                    <span
-                      className={`shrink-0 text-xs tabular-nums ${positive ? "text-emerald-300" : "text-rose-300"}`}
-                    >
-                      {positive ? "+" : ""}
-                      {item.changePct.toFixed(2)}%
-                    </span>
-                  </Link>
-                );
-              })
+                    {coreRows.map((item) => (
+                      <SidePanelMarketRow
+                        key={item.coin}
+                        item={item}
+                        selected={item.coin === props.market}
+                      />
+                    ))}
+                  </div>
+                ) : null}
+                {hip3Rows.length > 0 ? (
+                  <div className="pt-2">
+                    <div className="mb-1 h-px bg-white/[0.06]" />
+                    <div className="px-1.5 pb-1 pt-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8fbaff80]">
+                        HIP-3
+                      </p>
+                    </div>
+                    <div className="space-y-0.5">
+                      {hip3Rows.map((item) => (
+                        <SidePanelMarketRow
+                          key={item.coin}
+                          item={item}
+                          selected={item.coin === props.market}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </>
             )}
           </div>
         )}
@@ -799,23 +838,10 @@ const LEVERAGE_RISK: Record<
 };
 
 /**
- * Hold-to-confirm order button.
- *
- * UX philosophy: zero perceived latency.
- * - Press and hold → fill sweeps left → right in 600 ms
- * - On 100%: immediately flash white, reset the bar, fire onConfirm in background
- * - The button never shows a spinner — the toast owns loading/success feedback
- * - "submitting" only blocks re-pressing (prevents double orders), invisible to user
- */
-/**
  * Optimistic order submit button.
  *
- * Flow:
- *   1. Press → order fires INSTANTLY (zero latency)
- *   2. Gentle fill sweeps left→right as in-flight feedback (~750ms)
- *   3. Soft white pulse at sweep completion, graceful spring-back
- *   4. When HL confirms the fill → emerald/rose glow pulses around the button
- *   5. Toast owns success/error messaging — button is purely visual
+ * Direct click, no hold-to-place friction.
+ * The parent submit flow can still render optimistic feedback for market orders.
  */
 function OrderSubmitButton({
   onConfirm,
@@ -832,48 +858,7 @@ function OrderSubmitButton({
   submitting: boolean;
   orderResult: "idle" | "success" | "error";
 }) {
-  const fillX = useMotionValue(0);
-  const flashOpacity = useMotionValue(0);
-  const glowOpacity = useMotionValue(0);
-  const fillWidth = useTransform(fillX, [0, 100], ["0%", "100%"]);
-  const animRef = useRef<ReturnType<typeof animate> | null>(null);
   const isBuy = side === "buy";
-
-  // ── Press handler — fire order first, then animate ────────────────────────
-  const handlePress = useCallback(() => {
-    if (disabled || submitting) return;
-
-    onConfirm(); // instant
-
-    animRef.current?.stop();
-    fillX.set(0);
-    animRef.current = animate(fillX, 100, {
-      duration: 0.75, // a touch slower — easier on the eye
-      ease: [0.4, 0, 0.2, 1], // material ease-in-out
-      onComplete: () => {
-        // Soft white pulse
-        void animate(flashOpacity, 0.22, { duration: 0.1 }).then(() =>
-          animate(flashOpacity, 0, { duration: 0.28 }),
-        );
-        // Graceful spring-back
-        setTimeout(() => {
-          void animate(fillX, 0, {
-            duration: 0.5,
-            ease: [0.22, 1, 0.36, 1],
-          });
-        }, 110);
-      },
-    });
-  }, [fillX, flashOpacity, disabled, submitting, onConfirm]);
-
-  // ── Glow when HL confirms the fill ───────────────────────────────────────
-  useEffect(() => {
-    if (orderResult === "idle") return;
-    // Quick in, slow fade — like a heartbeat
-    void animate(glowOpacity, 1, { duration: 0.15 }).then(() =>
-      animate(glowOpacity, 0, { duration: 1.1, ease: [0.16, 1, 0.3, 1] }),
-    );
-  }, [orderResult, glowOpacity]);
 
   const glowColor =
     orderResult === "error"
@@ -884,45 +869,37 @@ function OrderSubmitButton({
 
   return (
     <div className="relative mt-4">
-      {/* Glow ring — sits outside the button, doesn't clip */}
-      <motion.div
-        className="pointer-events-none absolute inset-0 rounded-full"
-        style={{
-          opacity: glowOpacity,
-          boxShadow: `0 0 0 3px ${glowColor}, 0 0 24px 6px ${glowColor}`,
-        }}
-      />
+      <AnimatePresence>
+        {orderResult !== "idle" ? (
+          <motion.div
+            key={orderResult}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="pointer-events-none absolute inset-0 rounded-full"
+            style={{
+              boxShadow: `0 0 0 3px ${glowColor}, 0 0 24px 6px ${glowColor}`,
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
 
       <motion.button
         type="button"
         disabled={disabled}
-        onClick={handlePress}
-        className={`relative h-12 w-full select-none overflow-hidden rounded-full border text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+        onClick={() => {
+          if (disabled || submitting) return;
+          onConfirm();
+        }}
+        className={`relative h-12 w-full select-none overflow-hidden rounded-full border text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
           isBuy
-            ? "border-emerald-400/30 bg-emerald-400/[0.06]"
-            : "border-rose-400/30 bg-rose-400/[0.06]"
+            ? "border-emerald-400/30 bg-emerald-400/[0.06] hover:bg-emerald-400/[0.1]"
+            : "border-rose-400/30 bg-rose-400/[0.06] hover:bg-rose-400/[0.1]"
         }`}
         whileTap={{ scale: 0.976 }}
         transition={{ type: "spring", stiffness: 500, damping: 32 }}
       >
-        {/* Fill bar */}
-        <motion.div
-          className="absolute inset-y-0 left-0"
-          style={{
-            width: fillWidth,
-            background: isBuy
-              ? "linear-gradient(90deg,#047857 0%,#34d399 75%,#6ee7b7 100%)"
-              : "linear-gradient(90deg,#9f1239 0%,#f87171 75%,#fca5a5 100%)",
-          }}
-        />
-
-        {/* Soft white pulse */}
-        <motion.div
-          className="pointer-events-none absolute inset-0 bg-white"
-          style={{ opacity: flashOpacity }}
-        />
-
-        {/* Label */}
         <span
           className="relative z-10 flex items-center justify-center font-semibold text-white"
           style={{ textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}
@@ -956,14 +933,32 @@ function OrderEntryPanel(props: {
   const [orderResult, setOrderResult] = useState<"idle" | "success" | "error">(
     "idle",
   );
+  const orderResultTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
-  // Live mark price — poll allMids every 3s
-  const markQuery = useQuery({
-    queryKey: ["blink", "mark", props.market],
-    queryFn: async () => {
-      const mids = await infoClient.allMids();
-      return Number(mids[props.market] ?? 0);
-    },
+  const pulseOrderResult = useCallback((nextResult: "success" | "error") => {
+    if (orderResultTimeoutRef.current) {
+      clearTimeout(orderResultTimeoutRef.current);
+    }
+    setOrderResult(nextResult);
+    orderResultTimeoutRef.current = setTimeout(() => {
+      setOrderResult("idle");
+      orderResultTimeoutRef.current = null;
+    }, 1600);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (orderResultTimeoutRef.current) {
+        clearTimeout(orderResultTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const marketQuery = useQuery({
+    queryKey: ["blink", "market", props.market],
+    queryFn: () => resolvePerpMarket(props.market),
     refetchInterval: 3_000,
     staleTime: 2_000,
   });
@@ -982,25 +977,14 @@ function OrderEntryPanel(props: {
     enabled: !!props.walletAddress,
   });
 
-  // Asset metadata — needed for szDecimals / min order size
-  const metaQuery = useQuery({
-    queryKey: ["blink", "meta"],
-    queryFn: async () => {
-      const [meta] = await infoClient.metaAndAssetCtxs();
-      return meta;
-    },
-    staleTime: 300_000,
-    gcTime: 600_000,
-  });
-
   const szDecimals = useMemo(() => {
-    const asset = metaQuery.data?.universe.find((a) => a.name === props.market);
+    const asset = marketQuery.data?.meta.universe[marketQuery.data.localIndex];
     return (asset as { szDecimals?: number } | undefined)?.szDecimals ?? 4;
-  }, [metaQuery.data, props.market]);
+  }, [marketQuery.data]);
 
   const minSize = useMemo(() => 10 ** -szDecimals, [szDecimals]);
 
-  const markPrice = markQuery.data ?? 0;
+  const markPrice = marketQuery.data?.midPrice ?? 0;
   const accountValue = Number(
     accountQuery.data?.marginSummary?.accountValue ?? 0,
   );
@@ -1066,14 +1050,14 @@ function OrderEntryPanel(props: {
       if (!props.walletAddress) return;
       setUpdatingLeverage(true);
       try {
-        const [exchClient, assetIdx] = await Promise.all([
+        const [exchClient, market] = await Promise.all([
           Promise.resolve(
             createAgentExchangeClient(props.walletAddress as `0x${string}`),
           ),
-          getAssetIndex(props.market),
+          resolvePerpMarket(props.market),
         ]);
         await exchClient.updateLeverage({
-          asset: assetIdx,
+          asset: market.assetId,
           isCross: true,
           leverage: newLeverage,
         });
@@ -1088,16 +1072,6 @@ function OrderEntryPanel(props: {
 
   const handleSubmit = useCallback(async () => {
     if (!props.tradeEnabled) {
-      props.onRequireBuilderSetup();
-      return;
-    }
-    const liveApprovedFeeUnits = await getApprovedBuilderFeeUnits(
-      asHexAddress(props.walletAddress),
-    );
-    if (liveApprovedFeeUnits < props.builderFeeUnits) {
-      toast.error(
-        `Builder fee has not been approved (${liveApprovedFeeUnits}/${props.builderFeeUnits}).`,
-      );
       props.onRequireBuilderSetup();
       return;
     }
@@ -1119,30 +1093,30 @@ function OrderEntryPanel(props: {
     }
 
     setSubmitting(true);
-    emitTradingEvent({
-      type: "loading",
-      message: `${orderType === "market" ? "Market" : "Limit"} ${side === "buy" ? "long" : "short"} ${props.market} ${sz}`,
-      id: "order",
-    });
+    if (orderType === "limit") {
+      emitTradingEvent({
+        type: "loading",
+        message: `Limit ${side === "buy" ? "long" : "short"} ${props.market} ${sz}`,
+        id: "order",
+      });
+    }
     try {
-      const [exchClient, metaAndCtxs, mids] = await Promise.all([
+      const [exchClient, market] = await Promise.all([
         Promise.resolve(
           createAgentExchangeClient(props.walletAddress as `0x${string}`),
         ),
-        infoClient.metaAndAssetCtxs(),
-        infoClient.allMids(),
+        resolvePerpMarket(props.market),
       ]);
-      const [meta] = metaAndCtxs;
-      const assetIdx = getAssetIndexSync(props.market, meta);
-      const universeEntry = meta.universe[assetIdx];
+      const assetIdx = market.assetId;
+      const universeEntry = market.meta.universe[market.localIndex];
       const sizeDecimals = Math.max(0, universeEntry?.szDecimals ?? 6);
-      const marketMidRaw = mids[props.market];
       const priceDecimals = getHyperliquidPerpPriceDecimals(
-        Number(marketMidRaw ?? 0),
+        market.midPrice,
         sizeDecimals,
       );
       const sizeStr = roundWithMode(sz, sizeDecimals, "down");
       const limitPxStr = roundWithMode(px, priceDecimals, "nearest");
+      const optimisticMarketPrice = markPrice || market.midPrice;
 
       const placeOrder = async () => {
         if (orderType === "limit") {
@@ -1163,7 +1137,7 @@ function OrderEntryPanel(props: {
           return;
         }
 
-        const mid = markPrice || Number(marketMidRaw ?? 0);
+        const mid = optimisticMarketPrice;
         if (!mid) throw new Error("Could not fetch mark price");
         const slippage = side === "buy" ? mid * 1.05 : mid * 0.95;
         const marketPxStr =
@@ -1212,6 +1186,17 @@ function OrderEntryPanel(props: {
           orderType: "limit",
         });
       } else {
+        pulseOrderResult("success");
+        emitTradingEvent({
+          type: "order_placed",
+          coin: props.market,
+          side: side === "buy" ? "Buy" : "Sell",
+          price: optimisticMarketPrice
+            ? optimisticMarketPrice.toString()
+            : "market",
+          size: sizeStr,
+          orderType: "market",
+        });
         try {
           await placeOrder();
         } catch (err) {
@@ -1228,19 +1213,11 @@ function OrderEntryPanel(props: {
             throw err;
           }
         }
-        emitTradingEvent({
-          type: "order_placed",
-          coin: props.market,
-          side: side === "buy" ? "Buy" : "Sell",
-          price: markPrice?.toString() ?? "market",
-          size: sizeStr,
-          orderType: "market",
-        });
       }
 
-      // Signal fill confirmation — triggers glow on the button
-      setOrderResult("success");
-      setTimeout(() => setOrderResult("idle"), 1800);
+      if (orderType === "limit") {
+        pulseOrderResult("success");
+      }
 
       // First successful trade marker for funnel analytics
       if (typeof window !== "undefined") {
@@ -1276,8 +1253,7 @@ function OrderEntryPanel(props: {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       const msgLower = msg.toLowerCase();
-      setOrderResult("error");
-      setTimeout(() => setOrderResult("idle"), 1800);
+      pulseOrderResult("error");
       if (
         msgLower.includes("does not exist") ||
         msgLower.includes("builder fee has not been approved")
@@ -1313,6 +1289,7 @@ function OrderEntryPanel(props: {
     props.builderFeeUnits,
     props.onRequireBuilderSetup,
     props.walletAddress,
+    pulseOrderResult,
     queryClient,
   ]);
 
@@ -1831,20 +1808,18 @@ function AccountPanel(props: {
         `${params.coin}-${params.isBuy ? "buy" : "sell"}-${params.tif}`,
       );
       try {
-        const [exchClient, [meta], mids] = await Promise.all([
+        const [exchClient, market] = await Promise.all([
           Promise.resolve(
             createAgentExchangeClient(props.walletAddress as `0x${string}`),
           ),
-          infoClient.metaAndAssetCtxs(),
-          infoClient.allMids(),
+          resolvePerpMarket(params.coin),
         ]);
-        const assetIdx = getAssetIndexSync(params.coin, meta);
+        const assetIdx = market.assetId;
         const szDecimals = Math.max(
           0,
-          meta.universe[assetIdx]?.szDecimals ?? 6,
+          market.meta.universe[market.localIndex]?.szDecimals ?? 6,
         );
-        const midRaw = mids[params.coin];
-        const mid = Number(midRaw ?? 0);
+        const mid = market.midPrice;
         const pxDecimals = getHyperliquidPerpPriceDecimals(mid, szDecimals);
 
         if (!mid && params.tif === "Ioc") {
@@ -2666,7 +2641,11 @@ export function TerminalShell(props: { market: string }) {
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const topMarketsQuery = useQuery({
     queryKey: ["blink", "top-markets-search"],
-    queryFn: () => fetchTopMarketsByVolume(50),
+    queryFn: () =>
+      fetchTopMarketsByVolume(50, {
+        includeHip3Offers: true,
+        priorityCoins: PRIORITY_TRADFI_MARKETS,
+      }),
     staleTime: 60_000,
   });
   const { hideBalances: blurBalances, setHideBalances: setBlurBalances } =
@@ -3310,7 +3289,7 @@ export function TerminalShell(props: { market: string }) {
                     value={m.coin}
                     onSelect={() => {
                       setGlobalSearchOpen(false);
-                      router.push(`/trade/${m.coin}`);
+                      router.push(`/trade/${marketToSlug(m.coin)}`);
                     }}
                     className="flex items-center gap-3 px-3 py-2.5"
                   >
@@ -3324,7 +3303,7 @@ export function TerminalShell(props: { market: string }) {
                         {m.coin}
                       </span>
                       <span className="text-xs text-foreground/40">
-                        Perpetual
+                        {m.isHip3 ? "HIP-3 perpetual" : "Perpetual"}
                       </span>
                     </div>
                     {/* Price + change */}

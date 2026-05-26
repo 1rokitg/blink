@@ -1,16 +1,20 @@
 "use client";
 
+import { motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
 
-import type * as hl from "@nktkas/hyperliquid";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@acme/ui/tabs";
+import type * as hl from "@nktkas/hyperliquid";
 
 import { createSubscriptionClient } from "~/lib/blink/hyperliquid";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type BookLevelRow = { price: number; size: number; total: number };
+type PaddedBookLevelRow = {
+  id: string;
+  row: BookLevelRow | null;
+};
 
 type FormattedTrade = {
   id: string;
@@ -23,6 +27,42 @@ type FormattedTrade = {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const LEVELS = 16;
+const TRADES_LIMIT = 30;
+
+function buildTradeId(trade: {
+  px: string;
+  side: string;
+  sz: string;
+  time: number;
+}) {
+  return `${trade.time}-${trade.side}-${trade.px}-${trade.sz}`;
+}
+
+function padBookRows(
+  rows: BookLevelRow[],
+  count: number,
+  position: "start" | "end",
+  prefix: string,
+): PaddedBookLevelRow[] {
+  if (rows.length >= count) {
+    return rows.slice(0, count).map((row) => ({
+      id: `${prefix}-${row.price}`,
+      row,
+    }));
+  }
+
+  const padding = Array.from({ length: count - rows.length }, (_, index) => ({
+    id: `${prefix}-empty-${index}`,
+    row: null,
+  }));
+  const populated = rows.map((row) => ({
+    id: `${prefix}-${row.price}`,
+    row,
+  }));
+  return position === "start"
+    ? [...padding, ...populated]
+    : [...populated, ...padding];
+}
 
 function formatBookLevels(
   levels: hl.Book["levels"][0],
@@ -51,6 +91,14 @@ function fmtSize(n: number) {
   if (n < 0.001) return n.toFixed(6);
   if (n < 1) return n.toFixed(4);
   return n.toFixed(3);
+}
+
+function fmtTradeTime(time: number) {
+  return new Date(time).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 // Depth-fade: row closest to mid → opacity 1.0, farthest → 0.28
@@ -93,13 +141,22 @@ export function TerminalOrderBook(props: { market: string }) {
       tradesSub = await client.trades({ coin: props.market }, (data) => {
         if (!active) return;
         const incoming: FormattedTrade[] = data.map((t) => ({
-          id: `${t.time}-${t.px}-${t.sz}-${t.side}-${Math.random().toString(36).slice(2, 6)}`,
+          id: buildTradeId(t),
           time: t.time,
           side: t.side === "A" ? "sell" : "buy",
           price: Number(t.px),
           size: Number(t.sz),
         }));
-        setTrades((prev) => [...incoming, ...prev].slice(0, 30));
+        setTrades((prev) => {
+          const seen = new Set<string>();
+          return [...incoming, ...prev]
+            .filter((trade) => {
+              if (seen.has(trade.id)) return false;
+              seen.add(trade.id);
+              return true;
+            })
+            .slice(0, TRADES_LIMIT);
+        });
       });
     }
 
@@ -120,6 +177,14 @@ export function TerminalOrderBook(props: { market: string }) {
   const bids = useMemo(
     () => (book ? formatBookLevels(book.levels[0]) : []),
     [book],
+  );
+  const paddedAsks = useMemo(
+    () => padBookRows(asks, LEVELS, "start", "ask"),
+    [asks],
+  );
+  const paddedBids = useMemo(
+    () => padBookRows(bids, LEVELS, "end", "bid"),
+    [bids],
   );
 
   const bestAsk = asks.at(-1)?.price ?? 0;
@@ -224,30 +289,33 @@ export function TerminalOrderBook(props: { market: string }) {
 
         {/* ── Order Book tab ─────────────────────────────────────────────── */}
         <TabsContent
+          forceMount
           value="orderbook"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
         >
           {/* Column headers */}
-          <div className="shrink-0 grid grid-cols-3 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-foreground/30">
-            <span>Price</span>
+          <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_72px_82px] items-center gap-x-2 px-4 py-1.5 text-[10px] uppercase tracking-[0.14em] text-foreground/30">
+            <span className="min-w-0">Price</span>
             <span className="text-right">Size</span>
             <span className="text-right">Total</span>
           </div>
 
-          <div className="flex flex-1 flex-col overflow-hidden px-1.5">
+          <div className="grid flex-1 grid-rows-[1fr_auto_1fr] overflow-hidden px-2 pb-2">
             {/* Asks (sells) — farthest at top, closest at bottom */}
-            <div className="flex flex-1 flex-col justify-end space-y-px overflow-hidden">
-              {asks.map((ask, i) => {
-                const key = `ask-${ask.price}`;
-                const width = (ask.total / maxTotal) * 100;
+            <div className="grid auto-rows-[22px] content-end gap-px overflow-hidden">
+              {paddedAsks.map(({ id, row }, i) => {
+                if (!row) {
+                  return <div key={id} className="h-[22px]" />;
+                }
+                const key = `ask-${row.price}`;
+                const width = (row.total / maxTotal) * 100;
                 const changed = changedRows[key];
-                // asks[0] = farthest (top), asks[LEVELS-1] = closest (bottom)
-                const opacity = depthOpacity(i, asks.length, true);
+                const opacity = depthOpacity(i, paddedAsks.length, true);
 
                 return (
                   <div
-                    key={key}
-                    className="relative grid grid-cols-3 rounded-[5px] px-2 py-[4px] text-xs"
+                    key={id}
+                    className="relative grid h-[22px] grid-cols-[minmax(0,1fr)_72px_82px] items-center gap-x-2 rounded-[5px] px-2 text-[11px] leading-none"
                     style={{ opacity }}
                   >
                     {/* depth bar */}
@@ -256,7 +324,7 @@ export function TerminalOrderBook(props: { market: string }) {
                       style={{ width: `${width}%` }}
                     />
                     <span
-                      className={`relative z-10 tabular-nums font-medium transition-colors duration-300 ${
+                      className={`relative z-10 min-w-0 truncate tabular-nums font-medium transition-colors duration-300 ${
                         changed === "down"
                           ? "text-rose-400"
                           : changed === "up"
@@ -264,13 +332,13 @@ export function TerminalOrderBook(props: { market: string }) {
                             : "text-rose-300"
                       }`}
                     >
-                      {fmtPrice(ask.price)}
+                      {fmtPrice(row.price)}
                     </span>
                     <span className="relative z-10 text-right tabular-nums text-foreground/60">
-                      {fmtSize(ask.size)}
+                      {fmtSize(row.size)}
                     </span>
                     <span className="relative z-10 text-right tabular-nums text-foreground/35">
-                      {fmtSize(ask.total)}
+                      {fmtSize(row.total)}
                     </span>
                   </div>
                 );
@@ -301,18 +369,20 @@ export function TerminalOrderBook(props: { market: string }) {
             </motion.div>
 
             {/* Bids (buys) — closest at top, farthest at bottom */}
-            <div className="flex flex-1 flex-col space-y-px overflow-hidden">
-              {bids.map((bid, i) => {
-                const key = `bid-${bid.price}`;
-                const width = (bid.total / maxTotal) * 100;
+            <div className="grid auto-rows-[22px] content-start gap-px overflow-hidden">
+              {paddedBids.map(({ id, row }, i) => {
+                if (!row) {
+                  return <div key={id} className="h-[22px]" />;
+                }
+                const key = `bid-${row.price}`;
+                const width = (row.total / maxTotal) * 100;
                 const changed = changedRows[key];
-                // bids[0] = closest (top), bids[LEVELS-1] = farthest (bottom)
-                const opacity = depthOpacity(i, bids.length, false);
+                const opacity = depthOpacity(i, paddedBids.length, false);
 
                 return (
                   <div
-                    key={key}
-                    className="relative grid grid-cols-3 rounded-[5px] px-2 py-[4px] text-xs"
+                    key={id}
+                    className="relative grid h-[22px] grid-cols-[minmax(0,1fr)_72px_82px] items-center gap-x-2 rounded-[5px] px-2 text-[11px] leading-none"
                     style={{ opacity }}
                   >
                     {/* depth bar */}
@@ -321,7 +391,7 @@ export function TerminalOrderBook(props: { market: string }) {
                       style={{ width: `${width}%` }}
                     />
                     <span
-                      className={`relative z-10 tabular-nums font-medium transition-colors duration-300 ${
+                      className={`relative z-10 min-w-0 truncate tabular-nums font-medium transition-colors duration-300 ${
                         changed === "up"
                           ? "text-emerald-400"
                           : changed === "down"
@@ -329,13 +399,13 @@ export function TerminalOrderBook(props: { market: string }) {
                             : "text-emerald-300"
                       }`}
                     >
-                      {fmtPrice(bid.price)}
+                      {fmtPrice(row.price)}
                     </span>
                     <span className="relative z-10 text-right tabular-nums text-foreground/60">
-                      {fmtSize(bid.size)}
+                      {fmtSize(row.size)}
                     </span>
                     <span className="relative z-10 text-right tabular-nums text-foreground/35">
-                      {fmtSize(bid.total)}
+                      {fmtSize(row.total)}
                     </span>
                   </div>
                 );
@@ -346,19 +416,20 @@ export function TerminalOrderBook(props: { market: string }) {
 
         {/* ── Trades tab ────────────────────────────────────────────────── */}
         <TabsContent
+          forceMount
           value="trades"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
         >
           {/* Column headers */}
-          <div className="shrink-0 grid grid-cols-3 px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-foreground/30">
-            <span>Price</span>
+          <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_72px_74px] items-center gap-x-2 px-4 py-1.5 text-[10px] uppercase tracking-[0.14em] text-foreground/30">
+            <span className="min-w-0">Price</span>
             <span className="text-right">Size</span>
             <span className="text-right">Time</span>
           </div>
 
           <div
             ref={tradesListRef}
-            className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-1.5"
+            className="min-h-0 flex-1 overflow-y-auto px-2 pb-2"
           >
             {trades.length === 0 ? (
               <div className="mt-4 rounded-[8px] border border-white/[0.06] bg-white/[0.02] px-3 py-4 text-center text-xs text-foreground/35">
@@ -372,12 +443,12 @@ export function TerminalOrderBook(props: { market: string }) {
                   return (
                     <div
                       key={trade.id}
-                      className="group grid grid-cols-[1fr_1fr_auto] items-center gap-x-1 rounded-[4px] px-1.5 py-[3.5px] text-[11px]"
+                      className="group grid h-[22px] grid-cols-[minmax(0,1fr)_72px_74px] items-center gap-x-2 rounded-[5px] px-2 text-[11px] leading-none"
                       style={{ opacity }}
                     >
                       {/* Arrow + Price */}
                       <span
-                        className={`flex items-center gap-1 tabular-nums font-semibold ${isBuy ? "text-emerald-400" : "text-rose-400"}`}
+                        className={`flex min-w-0 items-center gap-1 truncate tabular-nums font-semibold ${isBuy ? "text-emerald-400" : "text-rose-400"}`}
                       >
                         {isBuy ? (
                           // biome-ignore lint/a11y/noSvgWithoutTitle: <explanation>
@@ -421,12 +492,8 @@ export function TerminalOrderBook(props: { market: string }) {
                         {fmtSize(trade.size)}
                       </span>
                       {/* Time */}
-                      <span className="w-[54px] text-right tabular-nums text-[10px] text-foreground/30">
-                        {new Date(trade.time).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          second: "2-digit",
-                        })}
+                      <span className="text-right tabular-nums text-[10px] text-foreground/30">
+                        {fmtTradeTime(trade.time)}
                       </span>
                     </div>
                   );

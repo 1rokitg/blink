@@ -59,6 +59,13 @@ export function createAffiliateFromXProfile(input: {
 
 export const AFFILIATE_SEEDS: AffiliateSeed[] = [
   createAffiliateFromXProfile({
+    xProfileUrl: "https://x.com/devilsnippet",
+    name: "devilsnippet",
+    code: "snippet",
+    rewardBoostLabel: "2.0x",
+    payoutSplitLabel: "100/0",
+  }),
+  createAffiliateFromXProfile({
     xProfileUrl: "https://x.com/eguito0",
     name: "eguito0",
     code: "EGUITO0",

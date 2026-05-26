@@ -349,8 +349,8 @@ export default async function ProfilePage(props: {
                       ) : null}
                       {hero.isPro ? (
                         <div className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/30 bg-gradient-to-r from-amber-300/15 to-yellow-300/10 px-2.5 py-1 text-[10px] font-medium text-amber-200">
-                      <Verified className="size-3" />
-                      Blink Pro
+                          <Verified className="size-3" />
+                          Blink Pro
                         </div>
                       ) : null}
                     </div>
@@ -358,6 +358,15 @@ export default async function ProfilePage(props: {
                 </div>
                 <div className="flex items-center gap-2 pb-1">
                   <ProfileShareButton path={profilePath} title={shareTitle} />
+                  {hero.isFounder ? (
+                    <Link
+                      href="/internal"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-white/12 bg-white/[0.06] px-4 py-2 text-sm font-medium text-white/82 transition hover:bg-white/[0.1] hover:text-white"
+                    >
+                      <Code2 className="size-4" />
+                      Internal
+                    </Link>
+                  ) : null}
                   <Link
                     href="/rewards"
                     className="inline-flex items-center gap-1.5 rounded-xl bg-[#2c6bff] px-4 py-2 text-sm font-medium text-white hover:bg-[#2c6bff]/90"

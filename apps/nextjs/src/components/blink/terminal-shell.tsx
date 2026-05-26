@@ -95,6 +95,12 @@ import {
   formatUsd,
   marketToSlug,
 } from "~/lib/blink/markets";
+import {
+  type OrderEntrySizeMode,
+  readPersistedOrderSizeDraft,
+  usePersistSizePreference,
+  writePersistedOrderSizeDraft,
+} from "~/lib/blink/order-entry-preferences";
 
 import { emitTradingEvent } from "~/lib/blink/island-bus";
 import { AccountManagementModal } from "./account-management-modal";
@@ -105,7 +111,10 @@ import { MarketInfoBar } from "./market-info-bar";
 import { type PnlPositionData, PnlShareModal } from "./pnl-share-modal";
 import { ReferralWelcomeBanner } from "./referral-welcome-banner";
 import { ReferralsModal } from "./referrals-modal";
-import { TerminalOrderBook } from "./terminal-order-book";
+import {
+  type OrderBookSelection,
+  TerminalOrderBook,
+} from "./terminal-order-book";
 import { TradingIsland } from "./trading-island";
 import { TradingViewPanel } from "./trading-view-panel";
 
@@ -984,6 +993,7 @@ function OrderSubmitButton({
 }
 
 function OrderEntryPanel(props: {
+  bookSelection: OrderBookSelection | null;
   market: string;
   walletAddress: string;
   builderFeeUnits: number;
@@ -992,13 +1002,14 @@ function OrderEntryPanel(props: {
   onRequireBuilderSetup: () => void;
 }) {
   const queryClient = useQueryClient();
+  const { persistSize } = usePersistSizePreference();
 
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [orderType, setOrderType] = useState<"limit" | "market">("limit");
   const [price, setPrice] = useState("");
   const [size, setSize] = useState("");
   // "coin" = raw coin units; "usd" = notional USD (divided by mark on submit)
-  const [sizeMode, setSizeMode] = useState<"coin" | "usd">("coin");
+  const [sizeMode, setSizeMode] = useState<OrderEntrySizeMode>("coin");
   const [leverage, setLeverage] = useState(10);
   const [updatingLeverage, setUpdatingLeverage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -1009,6 +1020,7 @@ function OrderEntryPanel(props: {
   const orderResultTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const persistSizeHydratedRef = useRef(false);
 
   const pulseOrderResult = useCallback((nextResult: "success" | "error") => {
     if (orderResultTimeoutRef.current) {
@@ -1056,6 +1068,11 @@ function OrderEntryPanel(props: {
   }, [marketQuery.data]);
 
   const minSize = useMemo(() => 10 ** -szDecimals, [szDecimals]);
+  const markPrice = marketQuery.data?.midPrice ?? 0;
+  const priceInputDecimals = useMemo(
+    () => getHyperliquidPerpPriceDecimals(markPrice || 1, szDecimals),
+    [markPrice, szDecimals],
+  );
   const isHip3Market = props.market.includes(":");
   const hip3Deployer = isHip3Market
     ? (props.market.split(":")[0]?.toLowerCase() ?? null)
@@ -1072,7 +1089,6 @@ function OrderEntryPanel(props: {
     ].join("\n");
   }, [hip3Deployer, props.market]);
 
-  const markPrice = marketQuery.data?.midPrice ?? 0;
   const accountValue = Number(
     accountQuery.data?.marginSummary?.accountValue ?? 0,
   );
@@ -1131,6 +1147,52 @@ function OrderEntryPanel(props: {
     },
     [availableMargin, leverage, entryPrice, sizeMode],
   );
+
+  useEffect(() => {
+    if (!persistSize) {
+      persistSizeHydratedRef.current = false;
+      return;
+    }
+
+    if (!persistSizeHydratedRef.current) {
+      persistSizeHydratedRef.current = true;
+
+      if (size || sizeMode !== "coin") {
+        writePersistedOrderSizeDraft({ size, sizeMode });
+        return;
+      }
+
+      const draft = readPersistedOrderSizeDraft();
+      setSize(draft.size);
+      setSizeMode(draft.sizeMode);
+      return;
+    }
+
+    writePersistedOrderSizeDraft({ size, sizeMode });
+  }, [persistSize, size, sizeMode]);
+
+  useEffect(() => {
+    if (!props.bookSelection) return;
+
+    if (props.bookSelection.kind === "price") {
+      setOrderType("limit");
+      setPrice(
+        roundWithMode(props.bookSelection.price, priceInputDecimals, "nearest"),
+      );
+      return;
+    }
+
+    const nextSize =
+      sizeMode === "usd"
+        ? roundWithMode(
+            props.bookSelection.size * props.bookSelection.price,
+            2,
+            "nearest",
+          )
+        : roundWithMode(props.bookSelection.size, szDecimals, "down");
+
+    setSize(nextSize);
+  }, [props.bookSelection, priceInputDecimals, sizeMode, szDecimals]);
 
   const handleLeverageChange = useCallback(
     async (newLeverage: number) => {
@@ -1347,7 +1409,9 @@ function OrderEntryPanel(props: {
         }
       }
 
-      setSize("");
+      if (!persistSize) {
+        setSize("");
+      }
       setPrice("");
       void queryClient.invalidateQueries({
         queryKey: ["blink", "account", props.walletAddress],
@@ -1391,6 +1455,7 @@ function OrderEntryPanel(props: {
     props.builderFeeUnits,
     props.onRequireBuilderSetup,
     props.walletAddress,
+    persistSize,
     pulseOrderResult,
     queryClient,
   ]);
@@ -2801,6 +2866,9 @@ export function TerminalShell(props: { market: string }) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const [bookSelection, setBookSelection] = useState<OrderBookSelection | null>(
+    null,
+  );
   const [latestListingIndex, setLatestListingIndex] = useState(0);
   const topMarketsQuery = useQuery({
     queryKey: ["blink", "top-markets-search"],
@@ -2823,6 +2891,15 @@ export function TerminalShell(props: { market: string }) {
       setProfileMenuOpen(false);
     }
   }, [accountModalOpen, referralsModalOpen, builderModalOpen]);
+
+  const previousMarketRef = useRef(props.market);
+
+  useEffect(() => {
+    if (previousMarketRef.current !== props.market) {
+      setBookSelection(null);
+      previousMarketRef.current = props.market;
+    }
+  }, [props.market]);
 
   // ── Deploy-refresh polling ──────────────────────────────────────────────────
   // Poll /api/version every 90s. When the SHA changes from the one we booted
@@ -3256,9 +3333,13 @@ export function TerminalShell(props: { market: string }) {
                 </p>
               </section>
             ) : (
-              <TerminalOrderBook market={props.market} />
+              <TerminalOrderBook
+                market={props.market}
+                onSelectLevel={setBookSelection}
+              />
             )}
             <OrderEntryPanel
+              bookSelection={bookSelection}
               market={props.market}
               walletAddress={effectiveWalletAddress}
               builderFeeUnits={resolvedBuilderFeeUnits}

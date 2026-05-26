@@ -17,6 +17,7 @@ import {
 
 import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
 import { Input } from "@acme/ui/input";
+import { Switch } from "@acme/ui/switch";
 
 import {
   BUILDER_ADDRESS,
@@ -24,6 +25,7 @@ import {
   isBuilderApproved,
 } from "~/lib/blink/builder";
 import { createExchangeClient } from "~/lib/blink/hyperliquid";
+import { usePersistSizePreference } from "~/lib/blink/order-entry-preferences";
 
 import { BlinkProUpsellCard } from "./blink-pro-upsell-card";
 import { ConnectTwitterButton } from "./connect-twitter-button";
@@ -260,6 +262,43 @@ function ConnectionsTab() {
   );
 }
 
+function PreferencesTab() {
+  const { persistSize, setPersistSize } = usePersistSizePreference();
+
+  return (
+    <div>
+      <DialogTitle className="text-2xl font-semibold text-white">
+        Preferences
+      </DialogTitle>
+      <p className="mt-1 text-sm text-foreground/50">
+        Keep order-entry behavior consistent everywhere in Blink.
+      </p>
+
+      <div className="mt-5 rounded-[14px] border border-white/10 bg-white/[0.03] p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="font-medium text-white">Persist order size</p>
+            <p className="mt-1 text-sm text-foreground/58">
+              Keep your size and unit mode across markets, refreshes, and fresh
+              limit prices from the order book.
+            </p>
+            <p className="mt-3 text-xs text-foreground/40">
+              Click a price in the book to prefill limit price. Click a size to
+              prefill size. When this is on, that size draft follows you around
+              Blink.
+            </p>
+          </div>
+          <Switch
+            checked={persistSize}
+            onCheckedChange={setPersistSize}
+            aria-label="Persist order size"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main modal ────────────────────────────────────────────────────────────────
 export function AccountManagementModal(props: {
   open: boolean;
@@ -326,6 +365,8 @@ export function AccountManagementModal(props: {
           <section className="overflow-y-auto p-6">
             {activeTab === "Connections" ? (
               <ConnectionsTab />
+            ) : activeTab === "Preferences" ? (
+              <PreferencesTab />
             ) : (
               <>
                 <DialogTitle className="text-2xl font-semibold text-white">

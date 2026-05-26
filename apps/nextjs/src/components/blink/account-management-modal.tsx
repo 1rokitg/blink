@@ -307,6 +307,7 @@ export function AccountManagementModal(props: {
   /** Open directly to a specific tab */
   initialTab?: Tab;
 }) {
+  const { user } = usePrivy();
   const [activeTab, setActiveTab] = useState<Tab>(
     props.initialTab ?? "Account",
   );
@@ -322,8 +323,36 @@ export function AccountManagementModal(props: {
     enabled: Boolean(props.walletAddress),
     staleTime: 60_000,
   });
+  const referralLookupQuery = useQuery({
+    queryKey: ["blink-account-referral-code", props.walletAddress],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/referrals/lookup?address=${props.walletAddress}`,
+      );
+      if (!response.ok) {
+        throw new Error("Failed to load Blink handle");
+      }
+
+      return response.json() as Promise<{ referralCode: string | null }>;
+    },
+    enabled: props.open && Boolean(props.walletAddress),
+    staleTime: 60_000,
+  });
   const short = truncateAddress(props.walletAddress);
   const avatarUrl = `https://avatar.vercel.sh/${props.walletAddress}.png?size=96`;
+  const fallbackHandle =
+    user?.twitter?.username?.trim() ??
+    user?.google?.email?.split("@")[0] ??
+    user?.email?.address?.split("@")[0] ??
+    short;
+  const profileSlug =
+    referralLookupQuery.data?.referralCode?.trim() || fallbackHandle;
+  const publicProfilePath = `/profile/${encodeURIComponent(profileSlug)}`;
+  const publicProfileUrl = `blink.lat${publicProfilePath}`;
+  const displayName =
+    user?.google?.name?.trim() ??
+    user?.twitter?.username?.trim() ??
+    profileSlug;
 
   // Reset tab when modal opens
   useEffect(() => {
@@ -379,29 +408,58 @@ export function AccountManagementModal(props: {
                     className="size-16 rounded-full border border-white/20"
                   />
                   <div>
-                    <p className="text-2xl font-semibold text-white">Trader</p>
+                    <p className="text-2xl font-semibold text-white">
+                      {displayName}
+                    </p>
                     <p className="text-sm text-foreground/55">Wallet {short}</p>
                   </div>
                 </div>
                 <div className="mt-5 grid gap-4 md:grid-cols-2">
                   <div>
                     <p className="mb-2 text-xs uppercase tracking-[0.14em] text-foreground/45">
-                      Username
+                      Public handle
                     </p>
                     <Input
-                      defaultValue="rokitg"
+                      value={profileSlug}
+                      readOnly
                       className="h-10 border-white/15 bg-white/[0.04]"
                     />
+                    <p className="mt-2 text-xs text-foreground/40">
+                      {referralLookupQuery.data?.referralCode
+                        ? "This is the live Blink handle tied to your wallet."
+                        : "You do not have a custom Blink handle yet, so Blink falls back to your connected identity."}
+                    </p>
                   </div>
                   <div>
                     <p className="mb-2 text-xs uppercase tracking-[0.14em] text-foreground/45">
                       Public profile
                     </p>
                     <Input
-                      defaultValue={`blink.lat/profile/${short}`}
+                      value={publicProfileUrl}
+                      readOnly
                       className="h-10 border-white/15 bg-white/[0.04]"
                     />
+                    <div className="mt-2 flex items-center gap-3">
+                      <Link
+                        href={publicProfilePath}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-[#9bddff] underline-offset-4 transition hover:text-white hover:underline"
+                      >
+                        Open profile
+                        <ExternalLink className="size-3" />
+                      </Link>
+                    </div>
                   </div>
+                </div>
+                <div className="mt-4 rounded-[12px] border border-[#8fbaff26] bg-[#8fbaff0a] p-4">
+                  <p className="font-medium text-white">Identity note</p>
+                  <p className="mt-1 text-sm text-foreground/58">
+                    Your public Blink profile slug currently comes from your
+                    claimed referral code or connected identity. The self-serve
+                    rename flow is not live in this modal yet, so we only show
+                    the real active handle here.
+                  </p>
                 </div>
                 <div className="mt-6 rounded-[12px] border border-white/10 bg-white/[0.03] p-4">
                   <p className="font-medium text-white">Portfolio Visibility</p>
@@ -470,7 +528,7 @@ export function AccountManagementModal(props: {
                     className="whop-blue-btn"
                     onClick={props.onClose}
                   >
-                    Save
+                    Done
                   </button>
                 </div>
               </>

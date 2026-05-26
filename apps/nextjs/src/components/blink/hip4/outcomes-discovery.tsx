@@ -13,7 +13,10 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import type { OutcomeMarket } from "~/lib/blink/hip4/markets";
+import {
+  type OutcomeMarket,
+  getHip4MarketPath,
+} from "~/lib/blink/hip4/markets";
 
 function formatProbability(value: number | null) {
   if (value === null || !Number.isFinite(value)) return "—";
@@ -184,6 +187,13 @@ export function OutcomesDiscovery(props: { markets: OutcomeMarket[] }) {
                     <p className="mt-2 text-sm text-white/56">
                       {featuredMarket.subtitle}
                     </p>
+                    <Link
+                      href={getHip4MarketPath(featuredMarket.slug)}
+                      className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-[#9bddff] transition hover:text-white"
+                    >
+                      Open trading screen
+                      <ArrowUpRight className="size-3.5" />
+                    </Link>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -219,16 +229,7 @@ export function OutcomesDiscovery(props: { markets: OutcomeMarket[] }) {
                 </div>
 
                 <div className="relative mt-6 grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setQuery(featuredMarket.title);
-                      setSelectedUnderlying(
-                        featuredMarket.underlying?.toUpperCase() ?? "all",
-                      );
-                    }}
-                    className="group rounded-[28px] border border-[#7fd6ff22] bg-[linear-gradient(180deg,rgba(56,189,248,0.10),rgba(8,15,24,0.28))] p-5 text-left transition hover:border-[#7fd6ff44] hover:bg-[linear-gradient(180deg,rgba(56,189,248,0.13),rgba(8,15,24,0.34))]"
-                  >
+                  <div className="group rounded-[28px] border border-[#7fd6ff22] bg-[linear-gradient(180deg,rgba(56,189,248,0.10),rgba(8,15,24,0.28))] p-5 text-left transition hover:border-[#7fd6ff44] hover:bg-[linear-gradient(180deg,rgba(56,189,248,0.13),rgba(8,15,24,0.34))]">
                     <div className="flex flex-wrap items-center gap-2 text-[11px] font-medium uppercase tracking-[0.16em] text-[#9bddff]">
                       <span>{formatPeriod(featuredMarket.period)}</span>
                       <span className="text-white/20">•</span>
@@ -264,11 +265,28 @@ export function OutcomesDiscovery(props: { markets: OutcomeMarket[] }) {
                       </div>
                     </div>
 
-                    <div className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-[#9bddff] transition group-hover:text-white">
-                      Filter search to this market
-                      <ArrowUpRight className="size-3.5" />
+                    <div className="mt-5 flex flex-wrap items-center gap-3">
+                      <Link
+                        href={getHip4MarketPath(featuredMarket.slug)}
+                        className="inline-flex items-center gap-2 text-sm font-medium text-[#9bddff] transition hover:text-white"
+                      >
+                        Trade this market
+                        <ArrowUpRight className="size-3.5" />
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setQuery(featuredMarket.title);
+                          setSelectedUnderlying(
+                            featuredMarket.underlying?.toUpperCase() ?? "all",
+                          );
+                        }}
+                        className="inline-flex items-center gap-2 text-sm font-medium text-white/58 transition hover:text-white"
+                      >
+                        Filter search to this market
+                      </button>
                     </div>
-                  </button>
+                  </div>
 
                   <div className="grid gap-3">
                     {props.markets.map((market, index) => {
@@ -442,6 +460,16 @@ export function OutcomesDiscovery(props: { markets: OutcomeMarket[] }) {
                         </p>
                       </div>
                     ))}
+                  </div>
+
+                  <div className="mt-5">
+                    <Link
+                      href={getHip4MarketPath(market.slug)}
+                      className="inline-flex items-center gap-2 text-sm font-medium text-[#9bddff] transition hover:text-white"
+                    >
+                      Open trading screen
+                      <ArrowUpRight className="size-3.5" />
+                    </Link>
                   </div>
                 </article>
               ))}

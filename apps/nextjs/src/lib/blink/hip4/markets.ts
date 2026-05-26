@@ -7,12 +7,17 @@ type OutcomeMetaResponse = {
     description: string;
     name: string;
     outcome: number;
+    quoteToken?: string;
     sideSpecs: Array<{
       name: string;
     }>;
   }>;
   questions: Array<{
+    description?: string;
+    fallbackOutcome?: number;
     name?: string;
+    namedOutcomes?: number[];
+    question?: number;
   }>;
 };
 
@@ -42,6 +47,21 @@ export type OutcomeMarket = {
   underlying: string | null;
   yes: OutcomeSide;
 };
+
+type ParsedOutcomeDescriptor = {
+  expiry: Date | null;
+  expiryIso: string | null;
+  expiryLabel: string | null;
+  marketClass: string | null;
+  period: string | null;
+  priceThresholds: number[];
+  targetPrice: number | null;
+  underlying: string | null;
+};
+
+export function getHip4MarketPath(slug: string) {
+  return `/trade/outcomes/${encodeURIComponent(slug)}`;
+}
 
 function buildOutcomeSlug(input: {
   expiryLabel: string | null;
@@ -113,7 +133,16 @@ function parseOutcomeExpiry(value: string | undefined) {
   );
 }
 
-function parseOutcomeDescription(raw: string) {
+function parseThresholds(value: string | undefined) {
+  if (!value) return [];
+
+  return value
+    .split(",")
+    .map((part) => Number(part))
+    .filter((part) => Number.isFinite(part));
+}
+
+function parseOutcomeDescriptor(raw: string): ParsedOutcomeDescriptor {
   const parts = raw.split("|");
   const fields = new Map<string, string>();
 
@@ -132,6 +161,7 @@ function parseOutcomeDescription(raw: string) {
     targetPriceRaw && Number.isFinite(Number(targetPriceRaw))
       ? Number(targetPriceRaw)
       : null;
+  const priceThresholds = parseThresholds(fields.get("priceThresholds"));
 
   return {
     expiry,
@@ -139,17 +169,90 @@ function parseOutcomeDescription(raw: string) {
     expiryLabel: formatOutcomeExpiry(expiry),
     marketClass: fields.get("class") ?? null,
     period: fields.get("period") ?? null,
+    priceThresholds,
     targetPrice,
     underlying: fields.get("underlying") ?? null,
   };
 }
 
+function parseQuestionOutcomeIndex(raw: string) {
+  const match = raw.match(/^index:(\d+)$/);
+  if (!match) return null;
+
+  const index = Number(match[1]);
+  return Number.isFinite(index) ? index : null;
+}
+
+function summarizeDescription(raw: string) {
+  const clean = raw.trim();
+  if (!clean) return "Binary outcome market";
+
+  const firstSentence = clean.split(". ")[0]?.trim();
+  if (!firstSentence) return "Binary outcome market";
+
+  const normalized =
+    firstSentence.length > 120
+      ? `${firstSentence.slice(0, 117)}...`
+      : firstSentence;
+
+  return normalized.endsWith(".") ? normalized : `${normalized}.`;
+}
+
+function buildPriceBucketTitle(params: {
+  bucketIndex: number | null;
+  priceThresholds: number[];
+  underlying: string | null;
+}) {
+  const [firstThreshold, secondThreshold] = params.priceThresholds;
+
+  if (
+    params.underlying &&
+    params.bucketIndex !== null &&
+    Number.isFinite(firstThreshold) &&
+    Number.isFinite(secondThreshold)
+  ) {
+    if (params.bucketIndex === 0) {
+      return `${params.underlying} below ${firstThreshold}`;
+    }
+
+    if (params.bucketIndex === 1) {
+      return `${params.underlying} between ${firstThreshold} and ${secondThreshold}`;
+    }
+
+    if (params.bucketIndex === 2) {
+      return `${params.underlying} above ${secondThreshold}`;
+    }
+  }
+
+  return null;
+}
+
 function buildOutcomeCopy(params: {
+  bucketIndex: number | null;
   expiryLabel: string | null;
+  marketClass: string | null;
   name: string;
+  questionName: string | null;
+  rawDescription: string;
+  priceThresholds: number[];
   targetPrice: number | null;
   underlying: string | null;
 }) {
+  if (params.marketClass === "priceBucket") {
+    const bucketTitle = buildPriceBucketTitle({
+      bucketIndex: params.bucketIndex,
+      priceThresholds: params.priceThresholds,
+      underlying: params.underlying,
+    });
+
+    return {
+      subtitle: params.expiryLabel
+        ? `Settles ${params.expiryLabel}`
+        : (params.questionName ?? "Multi-price outcome market"),
+      title: bucketTitle ?? params.name,
+    };
+  }
+
   if (params.underlying && params.targetPrice !== null) {
     return {
       subtitle: params.expiryLabel
@@ -160,9 +263,8 @@ function buildOutcomeCopy(params: {
   }
 
   return {
-    subtitle: params.expiryLabel
-      ? `Settles ${params.expiryLabel}`
-      : "Binary outcome market",
+    subtitle:
+      params.questionName ?? summarizeDescription(params.rawDescription),
     title: params.name,
   };
 }
@@ -209,17 +311,64 @@ function buildOutcomeSide(params: {
 }
 
 export async function fetchHip4Markets(): Promise<OutcomeMarket[]> {
-  const [{ outcomes }, mids] = await Promise.all([
+  const [{ outcomes, questions }, mids] = await Promise.all([
     fetchOutcomeMeta(),
     infoClient.allMids() as Promise<Record<string, string>>,
   ]);
 
+  const questionByOutcomeId = new Map<
+    number,
+    {
+      bucketIndex: number | null;
+      descriptor: ParsedOutcomeDescriptor;
+      isFallback: boolean;
+      questionName: string | null;
+    }
+  >();
+
+  for (const question of questions) {
+    const descriptor = parseOutcomeDescriptor(question.description ?? "");
+
+    for (const [bucketIndex, outcomeId] of (
+      question.namedOutcomes ?? []
+    ).entries()) {
+      questionByOutcomeId.set(outcomeId, {
+        bucketIndex,
+        descriptor,
+        isFallback: false,
+        questionName: question.name ?? null,
+      });
+    }
+
+    if (typeof question.fallbackOutcome === "number") {
+      questionByOutcomeId.set(question.fallbackOutcome, {
+        bucketIndex: null,
+        descriptor,
+        isFallback: true,
+        questionName: question.name ?? null,
+      });
+    }
+  }
+
   return outcomes
     .map((outcome) => {
-      const parsed = parseOutcomeDescription(outcome.description);
+      const linkedQuestion = questionByOutcomeId.get(outcome.outcome);
+      const outcomeDescriptor = parseOutcomeDescriptor(outcome.description);
+      const parsed =
+        linkedQuestion?.descriptor.marketClass &&
+        linkedQuestion.descriptor.marketClass !== "priceBinary"
+          ? linkedQuestion.descriptor
+          : outcomeDescriptor;
       const { subtitle, title } = buildOutcomeCopy({
+        bucketIndex:
+          linkedQuestion?.bucketIndex ??
+          parseQuestionOutcomeIndex(outcome.description),
         expiryLabel: parsed.expiryLabel,
+        marketClass: parsed.marketClass,
         name: outcome.name,
+        questionName: linkedQuestion?.questionName ?? null,
+        rawDescription: outcome.description,
+        priceThresholds: parsed.priceThresholds,
         targetPrice: parsed.targetPrice,
         underlying: parsed.underlying,
       });
@@ -259,7 +408,20 @@ export async function fetchHip4Markets(): Promise<OutcomeMarket[]> {
         yes,
       } satisfies OutcomeMarket;
     })
-    .filter((market) => market.marketClass === "priceBinary")
+    .filter((market) => {
+      const linkedQuestion = questionByOutcomeId.get(market.outcome);
+      const isPlaceholderDescription =
+        market.rawDescription === "" ||
+        market.rawDescription === "other" ||
+        /^index:\d+$/.test(market.rawDescription);
+      const isFallbackNamedMarket =
+        linkedQuestion?.isFallback === true || /fallback/i.test(market.name);
+
+      if (isFallbackNamedMarket) return false;
+      if (market.marketClass === "priceBinary") return true;
+      if (market.marketClass === "priceBucket") return true;
+      return !isPlaceholderDescription;
+    })
     .sort((left, right) => {
       const leftExpiry = left.expiryIso
         ? new Date(left.expiryIso).getTime()
@@ -270,4 +432,9 @@ export async function fetchHip4Markets(): Promise<OutcomeMarket[]> {
 
       return leftExpiry - rightExpiry;
     });
+}
+
+export async function getHip4MarketBySlug(slug: string) {
+  const markets = await fetchHip4Markets();
+  return markets.find((market) => market.slug === slug) ?? null;
 }

@@ -2,7 +2,13 @@ import { Disc, Rocket, Sparkles, Wallet } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { BLINK_TOKEN_HEADLINE, BLINK_TOKEN_SUBHEAD } from "~/lib/blink/token";
+import { TokenProgressPanel } from "~/components/blink/token-progress-panel";
+import { getBlinkTokenProgress } from "~/lib/blink/clanker.server";
+import {
+  BLINK_TOKEN_CLANKER_URL,
+  BLINK_TOKEN_HEADLINE,
+  BLINK_TOKEN_SUBHEAD,
+} from "~/lib/blink/token";
 
 export const metadata: Metadata = {
   title: "BLINK Token | Blink",
@@ -31,7 +37,9 @@ const tokenReasons = [
   },
 ];
 
-export default function TokenPage() {
+export default async function TokenPage() {
+  const progressSnapshot = await getBlinkTokenProgress();
+
   return (
     <main className="min-h-screen bg-[#060510] px-4 py-10 text-[#f4f7fb] sm:px-6 lg:px-8">
       <div
@@ -104,29 +112,23 @@ export default function TokenPage() {
             Give Blink a permanent token destination.
           </h2>
           <p className="mt-3 text-sm leading-6 text-white/62">
-            This page is live now so the app can confidently point users to a
-            dedicated token surface. When you have a final token buy link,
-            listing page, or launch page, we can wire it here in one move.
+            This page now ties Blink&apos;s token story to real Clanker creator
+            fees. The 100 ETH target gives the community a live scoreboard for
+            the budget behind Blink shipping faster.
           </p>
 
-          <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.04] p-5">
-            <p className="text-sm font-semibold text-white">
-              Current token CTA
-            </p>
-            <p className="mt-2 text-sm leading-6 text-white/58">
-              The core objective right now is presence: keep the BLINK token
-              visible throughout the site and give it a stable canonical route.
-            </p>
+          <div className="mt-6">
+            <TokenProgressPanel initialSnapshot={progressSnapshot} />
           </div>
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <a
-              href="https://discord.gg/Myu962DMMA"
+              href={BLINK_TOKEN_CLANKER_URL}
               target="_blank"
               rel="noreferrer"
               className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#8fbaff80] bg-[linear-gradient(180deg,#3c76ff,#2457db)] px-5 text-sm font-semibold text-white shadow-[0_18px_50px_rgba(37,90,224,0.35)] transition hover:brightness-110"
             >
-              Join the Blink Discord
+              Open token on Clanker
             </a>
             <Link
               href="/trade/BTC"
@@ -134,6 +136,15 @@ export default function TokenPage() {
             >
               Open the terminal
             </Link>
+          </div>
+
+          <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.04] p-5 text-sm leading-6 text-white/58">
+            <p className="font-semibold text-white">How this is measured</p>
+            <p className="mt-2">
+              Blink reads live WETH fees from Clanker&apos;s fee locker and adds
+              already-claimed creator fee events to show total rewarded progress
+              toward the 100 ETH target.
+            </p>
           </div>
 
           <Link

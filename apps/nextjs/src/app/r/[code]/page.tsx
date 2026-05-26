@@ -21,7 +21,7 @@ export async function generateMetadata(props: {
     openGraph: {
       title: `${slug} invited you to Blink`,
       description:
-        "The fastest social trading terminal on Hyperliquid. Zero fees, up to 50× leverage.",
+        "The fastest social trading terminal on Hyperliquid. Zero extra fees, up to 50× leverage.",
       url: `https://blink.lat/r/${slug}`,
       siteName: "Blink",
       type: "website",
@@ -79,7 +79,7 @@ export default async function ReferralLandingPage(props: {
         <h1 className="text-[2.8rem] font-bold leading-[1.08] tracking-[-0.04em] text-white">
           Trade perps.
           <br />
-          <span className="text-[#6fa8ff]">Zero fees.</span>
+          <span className="text-[#6fa8ff]">Zero extra fees.</span>
         </h1>
 
         <p className="mt-4 text-base leading-relaxed text-white/50">

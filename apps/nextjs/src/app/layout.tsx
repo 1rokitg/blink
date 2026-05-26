@@ -9,6 +9,7 @@ import { Toaster } from "@acme/ui/toast";
 
 import "~/app/globals.css";
 
+import { GlobalTokenCta } from "~/components/blink/global-token-cta";
 import { env } from "~/env";
 import { ContextProviders } from "~/lib/providers";
 
@@ -84,6 +85,7 @@ export default function RootLayout(props: { children: React.ReactNode }) {
       >
         <ThemeProvider attribute="class" defaultTheme="dark" forcedTheme="dark">
           <ContextProviders>{props.children}</ContextProviders>
+          <GlobalTokenCta />
           <Toaster position="top-center" />
         </ThemeProvider>
         <SpeedInsights />

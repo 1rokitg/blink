@@ -18,7 +18,7 @@ export const DEFAULT_MARKET = "BTC";
 export const PRIORITY_TRADFI_MARKETS = ["xyz:GOLD", "cash:WTI"] as const;
 
 export function marketToSlug(coin: string) {
-  return encodeURIComponent(coin);
+  return slugToMarketSymbol(coin);
 }
 
 export function slugToMarketSymbol(slug: string) {

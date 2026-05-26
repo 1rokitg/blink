@@ -85,6 +85,7 @@ import {
   infoClient,
 } from "~/lib/blink/hyperliquid";
 import {
+  type MarketSummary,
   fetchTopMarketsByVolume,
   formatCompactNumber,
   formatUsd,
@@ -385,13 +386,7 @@ function LeaderboardPanel() {
 
 // ─── Discover Panel ──────────────────────────────────────────────────────────
 
-type MarketRow = {
-  coin: string;
-  slug: string;
-  markPx: number;
-  changePct: number;
-  dailyVolume: number;
-};
+type MarketRow = MarketSummary;
 
 const DISCOVER_TRADERS = [
   { handle: "rokitg.eth", pnl: 21_420, rank: 1 },
@@ -419,30 +414,51 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
           </span>
         </div>
         <div className="space-y-0.5">
-          {gainers.map((m) => (
-            <Link
-              key={m.coin}
-              href={`/trade/${marketToSlug(m.coin)}`}
-              className="flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-white/[0.04]"
-            >
-              <CoinIcon coin={m.coin} size={22} />
-              <span className="flex-1 text-xs font-medium text-white/85">
-                {m.coin}
-              </span>
-              {ZERO_FEE_MARKETS.has(m.coin) && (
-                <span
-                  className="size-1.5 rounded-full bg-[#39e5b6]"
-                  style={{ boxShadow: "0 0 5px 1px #39e5b688" }}
-                />
-              )}
-              <span className="font-mono text-xs text-white/45">
-                {formatUsd(m.markPx)}
-              </span>
-              <span className="w-14 text-right font-mono text-xs font-medium text-emerald-300">
-                +{m.changePct.toFixed(2)}%
-              </span>
-            </Link>
-          ))}
+          {gainers.map((m) =>
+            m.isHip3 ? (
+              <div
+                key={m.coin}
+                className="flex items-center gap-2 rounded-[8px] border border-white/[0.06] px-2 py-1.5"
+              >
+                <CoinIcon coin={m.coin} size={22} />
+                <span className="flex-1 text-xs font-medium text-white/85">
+                  {m.coin}
+                </span>
+                <span className="rounded-full border border-[#7ea9ff33] bg-[#7ea9ff1a] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#a8c3ff]">
+                  HIP-3
+                </span>
+                <span className="font-mono text-xs text-white/45">
+                  {formatUsd(m.markPx)}
+                </span>
+                <span className="w-14 text-right font-mono text-xs font-medium text-emerald-300">
+                  +{m.changePct.toFixed(2)}%
+                </span>
+              </div>
+            ) : (
+              <Link
+                key={m.coin}
+                href={`/trade/${marketToSlug(m.coin)}`}
+                className="flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-white/[0.04]"
+              >
+                <CoinIcon coin={m.coin} size={22} />
+                <span className="flex-1 text-xs font-medium text-white/85">
+                  {m.coin}
+                </span>
+                {ZERO_FEE_MARKETS.has(m.coin) && (
+                  <span
+                    className="size-1.5 rounded-full bg-[#39e5b6]"
+                    style={{ boxShadow: "0 0 5px 1px #39e5b688" }}
+                  />
+                )}
+                <span className="font-mono text-xs text-white/45">
+                  {formatUsd(m.markPx)}
+                </span>
+                <span className="w-14 text-right font-mono text-xs font-medium text-emerald-300">
+                  +{m.changePct.toFixed(2)}%
+                </span>
+              </Link>
+            ),
+          )}
         </div>
       </div>
 
@@ -457,24 +473,45 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
           </span>
         </div>
         <div className="space-y-0.5">
-          {losers.map((m) => (
-            <Link
-              key={m.coin}
-              href={`/trade/${marketToSlug(m.coin)}`}
-              className="flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-white/[0.04]"
-            >
-              <CoinIcon coin={m.coin} size={22} />
-              <span className="flex-1 text-xs font-medium text-white/85">
-                {m.coin}
-              </span>
-              <span className="font-mono text-xs text-white/45">
-                {formatUsd(m.markPx)}
-              </span>
-              <span className="w-14 text-right font-mono text-xs font-medium text-rose-300">
-                {m.changePct.toFixed(2)}%
-              </span>
-            </Link>
-          ))}
+          {losers.map((m) =>
+            m.isHip3 ? (
+              <div
+                key={m.coin}
+                className="flex items-center gap-2 rounded-[8px] border border-white/[0.06] px-2 py-1.5"
+              >
+                <CoinIcon coin={m.coin} size={22} />
+                <span className="flex-1 text-xs font-medium text-white/85">
+                  {m.coin}
+                </span>
+                <span className="rounded-full border border-[#7ea9ff33] bg-[#7ea9ff1a] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#a8c3ff]">
+                  HIP-3
+                </span>
+                <span className="font-mono text-xs text-white/45">
+                  {formatUsd(m.markPx)}
+                </span>
+                <span className="w-14 text-right font-mono text-xs font-medium text-rose-300">
+                  {m.changePct.toFixed(2)}%
+                </span>
+              </div>
+            ) : (
+              <Link
+                key={m.coin}
+                href={`/trade/${marketToSlug(m.coin)}`}
+                className="flex items-center gap-2 rounded-[8px] px-2 py-1.5 transition hover:bg-white/[0.04]"
+              >
+                <CoinIcon coin={m.coin} size={22} />
+                <span className="flex-1 text-xs font-medium text-white/85">
+                  {m.coin}
+                </span>
+                <span className="font-mono text-xs text-white/45">
+                  {formatUsd(m.markPx)}
+                </span>
+                <span className="w-14 text-right font-mono text-xs font-medium text-rose-300">
+                  {m.changePct.toFixed(2)}%
+                </span>
+              </Link>
+            ),
+          )}
         </div>
       </div>
 
@@ -560,7 +597,7 @@ function LeftRail(props: {
 
   const marketsQuery = useQuery({
     queryKey: ["blink", "watchlist"],
-    queryFn: () => fetchTopMarketsByVolume(25),
+    queryFn: () => fetchTopMarketsByVolume(25, { includeHip3Offers: true }),
     staleTime: 86_400_000,
     refetchInterval: 86_400_000,
   });
@@ -707,7 +744,31 @@ function LeftRail(props: {
               marketRows.map((item) => {
                 const selected = item.coin === props.market;
                 const positive = item.changePct >= 0;
-                return (
+                return item.isHip3 ? (
+                  <div
+                    key={item.coin}
+                    className="flex items-center gap-2.5 rounded-[10px] border border-white/[0.06] px-2.5 py-2"
+                  >
+                    <CoinIcon coin={item.coin} size={28} />
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-1.5 text-sm font-medium leading-none text-white">
+                        <span className="truncate">{item.coin}</span>
+                        <span className="rounded-full border border-[#7ea9ff33] bg-[#7ea9ff1a] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#a8c3ff]">
+                          HIP-3
+                        </span>
+                      </p>
+                      <p className="mt-0.5 text-xs text-foreground/45">
+                        {formatUsd(item.markPx)}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 text-xs tabular-nums ${positive ? "text-emerald-300" : "text-rose-300"}`}
+                    >
+                      {positive ? "+" : ""}
+                      {item.changePct.toFixed(2)}%
+                    </span>
+                  </div>
+                ) : (
                   <Link
                     key={item.coin}
                     href={`/trade/${marketToSlug(item.coin)}`}
@@ -718,8 +779,8 @@ function LeftRail(props: {
                     }`}
                   >
                     <CoinIcon coin={item.coin} size={28} />
-                    <div className="flex-1 min-w-0">
-                      <p className="flex items-center gap-1.5 text-sm font-medium text-white leading-none">
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-1.5 text-sm font-medium leading-none text-white">
                         <span className="truncate">{item.coin}</span>
                         {ZERO_FEE_MARKETS.has(item.coin) ? (
                           <span

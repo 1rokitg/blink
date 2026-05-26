@@ -38,10 +38,7 @@ export function getBotSignals(headers: IdentityHeaders) {
     "x-bot-id",
     "x-bot-name",
   ]);
-  const botTag = firstHeader(headers, [
-    "x-vercel-bot-tag",
-    "x-bot-tag",
-  ]);
+  const botTag = firstHeader(headers, ["x-vercel-bot-tag", "x-bot-tag"]);
   const firewallAction = firstHeader(headers, [
     "x-vercel-sc-action",
     "x-vercel-firewall-action",
@@ -66,7 +63,10 @@ export function resolveEventIdentity(headers: IdentityHeaders) {
   const ua = normalize(headers.get("user-agent"));
   const lang = normalize(headers.get("accept-language"));
   const country = normalize(headers.get("x-vercel-ip-country"));
+  const region = normalize(headers.get("x-vercel-ip-country-region"));
   const city = normalize(headers.get("x-vercel-ip-city"));
+  const referer = headers.get("referer");
+  const origin = headers.get("origin");
   const ip = normalize(
     firstHeader(headers, [
       "x-real-ip",
@@ -104,6 +104,17 @@ export function resolveEventIdentity(headers: IdentityHeaders) {
       botId,
       botTag,
       firewallAction,
+    },
+    requestContext: {
+      city: city || null,
+      country: country || null,
+      fingerprint,
+      ipAddress: ip || null,
+      language: lang || null,
+      origin: origin || null,
+      referer: referer || null,
+      region: region || null,
+      userAgent: ua || null,
     },
     setCookies: [
       `${VISITOR_COOKIE}=${visitorId}; Path=/; Max-Age=31536000; SameSite=Lax; Secure; HttpOnly`,

@@ -6,6 +6,7 @@ import { getAddress, recoverMessageAddress } from "viem";
 import { z } from "zod";
 
 import { env } from "~/env";
+import { resolveEventIdentity } from "~/lib/blink/event-identity";
 import { trackMetricEvent } from "~/lib/blink/internal-metrics.server";
 import {
   TWITTER_CLAIM_CONTEXT_COOKIE,
@@ -65,18 +66,53 @@ function getCanonicalAppUrl() {
 
 async function trackTwitterConnectIssue(params: {
   code: string;
+  headers?: Headers;
   walletAddress?: string | null;
   stage: string;
 }) {
+  const identity = params.headers ? resolveEventIdentity(params.headers) : null;
+
   await trackMetricEvent({
     eventType: "issue_auto",
     walletAddress: params.walletAddress ?? null,
+    visitorId: identity?.visitorId,
+    sessionId: identity?.sessionId,
+    requestId: identity?.requestId,
+    isBot: identity?.bot.isBot,
+    botId: identity?.bot.botId,
     source: "twitter-connect",
     metadata: {
       category: "x-verification",
       summary: "Twitter connect bootstrap failed.",
       code: params.code,
       step: params.stage,
+      ...(identity?.requestContext.fingerprint
+        ? { fingerprint: identity.requestContext.fingerprint }
+        : {}),
+      ...(identity?.requestContext.ipAddress
+        ? { ipAddress: identity.requestContext.ipAddress }
+        : {}),
+      ...(identity?.requestContext.country
+        ? { country: identity.requestContext.country }
+        : {}),
+      ...(identity?.requestContext.region
+        ? { region: identity.requestContext.region }
+        : {}),
+      ...(identity?.requestContext.city
+        ? { city: identity.requestContext.city }
+        : {}),
+      ...(identity?.requestContext.userAgent
+        ? { userAgent: identity.requestContext.userAgent }
+        : {}),
+      ...(identity?.requestContext.language
+        ? { language: identity.requestContext.language }
+        : {}),
+      ...(identity?.requestContext.origin
+        ? { origin: identity.requestContext.origin }
+        : {}),
+      ...(identity?.requestContext.referer
+        ? { referer: identity.requestContext.referer }
+        : {}),
     },
   });
 }
@@ -93,6 +129,7 @@ export async function POST(req: NextRequest) {
   if (!env.TWITTER_CLIENT_ID) {
     await trackTwitterConnectIssue({
       code: "twitter_client_not_configured",
+      headers: req.headers,
       stage: "bootstrap",
     });
     return NextResponse.json(
@@ -107,6 +144,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     await trackTwitterConnectIssue({
       code: "invalid_payload",
+      headers: req.headers,
       stage: "payload",
     });
     return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
@@ -121,6 +159,7 @@ export async function POST(req: NextRequest) {
   if (!claimContext) {
     await trackTwitterConnectIssue({
       code: "claim_session_expired",
+      headers: req.headers,
       walletAddress,
       stage: "claim-context",
     });
@@ -133,6 +172,7 @@ export async function POST(req: NextRequest) {
   if (claimContext.walletAddress !== walletAddress) {
     await trackTwitterConnectIssue({
       code: "claim_wallet_mismatch",
+      headers: req.headers,
       walletAddress,
       stage: "claim-context",
     });
@@ -153,6 +193,7 @@ export async function POST(req: NextRequest) {
   if (!recoveredAddress) {
     await trackTwitterConnectIssue({
       code: "invalid_signature",
+      headers: req.headers,
       walletAddress,
       stage: "signature",
     });
@@ -162,6 +203,7 @@ export async function POST(req: NextRequest) {
   if (getAddress(recoveredAddress).toLowerCase() !== walletAddress) {
     await trackTwitterConnectIssue({
       code: "wallet_verification_failed",
+      headers: req.headers,
       walletAddress,
       stage: "signature",
     });

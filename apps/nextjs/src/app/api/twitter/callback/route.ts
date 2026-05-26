@@ -5,6 +5,7 @@ import { db } from "@acme/db/client";
 import { TwitterConnection } from "@acme/db/schema";
 import { env } from "~/env";
 import { sendDiscordProfileVerificationSighting } from "~/lib/blink/discord.server";
+import { resolveEventIdentity } from "~/lib/blink/event-identity";
 import { trackMetricEvent } from "~/lib/blink/internal-metrics.server";
 import {
   DEFAULT_TWITTER_RETURN_TO,
@@ -96,6 +97,7 @@ export async function GET(req: NextRequest) {
   const appUrl = getCanonicalAppUrl();
   const redirectUri = `${appUrl}/api/twitter/callback`;
   const url = req.nextUrl;
+  const identity = resolveEventIdentity(req.headers);
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const error = url.searchParams.get("error");
@@ -108,6 +110,11 @@ export async function GET(req: NextRequest) {
     await trackMetricEvent({
       eventType: "issue_auto",
       walletAddress: claimContext?.walletAddress ?? null,
+      visitorId: identity.visitorId,
+      sessionId: identity.sessionId,
+      requestId: identity.requestId,
+      isBot: identity.bot.isBot,
+      botId: identity.bot.botId,
       source: "twitter-callback",
       metadata: {
         category: "x-verification",
@@ -115,6 +122,33 @@ export async function GET(req: NextRequest) {
         code: reason,
         returnTo,
         step: "callback",
+        ...(identity.requestContext.fingerprint
+          ? { fingerprint: identity.requestContext.fingerprint }
+          : {}),
+        ...(identity.requestContext.ipAddress
+          ? { ipAddress: identity.requestContext.ipAddress }
+          : {}),
+        ...(identity.requestContext.country
+          ? { country: identity.requestContext.country }
+          : {}),
+        ...(identity.requestContext.region
+          ? { region: identity.requestContext.region }
+          : {}),
+        ...(identity.requestContext.city
+          ? { city: identity.requestContext.city }
+          : {}),
+        ...(identity.requestContext.userAgent
+          ? { userAgent: identity.requestContext.userAgent }
+          : {}),
+        ...(identity.requestContext.language
+          ? { language: identity.requestContext.language }
+          : {}),
+        ...(identity.requestContext.origin
+          ? { origin: identity.requestContext.origin }
+          : {}),
+        ...(identity.requestContext.referer
+          ? { referer: identity.requestContext.referer }
+          : {}),
       },
     });
 

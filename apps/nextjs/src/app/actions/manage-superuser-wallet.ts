@@ -22,6 +22,7 @@ import {
   grantInternalRole,
 } from "~/lib/blink/admin-roles.server";
 import { BUILDER_ADDRESS, builderMaxFeeRate } from "~/lib/blink/builder";
+import { infoClient } from "~/lib/blink/hyperliquid";
 
 const walletSchema = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
 const referralCodeSchema = z
@@ -65,12 +66,32 @@ const builderApprovalSchema = z.object({
 });
 
 export type SuperuserWalletSnapshot = {
+  appFingerprint: {
+    eventCount: number;
+    issueCount: number;
+    lastSeenAt: string | null;
+    recentCities: string[];
+    recentCountries: string[];
+    recentFingerprints: string[];
+    recentIpAddresses: string[];
+    recentPaths: string[];
+    recentSessionIds: string[];
+    recentSources: string[];
+    recentUserAgents: string[];
+    recentVisitorIds: string[];
+  };
   builderApproval: {
     approvedAt: string;
     builderAddress: string;
     maxFeeRate: string;
     status: string;
   } | null;
+  builderApprovals: Array<{
+    approvedAt: string;
+    builderAddress: string;
+    maxFeeRate: string;
+    status: string;
+  }>;
   follows: {
     followers: number;
     following: number;
@@ -87,7 +108,88 @@ export type SuperuserWalletSnapshot = {
     firstTrade: boolean;
     proCheckoutStarted: boolean;
   };
+  onchain: {
+    accountValue: number;
+    delegatedValue: number;
+    marginUsed: number;
+    openOrderCount: number;
+    positionCount: number;
+    recentFills: Array<{
+      closedPnl: number;
+      coin: string;
+      fee: number;
+      notionalUsd: number;
+      px: number;
+      side: string;
+      size: number;
+      time: string;
+    }>;
+    spotBalances: Array<{
+      available: number;
+      coin: string;
+      hold: number;
+      total: number;
+    }>;
+    spotEscrows: Array<{
+      coin: string;
+      total: number;
+    }>;
+    stakingDelegations: Array<{
+      amount: number;
+      lockedUntil: string | null;
+      validator: string;
+    }>;
+    stakingSummary: {
+      delegated: number;
+      nPendingWithdrawals: number;
+      totalPendingWithdrawal: number;
+      undelegated: number;
+    } | null;
+    totalRealizedPnl: number;
+    totalUnrealizedPnl: number;
+    positions: Array<{
+      coin: string;
+      entryPx: number;
+      liquidationPx: number | null;
+      leverage: {
+        type: string | null;
+        value: number | null;
+      } | null;
+      marginUsed: number;
+      positionValue: number;
+      returnOnEquity: number;
+      size: number;
+      unrealizedPnl: number;
+    }>;
+    withdrawable: number;
+    workingOrders: Array<{
+      coin: string;
+      isReduceOnly: boolean;
+      limitPx: number;
+      orderId: number | null;
+      side: string;
+      size: number;
+      timestamp: string | null;
+    }>;
+  };
   query: string;
+  recentEventLogs: Array<{
+    city: string | null;
+    code: string | null;
+    country: string | null;
+    createdAt: string;
+    eventType: string;
+    fingerprint: string | null;
+    ipAddress: string | null;
+    path: string | null;
+    region: string | null;
+    requestId: string | null;
+    sessionId: string | null;
+    source: string | null;
+    summary: string | null;
+    userAgent: string | null;
+    visitorId: string | null;
+  }>;
   recentReferrals: Array<{
     address: string;
     code: string;
@@ -134,6 +236,36 @@ export type SuperuserSearchResult = {
 
 function normalizeWallet(walletAddress: string) {
   return walletAddress.trim().toLowerCase();
+}
+
+function getMetadataString(metadata: unknown, key: string): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+
+  const value = (metadata as Record<string, unknown>)[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function uniqueRecentStrings(
+  values: Array<string | null | undefined>,
+  limit = 6,
+) {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values) {
+    if (!value) continue;
+    if (seen.has(value)) continue;
+    seen.add(value);
+    result.push(value);
+    if (result.length >= limit) break;
+  }
+
+  return result;
+}
+
+function numberOrZero(value: unknown) {
+  const next = Number(value ?? 0);
+  return Number.isFinite(next) ? next : 0;
 }
 
 async function assertSuperuser(actingWalletAddress: string) {
@@ -330,7 +462,9 @@ export async function searchSuperuserWallets(input: unknown) {
         .where(inArray(InternalRole.walletAddress, walletAddresses)),
     ]);
 
-  const codeByWallet = new Map(codeRows.map((row) => [row.walletAddress, row.code]));
+  const codeByWallet = new Map(
+    codeRows.map((row) => [row.walletAddress, row.code]),
+  );
   const twitterByWallet = new Map(
     twitterMetaRows.map((row) => [row.walletAddress, row.twitterUsername]),
   );
@@ -406,6 +540,8 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
   }
 
   const walletAddress = resolved.walletAddress;
+  const user = walletAddress as `0x${string}`;
+  const fillsStartTime = Date.now() - 2 * 365 * 24 * 60 * 60 * 1000;
   const [role, roleRow, profileRow, twitterRow, approvalRow, membershipRow] =
     await Promise.all([
       getWalletRoleFromDb(walletAddress),
@@ -471,6 +607,16 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
     followerCountRows,
     followingCountRows,
     metricRows,
+    approvalHistoryRows,
+    recentEventLogRows,
+    totalEventCountRows,
+    issueEventCountRows,
+    accountState,
+    frontendOpenOrders,
+    fills,
+    spotState,
+    stakingSummary,
+    stakingDelegations,
   ] = await Promise.all([
     db
       .select({ code: ReferralCode.code })
@@ -521,11 +667,237 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
           ]),
         ),
       ),
+    db
+      .select({
+        approvedAt: BuilderApproval.approvedAt,
+        builderAddress: BuilderApproval.builderAddress,
+        maxFeeRate: BuilderApproval.maxFeeRate,
+        status: BuilderApproval.status,
+      })
+      .from(BuilderApproval)
+      .where(eq(BuilderApproval.walletAddress, walletAddress))
+      .orderBy(desc(BuilderApproval.approvedAt))
+      .limit(8),
+    db
+      .select({
+        createdAt: MetricEvent.createdAt,
+        eventType: MetricEvent.eventType,
+        metadata: MetricEvent.metadata,
+        requestId: MetricEvent.requestId,
+        sessionId: MetricEvent.sessionId,
+        source: MetricEvent.source,
+        visitorId: MetricEvent.visitorId,
+      })
+      .from(MetricEvent)
+      .where(eq(MetricEvent.walletAddress, walletAddress))
+      .orderBy(desc(MetricEvent.createdAt))
+      .limit(40),
+    db
+      .select({ count: count() })
+      .from(MetricEvent)
+      .where(eq(MetricEvent.walletAddress, walletAddress)),
+    db
+      .select({ count: count() })
+      .from(MetricEvent)
+      .where(
+        and(
+          eq(MetricEvent.walletAddress, walletAddress),
+          inArray(MetricEvent.eventType, ["issue_auto", "issue_feedback"]),
+        ),
+      ),
+    infoClient.clearinghouseState({ user }).catch(() => null),
+    infoClient.frontendOpenOrders({ user }).catch(() => []),
+    infoClient
+      .userFillsByTime({
+        user,
+        startTime: fillsStartTime,
+      })
+      .catch(() => []),
+    infoClient.spotClearinghouseState({ user }).catch(() => null),
+    infoClient.delegatorSummary({ user }).catch(() => null),
+    infoClient.delegations({ user }).catch(() => []),
   ]);
 
   const eventTypes = new Set(metricRows.map((row) => row.eventType));
+  const recentEventLogs = recentEventLogRows.map((row) => {
+    const metadata = row.metadata;
+
+    return {
+      city: getMetadataString(metadata, "city"),
+      code: getMetadataString(metadata, "code"),
+      country: getMetadataString(metadata, "country"),
+      createdAt: row.createdAt.toISOString(),
+      eventType: row.eventType,
+      fingerprint: getMetadataString(metadata, "fingerprint"),
+      ipAddress: getMetadataString(metadata, "ipAddress"),
+      path: getMetadataString(metadata, "path"),
+      region: getMetadataString(metadata, "region"),
+      requestId: row.requestId,
+      sessionId: row.sessionId,
+      source: row.source ?? null,
+      summary: getMetadataString(metadata, "summary"),
+      userAgent: getMetadataString(metadata, "userAgent"),
+      visitorId: row.visitorId,
+    };
+  });
+  const builderApprovals = approvalHistoryRows.map((row) => ({
+    approvedAt: row.approvedAt.toISOString(),
+    builderAddress: row.builderAddress,
+    maxFeeRate: row.maxFeeRate,
+    status: row.status,
+  }));
+  const appFingerprint = {
+    eventCount: totalEventCountRows[0]?.count ?? 0,
+    issueCount: issueEventCountRows[0]?.count ?? 0,
+    lastSeenAt: recentEventLogs[0]?.createdAt ?? null,
+    recentCities: uniqueRecentStrings(recentEventLogs.map((row) => row.city)),
+    recentCountries: uniqueRecentStrings(
+      recentEventLogs.map((row) => row.country),
+    ),
+    recentFingerprints: uniqueRecentStrings(
+      recentEventLogs.map((row) => row.fingerprint),
+    ),
+    recentIpAddresses: uniqueRecentStrings(
+      recentEventLogs.map((row) => row.ipAddress),
+    ),
+    recentPaths: uniqueRecentStrings(recentEventLogs.map((row) => row.path)),
+    recentSessionIds: uniqueRecentStrings(
+      recentEventLogs.map((row) => row.sessionId),
+    ),
+    recentSources: uniqueRecentStrings(
+      recentEventLogs.map((row) => row.source),
+    ),
+    recentUserAgents: uniqueRecentStrings(
+      recentEventLogs.map((row) => row.userAgent),
+      4,
+    ),
+    recentVisitorIds: uniqueRecentStrings(
+      recentEventLogs.map((row) => row.visitorId),
+    ),
+  };
+  const positions = (accountState?.assetPositions ?? [])
+    .map((entry) => entry.position)
+    .filter((position) => numberOrZero(position.szi) !== 0);
+  const workingOrders = (frontendOpenOrders ?? []).map((order) => ({
+    coin: order.coin,
+    isReduceOnly: Boolean(order.reduceOnly),
+    limitPx: numberOrZero(order.limitPx),
+    orderId:
+      typeof order.oid === "number"
+        ? order.oid
+        : Number.isFinite(Number(order.oid))
+          ? Number(order.oid)
+          : null,
+    side: String(order.side ?? ""),
+    size: numberOrZero(order.sz),
+    timestamp: order.timestamp ? new Date(order.timestamp).toISOString() : null,
+  }));
+  const normalizedFills = (fills ?? []).map((fill) => {
+    const px = numberOrZero(fill.px);
+    const size = Math.abs(numberOrZero(fill.sz));
+
+    return {
+      closedPnl: numberOrZero((fill as { closedPnl?: unknown }).closedPnl),
+      coin: String(fill.coin ?? ""),
+      fee: Math.abs(numberOrZero(fill.fee)),
+      notionalUsd: px * size,
+      px,
+      side: String(fill.side ?? ""),
+      size,
+      time: fill.time
+        ? new Date(fill.time).toISOString()
+        : new Date().toISOString(),
+    };
+  });
+  const recentFills = normalizedFills
+    .sort((left, right) => right.time.localeCompare(left.time))
+    .slice(0, 40);
+  const totalRealizedPnl = normalizedFills.reduce(
+    (sum, fill) => sum + fill.closedPnl,
+    0,
+  );
+  const totalUnrealizedPnl = positions.reduce(
+    (sum, position) => sum + numberOrZero(position.unrealizedPnl),
+    0,
+  );
+  const spotBalances = (spotState?.balances ?? []).map((balance) => {
+    const total = numberOrZero(balance.total);
+    const hold = numberOrZero(balance.hold);
+
+    return {
+      available: Math.max(total - hold, 0),
+      coin: String(balance.coin ?? balance.token ?? ""),
+      hold,
+      total,
+    };
+  });
+  const spotEscrows = (spotState?.evmEscrows ?? []).map((escrow) => ({
+    coin: String(escrow.coin ?? escrow.token ?? ""),
+    total: numberOrZero(escrow.total),
+  }));
+  const onchain = {
+    accountValue: numberOrZero(accountState?.marginSummary?.accountValue),
+    delegatedValue: numberOrZero(stakingSummary?.delegated),
+    marginUsed: numberOrZero(accountState?.marginSummary?.totalMarginUsed),
+    openOrderCount: workingOrders.length,
+    positionCount: positions.length,
+    recentFills,
+    spotBalances,
+    spotEscrows,
+    stakingDelegations: (stakingDelegations ?? []).map((delegation) => ({
+      amount: numberOrZero(delegation.amount),
+      lockedUntil: delegation.lockedUntilTimestamp
+        ? new Date(delegation.lockedUntilTimestamp).toISOString()
+        : null,
+      validator: delegation.validator,
+    })),
+    stakingSummary: stakingSummary
+      ? {
+          delegated: numberOrZero(stakingSummary.delegated),
+          nPendingWithdrawals: Number(stakingSummary.nPendingWithdrawals ?? 0),
+          totalPendingWithdrawal: numberOrZero(
+            stakingSummary.totalPendingWithdrawal,
+          ),
+          undelegated: numberOrZero(stakingSummary.undelegated),
+        }
+      : null,
+    totalRealizedPnl,
+    totalUnrealizedPnl,
+    positions: positions.map((position) => ({
+      coin: position.coin,
+      entryPx: numberOrZero(position.entryPx),
+      liquidationPx:
+        position.liquidationPx !== undefined &&
+        position.liquidationPx !== null &&
+        Number.isFinite(Number(position.liquidationPx))
+          ? Number(position.liquidationPx)
+          : null,
+      leverage: position.leverage
+        ? {
+            type:
+              typeof position.leverage.type === "string"
+                ? position.leverage.type
+                : null,
+            value:
+              position.leverage.value !== undefined &&
+              position.leverage.value !== null &&
+              Number.isFinite(Number(position.leverage.value))
+                ? Number(position.leverage.value)
+                : null,
+          }
+        : null,
+      marginUsed: numberOrZero(position.marginUsed),
+      positionValue: numberOrZero(position.positionValue),
+      returnOnEquity: numberOrZero(position.returnOnEquity),
+      size: numberOrZero(position.szi),
+      unrealizedPnl: numberOrZero(position.unrealizedPnl),
+    })),
+    withdrawable: numberOrZero(accountState?.withdrawable),
+    workingOrders,
+  };
 
   return {
+    appFingerprint,
     builderApproval: approvalRow[0]
       ? {
           approvedAt: approvalRow[0].approvedAt.toISOString(),
@@ -534,6 +906,7 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
           status: approvalRow[0].status,
         }
       : null,
+    builderApprovals,
     follows: {
       followers: followerCountRows[0]?.count ?? 0,
       following: followingCountRows[0]?.count ?? 0,
@@ -554,7 +927,9 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
       firstTrade: eventTypes.has("first_trade"),
       proCheckoutStarted: eventTypes.has("pro_checkout_started"),
     },
+    onchain,
     query: parsed.data.query,
+    recentEventLogs,
     recentReferrals: recentReferrals.map((row) => ({
       address: row.address,
       code: row.code,

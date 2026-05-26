@@ -4,7 +4,15 @@ import { useEffect, useState } from "react";
 
 import Link from "next/link";
 
-import { ArrowUpRight, Loader2, Search, Shield, Sparkles } from "lucide-react";
+import {
+  Activity,
+  ArrowUpRight,
+  Fingerprint,
+  Loader2,
+  Search,
+  Shield,
+  Sparkles,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -28,9 +36,38 @@ function formatTimestamp(value: string | null | undefined) {
   }).format(new Date(value));
 }
 
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: Math.abs(value) < 100 ? 2 : 0,
+  }).format(value);
+}
+
+function formatSignedMoney(value: number) {
+  const formatted = formatMoney(Math.abs(value));
+  if (value > 0) return `+${formatted}`;
+  if (value < 0) return `-${formatted}`;
+  return formatted;
+}
+
+function formatCompactNumber(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 function truncateAddress(address: string) {
   if (!address) return "—";
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
+}
+
+function truncateMiddle(value: string, max = 42) {
+  if (!value) return "—";
+  if (value.length <= max) return value;
+  const edge = Math.max(8, Math.floor((max - 1) / 2));
+  return `${value.slice(0, edge)}…${value.slice(-edge)}`;
 }
 
 export function SuperuserPanel(props: { actingWalletAddress: string }) {
@@ -386,6 +423,331 @@ export function SuperuserPanel(props: { actingWalletAddress: string }) {
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-[#0f131c] p-4">
+              <div className="flex items-center gap-2">
+                <Activity className="size-4 text-[#8fbaff]" />
+                <h3 className="text-sm font-semibold text-white">
+                  Hyperliquid account state
+                </h3>
+              </div>
+              <div className="mt-4 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+                <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">
+                    Account value
+                  </p>
+                  <p className="mt-2 text-lg font-semibold text-white">
+                    {formatMoney(snapshot.onchain.accountValue)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">
+                    Withdrawable
+                  </p>
+                  <p className="mt-2 text-lg font-semibold text-white">
+                    {formatMoney(snapshot.onchain.withdrawable)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">
+                    Margin used
+                  </p>
+                  <p className="mt-2 text-lg font-semibold text-white">
+                    {formatMoney(snapshot.onchain.marginUsed)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">
+                    Unrealized PnL
+                  </p>
+                  <p
+                    className={`mt-2 text-lg font-semibold ${
+                      snapshot.onchain.totalUnrealizedPnl > 0
+                        ? "text-emerald-300"
+                        : snapshot.onchain.totalUnrealizedPnl < 0
+                          ? "text-rose-300"
+                          : "text-white"
+                    }`}
+                  >
+                    {formatSignedMoney(snapshot.onchain.totalUnrealizedPnl)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">
+                    Realized PnL
+                  </p>
+                  <p
+                    className={`mt-2 text-lg font-semibold ${
+                      snapshot.onchain.totalRealizedPnl > 0
+                        ? "text-emerald-300"
+                        : snapshot.onchain.totalRealizedPnl < 0
+                          ? "text-rose-300"
+                          : "text-white"
+                    }`}
+                  >
+                    {formatSignedMoney(snapshot.onchain.totalRealizedPnl)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
+                  <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">
+                    Positions / orders
+                  </p>
+                  <p className="mt-2 text-lg font-semibold text-white">
+                    {snapshot.onchain.positionCount} /{" "}
+                    {snapshot.onchain.openOrderCount}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-[#0f131c] p-4">
+                <h3 className="text-sm font-semibold text-white">
+                  Open positions
+                </h3>
+                <div className="mt-4 space-y-2">
+                  {snapshot.onchain.positions.length > 0 ? (
+                    snapshot.onchain.positions.map((position) => (
+                      <div
+                        key={`${position.coin}-${position.entryPx}-${position.size}`}
+                        className="rounded-xl border border-white/10 bg-[#121726] px-3 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-white">
+                              {position.coin}
+                            </p>
+                            <p className="mt-1 text-xs text-white/42">
+                              Size {position.size} at {position.entryPx || "—"}
+                            </p>
+                          </div>
+                          <p
+                            className={`text-sm font-medium ${
+                              position.unrealizedPnl > 0
+                                ? "text-emerald-300"
+                                : position.unrealizedPnl < 0
+                                  ? "text-rose-300"
+                                  : "text-white/72"
+                            }`}
+                          >
+                            {formatSignedMoney(position.unrealizedPnl)}
+                          </p>
+                        </div>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          <div className="text-xs text-white/45">
+                            Position value {formatMoney(position.positionValue)}
+                          </div>
+                          <div className="text-xs text-white/45">
+                            Margin used {formatMoney(position.marginUsed)}
+                          </div>
+                          <div className="text-xs text-white/45">
+                            ROE {formatCompactNumber(position.returnOnEquity)}%
+                          </div>
+                          <div className="text-xs text-white/45">
+                            Liq px{" "}
+                            {position.liquidationPx !== null
+                              ? formatMoney(position.liquidationPx)
+                              : "—"}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="rounded-xl border border-white/10 bg-[#121726] px-3 py-4 text-sm text-white/45">
+                      No active positions.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-[#0f131c] p-4">
+                <h3 className="text-sm font-semibold text-white">
+                  Working orders
+                </h3>
+                <div className="mt-4 space-y-2">
+                  {snapshot.onchain.workingOrders.length > 0 ? (
+                    snapshot.onchain.workingOrders.map((order) => (
+                      <div
+                        key={`${order.coin}-${order.orderId ?? order.timestamp}`}
+                        className="rounded-xl border border-white/10 bg-[#121726] px-3 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-white">
+                              {order.coin}
+                            </p>
+                            <p className="mt-1 text-xs text-white/42">
+                              {order.side} {order.size} @ {order.limitPx}
+                            </p>
+                          </div>
+                          {order.isReduceOnly ? (
+                            <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-amber-300">
+                              Reduce only
+                            </span>
+                          ) : null}
+                        </div>
+                        <p className="mt-2 text-xs text-white/38">
+                          {formatTimestamp(order.timestamp)}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="rounded-xl border border-white/10 bg-[#121726] px-3 py-4 text-sm text-white/45">
+                      No open orders.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+              <div className="rounded-2xl border border-white/10 bg-[#0f131c] p-4">
+                <h3 className="text-sm font-semibold text-white">
+                  Recent fills
+                </h3>
+                <div className="mt-4 space-y-2">
+                  {snapshot.onchain.recentFills.length > 0 ? (
+                    snapshot.onchain.recentFills.map((fill) => (
+                      <div
+                        key={`${fill.coin}-${fill.time}-${fill.px}-${fill.size}`}
+                        className="rounded-xl border border-white/10 bg-[#121726] px-3 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-semibold text-white">
+                              {fill.coin}
+                            </p>
+                            <p className="mt-1 text-xs text-white/42">
+                              {fill.side} {fill.size} @ {fill.px}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p
+                              className={`text-sm font-medium ${
+                                fill.closedPnl > 0
+                                  ? "text-emerald-300"
+                                  : fill.closedPnl < 0
+                                    ? "text-rose-300"
+                                    : "text-white/72"
+                              }`}
+                            >
+                              {formatSignedMoney(fill.closedPnl)}
+                            </p>
+                            <p className="mt-1 text-xs text-white/38">
+                              {formatMoney(fill.notionalUsd)}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="mt-2 text-xs text-white/38">
+                          {formatTimestamp(fill.time)}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="rounded-xl border border-white/10 bg-[#121726] px-3 py-4 text-sm text-white/45">
+                      No fills found in the tracked window.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-white/10 bg-[#0f131c] p-4">
+                  <h3 className="text-sm font-semibold text-white">
+                    Spot balances
+                  </h3>
+                  <div className="mt-4 space-y-2">
+                    {snapshot.onchain.spotBalances.length > 0 ? (
+                      snapshot.onchain.spotBalances.map((balance) => (
+                        <div
+                          key={`${balance.coin}-${balance.total}`}
+                          className="rounded-xl border border-white/10 bg-[#121726] px-3 py-3"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-semibold text-white">
+                              {balance.coin}
+                            </p>
+                            <p className="text-sm text-white/78">
+                              {formatCompactNumber(balance.total)}
+                            </p>
+                          </div>
+                          <p className="mt-1 text-xs text-white/42">
+                            Available {formatCompactNumber(balance.available)} •
+                            Hold {formatCompactNumber(balance.hold)}
+                          </p>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="rounded-xl border border-white/10 bg-[#121726] px-3 py-4 text-sm text-white/45">
+                        No spot balances recorded.
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-[#0f131c] p-4">
+                  <h3 className="text-sm font-semibold text-white">
+                    Staking + delegations
+                  </h3>
+                  <div className="mt-4 space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">
+                          Delegated
+                        </p>
+                        <p className="mt-2 text-lg font-semibold text-white">
+                          {formatCompactNumber(
+                            snapshot.onchain.stakingSummary?.delegated ?? 0,
+                          )}{" "}
+                          HYPE
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
+                        <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">
+                          Pending withdrawal
+                        </p>
+                        <p className="mt-2 text-lg font-semibold text-white">
+                          {formatCompactNumber(
+                            snapshot.onchain.stakingSummary
+                              ?.totalPendingWithdrawal ?? 0,
+                          )}{" "}
+                          HYPE
+                        </p>
+                      </div>
+                    </div>
+                    {snapshot.onchain.stakingDelegations.length > 0 ? (
+                      <div className="space-y-2">
+                        {snapshot.onchain.stakingDelegations.map(
+                          (delegation) => (
+                            <div
+                              key={`${delegation.validator}-${delegation.amount}`}
+                              className="rounded-xl border border-white/10 bg-[#121726] px-3 py-3"
+                            >
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="font-mono text-xs text-white/62">
+                                  {truncateAddress(delegation.validator)}
+                                </p>
+                                <p className="text-sm text-white/82">
+                                  {formatCompactNumber(delegation.amount)} HYPE
+                                </p>
+                              </div>
+                              <p className="mt-2 text-xs text-white/38">
+                                Unlocks{" "}
+                                {formatTimestamp(delegation.lockedUntil)}
+                              </p>
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    ) : (
+                      <p className="rounded-xl border border-white/10 bg-[#121726] px-3 py-4 text-sm text-white/45">
+                        No active validator delegations.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#0f131c] p-4">
               <h3 className="text-sm font-semibold text-white">
                 Recent referred wallets
               </h3>
@@ -416,6 +778,224 @@ export function SuperuserPanel(props: { actingWalletAddress: string }) {
                 ) : (
                   <p className="rounded-xl border border-white/10 bg-[#121726] px-3 py-4 text-sm text-white/45">
                     No referred wallets recorded for this account yet.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+              <div className="rounded-2xl border border-white/10 bg-[#0f131c] p-4">
+                <div className="flex items-center gap-2">
+                  <Shield className="size-4 text-amber-300" />
+                  <h3 className="text-sm font-semibold text-white">
+                    Builder approval history
+                  </h3>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {snapshot.builderApprovals.length > 0 ? (
+                    snapshot.builderApprovals.map((approval) => (
+                      <div
+                        key={`${approval.builderAddress}-${approval.approvedAt}`}
+                        className="rounded-xl border border-white/10 bg-[#121726] px-3 py-3 text-sm"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-mono text-white/84">
+                            {approval.maxFeeRate}
+                          </span>
+                          <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-white/58">
+                            {approval.status}
+                          </span>
+                        </div>
+                        <p className="mt-2 font-mono text-xs text-white/45">
+                          {truncateMiddle(approval.builderAddress)}
+                        </p>
+                        <p className="mt-1 text-xs text-white/38">
+                          {formatTimestamp(approval.approvedAt)}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="rounded-xl border border-white/10 bg-[#121726] px-3 py-4 text-sm text-white/45">
+                      No builder approvals recorded for this wallet yet.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-[#0f131c] p-4">
+                <div className="flex items-center gap-2">
+                  <Fingerprint className="size-4 text-sky-300" />
+                  <h3 className="text-sm font-semibold text-white">
+                    App fingerprint
+                  </h3>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">
+                      Events
+                    </p>
+                    <p className="mt-2 text-xl font-semibold text-white">
+                      {snapshot.appFingerprint.eventCount}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">
+                      Issue logs
+                    </p>
+                    <p className="mt-2 text-xl font-semibold text-amber-300">
+                      {snapshot.appFingerprint.issueCount}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
+                    <p className="text-[11px] uppercase tracking-[0.14em] text-white/38">
+                      Last seen
+                    </p>
+                    <p className="mt-2 text-sm font-medium text-white">
+                      {formatTimestamp(snapshot.appFingerprint.lastSeenAt)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {[
+                    ["Recent IPs", snapshot.appFingerprint.recentIpAddresses],
+                    ["Visitor IDs", snapshot.appFingerprint.recentVisitorIds],
+                    ["Session IDs", snapshot.appFingerprint.recentSessionIds],
+                    [
+                      "Fingerprints",
+                      snapshot.appFingerprint.recentFingerprints,
+                    ],
+                    ["Countries", snapshot.appFingerprint.recentCountries],
+                    ["Cities", snapshot.appFingerprint.recentCities],
+                    ["Sources", snapshot.appFingerprint.recentSources],
+                    ["Paths", snapshot.appFingerprint.recentPaths],
+                  ].map(([label, values]) => (
+                    <div key={String(label)}>
+                      <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-white/38">
+                        {label}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {(values as string[]).length > 0 ? (
+                          (values as string[]).map((value) => (
+                            <span
+                              key={value}
+                              className="rounded-full border border-white/10 bg-[#121726] px-2.5 py-1 text-xs text-white/68"
+                            >
+                              {truncateMiddle(value, 36)}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-white/35">—</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+
+                  <div>
+                    <p className="mb-2 text-[11px] uppercase tracking-[0.14em] text-white/38">
+                      User agents
+                    </p>
+                    <div className="space-y-2">
+                      {snapshot.appFingerprint.recentUserAgents.length > 0 ? (
+                        snapshot.appFingerprint.recentUserAgents.map(
+                          (value) => (
+                            <div
+                              key={value}
+                              className="rounded-xl border border-white/10 bg-[#121726] px-3 py-2 text-xs text-white/62"
+                            >
+                              {value}
+                            </div>
+                          ),
+                        )
+                      ) : (
+                        <span className="text-xs text-white/35">—</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#0f131c] p-4">
+              <div className="flex items-center gap-2">
+                <Activity className="size-4 text-[#8fbaff]" />
+                <h3 className="text-sm font-semibold text-white">
+                  Recent app logs
+                </h3>
+              </div>
+              <div className="mt-4 space-y-2">
+                {snapshot.recentEventLogs.length > 0 ? (
+                  snapshot.recentEventLogs.map((log) => (
+                    <div
+                      key={`${log.createdAt}-${log.requestId ?? log.eventType}`}
+                      className="rounded-xl border border-white/10 bg-[#121726] px-3 py-3 text-sm"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-white/60">
+                              {log.eventType}
+                            </span>
+                            {log.source ? (
+                              <span className="text-xs text-white/42">
+                                {log.source}
+                              </span>
+                            ) : null}
+                          </div>
+                          {log.summary ? (
+                            <p className="mt-2 text-sm font-medium text-white">
+                              {log.summary}
+                            </p>
+                          ) : null}
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-white/45">
+                            {log.code ? (
+                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                                Code {log.code}
+                              </span>
+                            ) : null}
+                            {log.ipAddress ? (
+                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 font-mono">
+                                IP {log.ipAddress}
+                              </span>
+                            ) : null}
+                            {log.country || log.city ? (
+                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                                {[log.city, log.region, log.country]
+                                  .filter(Boolean)
+                                  .join(", ")}
+                              </span>
+                            ) : null}
+                            {log.path ? (
+                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                                {truncateMiddle(log.path, 44)}
+                              </span>
+                            ) : null}
+                            {log.visitorId ? (
+                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 font-mono">
+                                {truncateMiddle(log.visitorId, 30)}
+                              </span>
+                            ) : null}
+                            {log.fingerprint ? (
+                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 font-mono">
+                                {truncateMiddle(log.fingerprint, 30)}
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div className="text-right text-xs text-white/38">
+                          <div>{formatTimestamp(log.createdAt)}</div>
+                          {log.requestId ? (
+                            <div className="mt-1 font-mono">
+                              {truncateMiddle(log.requestId, 22)}
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="rounded-xl border border-white/10 bg-[#121726] px-3 py-4 text-sm text-white/45">
+                    No app logs recorded for this wallet yet.
                   </p>
                 )}
               </div>

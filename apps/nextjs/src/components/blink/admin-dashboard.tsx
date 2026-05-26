@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import {
@@ -101,7 +102,7 @@ function issueTypeBadge(type: "issue_auto" | "issue_feedback") {
   );
 }
 
-type NavItem = { label: string; active: boolean; href: string; soon?: boolean };
+type NavItem = { label: string; href: string; soon?: boolean };
 type AdminRange = "5m" | "15m" | "1h" | "1d" | "7d" | "30d" | "90d";
 
 const ADMIN_RANGE_OPTIONS: Array<{
@@ -120,13 +121,13 @@ const ADMIN_RANGE_OPTIONS: Array<{
 ];
 
 const INTERNAL_NAV_ITEMS: NavItem[] = [
-  { label: "Home", active: true, href: "/internal" },
-  { label: "Affiliates", active: false, href: "/internal/affiliates" },
-  { label: "Users", active: false, href: "#", soon: true },
-  { label: "Payments", active: false, href: "#", soon: true },
-  { label: "Memberships", active: false, href: "#", soon: true },
-  { label: "Referrals", active: false, href: "#", soon: true },
-  { label: "Settings", active: false, href: "#", soon: true },
+  { label: "Home", href: "/internal" },
+  { label: "Affiliates", href: "/internal/affiliates" },
+  { label: "Users", href: "/internal/users" },
+  { label: "Payments", href: "#", soon: true },
+  { label: "Memberships", href: "#", soon: true },
+  { label: "Referrals", href: "#", soon: true },
+  { label: "Settings", href: "#", soon: true },
 ];
 
 function getRangeConfig(range: AdminRange) {
@@ -135,7 +136,8 @@ function getRangeConfig(range: AdminRange) {
   return ADMIN_RANGE_OPTIONS[0] as (typeof ADMIN_RANGE_OPTIONS)[number];
 }
 
-export function AdminDashboard() {
+export function AdminDashboard(props?: { section?: "overview" | "users" }) {
+  const pathname = usePathname();
   const { user } = usePrivy();
   const { wallets } = useWallets();
   const connectedWallets = useMemo(
@@ -197,10 +199,22 @@ export function AdminDashboard() {
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [flagSaving, setFlagSaving] = useState<string | null>(null);
   const [selectedRange, setSelectedRange] = useState<AdminRange>("1d");
+  const currentSection = props?.section ?? "overview";
   const flowscanUrl = useMemo(
     () =>
       `https://www.flowscan.xyz/builders/${encodeURIComponent(BUILDER_ADDRESS)}?range=7d`,
     [],
+  );
+  const navItems = useMemo(
+    () =>
+      INTERNAL_NAV_ITEMS.map((item) => ({
+        ...item,
+        active:
+          item.href === "/internal"
+            ? currentSection === "overview"
+            : pathname === item.href,
+      })),
+    [currentSection, pathname],
   );
 
   const fetchStats = useCallback(
@@ -235,12 +249,12 @@ export function AdminDashboard() {
   );
 
   useEffect(() => {
-    if (!isAllowed) return;
+    if (!isAllowed || currentSection !== "overview") return;
     void fetchStats({ syncHyperliquid: true, includeAttribution: true });
-  }, [fetchStats, isAllowed]);
+  }, [currentSection, fetchStats, isAllowed]);
 
   useEffect(() => {
-    if (!isAllowed) return;
+    if (!isAllowed || currentSection !== "overview") return;
     const id = setInterval(() => {
       void fetchStats({
         includeAttribution: false,
@@ -248,7 +262,7 @@ export function AdminDashboard() {
       });
     }, 8_000);
     return () => clearInterval(id);
-  }, [fetchStats, isAllowed]);
+  }, [currentSection, fetchStats, isAllowed]);
 
   const chartConfig = {
     revenue: {
@@ -380,6 +394,91 @@ export function AdminDashboard() {
         ? "text-amber-300 border-amber-400/30 bg-amber-400/10"
         : "text-emerald-300 border-emerald-400/30 bg-emerald-400/10";
 
+  if (currentSection === "users") {
+    return (
+      <main className="min-h-screen bg-[#06070b] px-4 py-5 text-foreground md:px-6">
+        <div className="mx-auto flex max-w-[1500px] gap-4">
+          <aside className="hidden w-[248px] shrink-0 rounded-2xl border border-white/10 bg-[#0b0d13] p-3 lg:block">
+            <p className="px-2 py-1 text-xs uppercase tracking-[0.18em] text-foreground/45">
+              Internal
+            </p>
+            <div className="mt-2 space-y-1">
+              {navItems.map(({ label, active, href, soon }) => (
+                <Link
+                  key={label}
+                  href={href}
+                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition ${
+                    active
+                      ? "bg-white/12 text-white"
+                      : "text-foreground/60 hover:bg-white/[0.06] hover:text-white/85"
+                  }`}
+                >
+                  {label}
+                  {!active && soon ? (
+                    <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">
+                      Soon
+                    </span>
+                  ) : null}
+                </Link>
+              ))}
+            </div>
+          </aside>
+
+          <div className="min-w-0 flex-1">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#0b0d13] px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
+                  Internal users
+                </Badge>
+                {role === "superuser" ? (
+                  <Badge className="rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-amber-300">
+                    Superuser
+                  </Badge>
+                ) : null}
+              </div>
+
+              <a
+                href={flowscanUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#8fbaff80] bg-[linear-gradient(180deg,#3c76ff,#2457db)] px-3 text-sm font-medium text-white shadow-[0_16px_40px_rgba(37,90,224,0.28)] transition hover:brightness-110"
+              >
+                Flowscan
+                <ArrowUpRight className="size-3.5" />
+              </a>
+            </div>
+
+            <section className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
+              <h1 className="text-[34px] font-semibold tracking-[-0.03em] text-white">
+                User control center
+              </h1>
+              <p className="mt-2 max-w-4xl text-sm leading-6 text-foreground/58">
+                Search any wallet or referral code, then inspect the full Blink
+                fingerprint for that user: builder approval history, app logs,
+                visitor and session IDs, recent IP addresses, social identity,
+                and direct superuser controls.
+              </p>
+            </section>
+
+            <div className="mt-4">
+              {role === "superuser" && walletAddress ? (
+                <SuperuserPanel actingWalletAddress={walletAddress} />
+              ) : (
+                <section className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
+                  <p className="text-sm leading-6 text-foreground/58">
+                    This tab is restricted to superusers because it exposes user
+                    fingerprint data, raw app logs, and direct override
+                    controls.
+                  </p>
+                </section>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#06070b] px-4 py-5 text-foreground md:px-6">
       <div className="mx-auto flex max-w-[1500px] gap-4">
@@ -388,7 +487,7 @@ export function AdminDashboard() {
             Internal
           </p>
           <div className="mt-2 space-y-1">
-            {INTERNAL_NAV_ITEMS.map(({ label, active, href, soon }) => (
+            {navItems.map(({ label, active, href, soon }) => (
               <Link
                 key={label}
                 href={href}
@@ -473,10 +572,6 @@ export function AdminDashboard() {
               </button>
             </div>
           </div>
-
-          {role === "superuser" && walletAddress ? (
-            <SuperuserPanel actingWalletAddress={walletAddress} />
-          ) : null}
 
           <section className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">

@@ -86,8 +86,9 @@ import {
   resolvePerpMarket,
 } from "~/lib/blink/hyperliquid";
 import {
+  CURATED_HIP3_MARKETS,
   type MarketSummary,
-  PRIORITY_TRADFI_MARKETS,
+  PRIORITY_HIP3_MARKETS,
   fetchTopMarketsByVolume,
   formatCompactNumber,
   formatUsd,
@@ -454,6 +455,17 @@ function SidePanelMarketRow(props: {
   );
 }
 
+function pickMarketsByCoin(
+  markets: MarketRow[],
+  coins: readonly string[],
+): MarketRow[] {
+  const marketsByCoin = new Map(markets.map((market) => [market.coin, market]));
+  return coins.flatMap((coin) => {
+    const market = marketsByCoin.get(coin);
+    return market ? [market] : [];
+  });
+}
+
 function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
   const sorted = [...markets].sort((a, b) => b.changePct - a.changePct);
   const gainers = sorted.slice(0, 4);
@@ -463,6 +475,13 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
   const hip3Markets = [...markets]
     .filter((market) => market.isHip3)
     .sort((left, right) => right.dailyVolume - left.dailyVolume)
+    .slice(0, 12);
+  const curatedHip3Markets = pickMarketsByCoin(
+    hip3Markets,
+    CURATED_HIP3_MARKETS,
+  );
+  const spotlightHip3Markets = hip3Markets
+    .filter((market) => !CURATED_HIP3_MARKETS.includes(market.coin))
     .slice(0, 5);
 
   return (
@@ -499,7 +518,27 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
         </div>
       </div>
 
-      {hip3Markets.length > 0 ? (
+      {curatedHip3Markets.length > 0 ? (
+        <>
+          <div className="h-px bg-white/[0.06]" />
+
+          <div>
+            <div className="mb-2 flex items-center gap-1.5">
+              <Banknote className="size-3.5 text-[#8fbaff]" />
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8fbaff]/80">
+                Semis + Big Tech
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              {curatedHip3Markets.map((market) => (
+                <SidePanelMarketRow key={market.coin} item={market} compact />
+              ))}
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      {spotlightHip3Markets.length > 0 ? (
         <>
           <div className="h-px bg-white/[0.06]" />
 
@@ -511,7 +550,7 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
               </span>
             </div>
             <div className="space-y-0.5">
-              {hip3Markets.map((market) => (
+              {spotlightHip3Markets.map((market) => (
                 <SidePanelMarketRow key={market.coin} item={market} compact />
               ))}
             </div>
@@ -604,7 +643,7 @@ function LeftRail(props: {
     queryFn: () =>
       fetchTopMarketsByVolume(25, {
         includeHip3Offers: true,
-        priorityCoins: PRIORITY_TRADFI_MARKETS,
+        priorityCoins: PRIORITY_HIP3_MARKETS,
       }),
     staleTime: 86_400_000,
     refetchInterval: 86_400_000,
@@ -618,6 +657,10 @@ function LeftRail(props: {
     : allRows;
   const coreRows = marketRows.filter((market) => !market.isHip3);
   const hip3Rows = marketRows.filter((market) => market.isHip3);
+  const curatedHip3Rows = pickMarketsByCoin(hip3Rows, CURATED_HIP3_MARKETS);
+  const otherHip3Rows = hip3Rows.filter(
+    (market) => !CURATED_HIP3_MARKETS.includes(market.coin),
+  );
 
   return (
     <aside className="flex min-h-[calc(100vh-7rem)] w-[366px] flex-col gap-2.5">
@@ -771,20 +814,38 @@ function LeftRail(props: {
                 {hip3Rows.length > 0 ? (
                   <div className="pt-2">
                     <div className="mb-1 h-px bg-white/[0.06]" />
-                    <div className="px-1.5 pb-1 pt-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8fbaff80]">
-                        HIP-3
-                      </p>
-                    </div>
-                    <div className="space-y-0.5">
-                      {hip3Rows.map((item) => (
-                        <SidePanelMarketRow
-                          key={item.coin}
-                          item={item}
-                          selected={item.coin === props.market}
-                        />
-                      ))}
-                    </div>
+                    {curatedHip3Rows.length > 0 ? (
+                      <div className="space-y-0.5">
+                        <div className="px-1.5 pb-1 pt-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8fbaff80]">
+                            Semis + Big Tech
+                          </p>
+                        </div>
+                        {curatedHip3Rows.map((item) => (
+                          <SidePanelMarketRow
+                            key={item.coin}
+                            item={item}
+                            selected={item.coin === props.market}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                    {otherHip3Rows.length > 0 ? (
+                      <div className="space-y-0.5 pt-2">
+                        <div className="px-1.5 pb-1 pt-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8fbaff80]">
+                            More HIP-3
+                          </p>
+                        </div>
+                        {otherHip3Rows.map((item) => (
+                          <SidePanelMarketRow
+                            key={item.coin}
+                            item={item}
+                            selected={item.coin === props.market}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </>
@@ -2644,7 +2705,7 @@ export function TerminalShell(props: { market: string }) {
     queryFn: () =>
       fetchTopMarketsByVolume(50, {
         includeHip3Offers: true,
-        priorityCoins: PRIORITY_TRADFI_MARKETS,
+        priorityCoins: PRIORITY_HIP3_MARKETS,
       }),
     staleTime: 60_000,
   });

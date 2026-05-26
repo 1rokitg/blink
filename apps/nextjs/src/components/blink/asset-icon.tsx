@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useState } from "react";
 
 // ── Colour palette for fallback initials ─────────────────────────────────────
@@ -70,6 +71,50 @@ const COINGECKO_IDS: Record<string, string> = {
   PNUT: "peanut-the-squirrel",
 };
 
+const HIP3_COMPANY_LOGO_DOMAINS: Record<string, string> = {
+  AAPL: "apple.com",
+  AMZN: "amazon.com",
+  AMD: "amd.com",
+  ANTHROPIC: "anthropic.com",
+  ASML: "asml.com",
+  AVGO: "broadcom.com",
+  GOOGL: "google.com",
+  HOOD: "robinhood.com",
+  INTC: "intel.com",
+  META: "meta.com",
+  MSFT: "microsoft.com",
+  MU: "micron.com",
+  NVDA: "nvidia.com",
+  OPENAI: "openai.com",
+  SNDK: "sandisk.com",
+  TSLA: "tesla.com",
+  TSM: "tsmc.com",
+};
+
+const HIP3_BADGE_OVERRIDES: Record<
+  string,
+  { bg: string; fg?: string; label: string }
+> = {
+  BRENTOIL: { label: "BR", bg: "#0f766e" },
+  BTCD: { label: "D", bg: "#6b21a8" },
+  CL: { label: "CL", bg: "#155e75" },
+  DRAM: { label: "DR", bg: "#2563eb" },
+  GOLD: { label: "AU", bg: "#ca8a04", fg: "#201300" },
+  H100: { label: "H1", bg: "#0f766e" },
+  MAG7: { label: "M7", bg: "#7c3aed" },
+  OTHERS: { label: "OT", bg: "#334155" },
+  SEMIS: { label: "CH", bg: "#1d4ed8" },
+  SP500: { label: "500", bg: "#1d4ed8" },
+  TOTAL2: { label: "T2", bg: "#0f766e" },
+  USA100: { label: "100", bg: "#1e3a8a" },
+  USA500: { label: "500", bg: "#1d4ed8" },
+  US500: { label: "500", bg: "#1d4ed8" },
+  USBOND: { label: "10Y", bg: "#475569" },
+  USTECH: { label: "Q", bg: "#0f766e" },
+  WTI: { label: "WTI", bg: "#155e75" },
+  XYZ100: { label: "X1", bg: "#4338ca" },
+};
+
 // Primary source: cryptocurrency-icons via npm CDN (pinned, stable)
 function cryptoIconUrl(symbol: string) {
   return `https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/${symbol.toLowerCase()}.svg`;
@@ -81,29 +126,93 @@ function coinGeckoUrl(symbol: string) {
   return `https://assets.coingecko.com/coins/images/1/thumb/${id}.png`;
 }
 
+function companyLogoUrl(symbol: string) {
+  const domain = HIP3_COMPANY_LOGO_DOMAINS[symbol];
+  return domain ? `https://logo.clearbit.com/${domain}` : null;
+}
+
+function badgeLogoUrl(symbol: string) {
+  const override = HIP3_BADGE_OVERRIDES[symbol];
+  const label = override?.label ?? symbol.slice(0, Math.min(symbol.length, 3));
+  const bg = override?.bg ?? symbolColor(symbol);
+  const fg = override?.fg ?? "#f8fbff";
+  const fontSize = label.length >= 4 ? 18 : label.length === 3 ? 22 : 26;
+
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+      <defs>
+        <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="${bg}" stop-opacity="1" />
+          <stop offset="100%" stop-color="#060b16" stop-opacity="1" />
+        </linearGradient>
+      </defs>
+      <circle cx="32" cy="32" r="32" fill="url(#g)" />
+      <circle cx="32" cy="32" r="30" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="2" />
+      <text x="32" y="38" text-anchor="middle" font-family="Inter, Arial, sans-serif" font-size="${fontSize}" font-weight="700" fill="${fg}">
+        ${label}
+      </text>
+    </svg>
+  `;
+
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+function getAssetIconSources(asset: string) {
+  const symbol = asset.includes(":")
+    ? (asset.split(":").at(-1)?.toUpperCase() ?? asset.toUpperCase())
+    : asset.toUpperCase();
+  const isHip3 = asset.includes(":");
+  const sources: string[] = [];
+
+  const companyLogo = companyLogoUrl(symbol);
+  if (companyLogo) {
+    sources.push(companyLogo);
+  }
+
+  if (!isHip3 || COINGECKO_IDS[symbol]) {
+    sources.push(cryptoIconUrl(symbol), coinGeckoUrl(symbol));
+  }
+
+  if (isHip3) {
+    sources.push(badgeLogoUrl(symbol));
+    if (!COINGECKO_IDS[symbol]) {
+      sources.push(cryptoIconUrl(symbol), coinGeckoUrl(symbol));
+    }
+  }
+
+  return [...new Set(sources)];
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 interface AssetIconProps {
   asset: string;
   className?: string;
+  size?: number;
 }
 
-export function AssetIcon({ asset, className = "size-7" }: AssetIconProps) {
+function AssetIconImage({ asset, className = "size-7", size }: AssetIconProps) {
   const symbol = asset.includes(":")
     ? (asset.split(":").at(-1)?.toUpperCase() ?? asset.toUpperCase())
     : asset.toUpperCase();
-  const [primaryFailed, setPrimaryFailed] = useState(false);
-  const [fallbackFailed, setFallbackFailed] = useState(false);
+  const [sourceIndex, setSourceIndex] = useState(0);
 
   const color = symbolColor(symbol);
   const initials = symbol.slice(0, 2);
+  const sizeStyle: CSSProperties | undefined = size
+    ? {
+        height: size,
+        width: size,
+      }
+    : undefined;
+  const sources = getAssetIconSources(asset);
 
   // Both image sources failed → render initials avatar
-  if (fallbackFailed) {
+  if (sourceIndex >= sources.length) {
     return (
       <span
         className={`inline-flex shrink-0 items-center justify-center rounded-full font-bold uppercase leading-none ${className}`}
-        style={{ backgroundColor: color, fontSize: "0.5em" }}
+        style={{ ...sizeStyle, backgroundColor: color, fontSize: "0.5em" }}
         aria-label={symbol}
       >
         {initials}
@@ -111,7 +220,7 @@ export function AssetIcon({ asset, className = "size-7" }: AssetIconProps) {
     );
   }
 
-  const src = primaryFailed ? coinGeckoUrl(symbol) : cryptoIconUrl(symbol);
+  const src = sources[sourceIndex] ?? sources[0];
 
   return (
     // eslint-disable-next-line @next/next/no-img-element
@@ -119,13 +228,12 @@ export function AssetIcon({ asset, className = "size-7" }: AssetIconProps) {
       src={src}
       alt={symbol}
       className={`shrink-0 rounded-full object-cover ${className}`}
-      onError={() => {
-        if (!primaryFailed) {
-          setPrimaryFailed(true);
-        } else {
-          setFallbackFailed(true);
-        }
-      }}
+      style={sizeStyle}
+      onError={() => setSourceIndex((current) => current + 1)}
     />
   );
+}
+
+export function AssetIcon(props: AssetIconProps) {
+  return <AssetIconImage key={props.asset} {...props} />;
 }

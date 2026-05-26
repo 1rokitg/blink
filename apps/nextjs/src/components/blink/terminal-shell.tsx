@@ -53,7 +53,6 @@ import {
   CommandItem,
   CommandList,
 } from "@acme/ui/command";
-import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,6 +61,7 @@ import {
   DropdownMenuTrigger,
 } from "@acme/ui/dropdown-menu";
 import { Input } from "@acme/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@acme/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@acme/ui/tabs";
 
 import { createAgentExchangeClient } from "~/lib/blink/agent-wallet";
@@ -265,39 +265,8 @@ function ConnectGate() {
   );
 }
 
-/** Coin logo via CoinCap's free icon CDN, with a colored-initial fallback. */
 function CoinIcon({ coin, size = 24 }: { coin: string; size?: number }) {
-  const [errored, setErrored] = useState(false);
-  const src = `https://assets.coincap.io/assets/icons/${coin.toLowerCase()}@2x.png`;
-  // Deterministic pastel hue for the fallback circle
-  const hue = [...coin].reduce((acc, c) => acc + c.charCodeAt(0), 0) % 360;
-
-  if (errored) {
-    return (
-      <span
-        className="flex shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white/90"
-        style={{
-          width: size,
-          height: size,
-          background: `hsl(${hue} 55% 35%)`,
-        }}
-      >
-        {coin.slice(0, 2)}
-      </span>
-    );
-  }
-
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt={coin}
-      width={size}
-      height={size}
-      className="shrink-0 rounded-full"
-      onError={() => setErrored(true)}
-    />
-  );
+  return <AssetIcon asset={coin} size={size} className="shrink-0" />;
 }
 
 // ── Leaderboard mock data ──────────────────────────────────────────────────
@@ -1485,14 +1454,87 @@ function OrderEntryPanel(props: {
               <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 font-mono uppercase text-foreground/48">
                 {hip3Deployer}
               </span>
-              <button
-                type="button"
-                onClick={() => setRequestListingOpen(true)}
-                className="inline-flex items-center gap-1 text-[#8fbaffb8] transition hover:text-white"
+              <Popover
+                open={requestListingOpen}
+                onOpenChange={setRequestListingOpen}
               >
-                Request another listing
-                <ArrowRight className="size-3" />
-              </button>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex items-center gap-1 text-[#8fbaffb8] transition hover:text-white"
+                  >
+                    Request another listing
+                    <ArrowRight className="size-3" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  side="bottom"
+                  sideOffset={10}
+                  className="w-[330px] rounded-[18px] border border-white/[0.09] bg-[#0a1020eb] p-0 text-white shadow-[0_16px_56px_rgba(0,0,0,0.6)] backdrop-blur-2xl"
+                >
+                  <div className="border-b border-white/[0.07] px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          Request another {hip3Deployer} market
+                        </p>
+                        <p className="mt-1 text-xs text-foreground/45">
+                          Keep the flow clean. Copy the request and drop it in
+                          Discord.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setRequestListingOpen(false)}
+                        className="inline-flex size-8 items-center justify-center rounded-full border border-white/[0.09] bg-white/[0.04] text-foreground/45 transition hover:text-white"
+                        aria-label="Close listing request"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="px-4 py-3">
+                    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8fbaffb8]">
+                        Current route
+                      </p>
+                      <p className="mt-2 font-mono text-sm text-white">
+                        {props.market}
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-foreground/48">
+                        The copied template includes deployer, current market,
+                        and placeholders for the requested listing plus context.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2 px-4 pb-4">
+                    <Button
+                      type="button"
+                      onClick={() => void handleCopyListingRequest()}
+                      className="h-10 flex-1 rounded-xl bg-[#2c6bff] text-white hover:bg-[#1f5df2]"
+                    >
+                      Copy request
+                    </Button>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="h-10 flex-1 rounded-xl border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.07]"
+                    >
+                      <a
+                        href={BLINK_DISCORD_INVITE_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => setRequestListingOpen(false)}
+                      >
+                        Open Discord
+                      </a>
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           ) : null}
         </div>
@@ -1500,51 +1542,6 @@ function OrderEntryPanel(props: {
           Live routing
         </Badge>
       </div>
-
-      {hip3Deployer ? (
-        <Dialog open={requestListingOpen} onOpenChange={setRequestListingOpen}>
-          <DialogContent className="max-w-md border-white/10 bg-[#0a1020] text-white">
-            <DialogTitle>Request another {hip3Deployer} market</DialogTitle>
-            <p className="mt-2 text-sm leading-6 text-foreground/62">
-              Blink already routes live HIP-3 markets. Copy the request template
-              below and drop it in Discord without leaving your flow for long.
-            </p>
-            <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8fbaffb8]">
-                Current route
-              </p>
-              <p className="mt-2 font-mono text-sm text-white">
-                {props.market}
-              </p>
-              <pre className="mt-3 whitespace-pre-wrap font-mono text-xs leading-5 text-foreground/58">
-                {requestListingTemplate}
-              </pre>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button
-                type="button"
-                onClick={() => void handleCopyListingRequest()}
-                className="rounded-xl bg-[#2c6bff] text-white hover:bg-[#1f5df2]"
-              >
-                Copy request
-              </Button>
-              <Button
-                asChild
-                variant="outline"
-                className="rounded-xl border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.07]"
-              >
-                <a
-                  href={BLINK_DISCORD_INVITE_URL}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open Discord
-                </a>
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      ) : null}
 
       {/* Available margin */}
       <div className="mt-4 grid grid-cols-2 gap-2">

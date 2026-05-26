@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useSearchParams } from "next/navigation";
 
@@ -14,7 +14,13 @@ import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 
 import { getTwitterConnection } from "~/app/actions/get-twitter-connection";
+import {
+  getIssueErrorCode,
+  isLikelyDismissedWalletFlow,
+  reportIssueEvent,
+} from "~/lib/blink/issue-reporting";
 import { createTwitterOwnershipMessage } from "~/lib/blink/twitter-ownership";
+import { IssueReportButton } from "./issue-report-button";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -259,7 +265,9 @@ export function ConnectTwitterButton({
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState(false);
   const [justConnected, setJustConnected] = useState(false);
+  const [lastIssueCode, setLastIssueCode] = useState<string | null>(null);
   const hasCelebratedRef = useRef(false);
+  const reportedSearchErrorRef = useRef<string | null>(null);
 
   // Check DB for existing connection
   const checkConnection = useCallback(async () => {
@@ -295,10 +303,69 @@ export function ConnectTwitterButton({
       void launchVerificationConfetti();
       void checkConnection();
     }
-    if (searchParams.get("twitter_error")) {
-      toast.error(formatTwitterError(searchParams.get("twitter_error")));
+    const twitterError = searchParams.get("twitter_error");
+    if (twitterError) {
+      setLastIssueCode(twitterError);
+      toast.error(formatTwitterError(twitterError));
+      if (reportedSearchErrorRef.current !== twitterError) {
+        reportedSearchErrorRef.current = twitterError;
+        void reportIssueEvent({
+          eventType: "issue_auto",
+          category: "x-verification",
+          source: "twitter-callback",
+          summary: "X verification returned with an error.",
+          walletAddress: displayedWalletAddress || null,
+          code: twitterError,
+          metadata: {
+            step: "callback",
+            displayedWalletAddress,
+          },
+        });
+      }
     }
-  }, [searchParams, checkConnection]);
+  }, [searchParams, checkConnection, displayedWalletAddress]);
+
+  const issueMetadata = useMemo(
+    () => ({
+      connectedWalletAddress: normalizedConnectedWalletAddress || null,
+      displayedWalletAddress: displayedWalletAddress || null,
+      targetWalletAddress: normalizedTargetWalletAddress || null,
+      isClaimingOwnProfile,
+      ...(lastIssueCode ? { lastIssueCode } : {}),
+    }),
+    [
+      displayedWalletAddress,
+      isClaimingOwnProfile,
+      lastIssueCode,
+      normalizedConnectedWalletAddress,
+      normalizedTargetWalletAddress,
+    ],
+  );
+
+  const handleWalletConnectAction = useCallback(async () => {
+    try {
+      await connectWallet();
+    } catch (error) {
+      if (isLikelyDismissedWalletFlow(error)) {
+        return;
+      }
+
+      const code = getIssueErrorCode(error);
+      setLastIssueCode(code);
+      toast.error("Could not log in with wallet. Please try connecting again.");
+      void reportIssueEvent({
+        eventType: "issue_auto",
+        category: "wallet-connect",
+        source: authenticated ? "link-wallet" : "privy-login",
+        summary: authenticated
+          ? "Wallet link failed during X verification."
+          : "Wallet login failed during X verification.",
+        walletAddress: displayedWalletAddress || null,
+        code,
+        metadata: issueMetadata,
+      });
+    }
+  }, [authenticated, connectWallet, displayedWalletAddress, issueMetadata]);
 
   const handleConnect = async () => {
     if (!normalizedConnectedWalletAddress) {
@@ -369,8 +436,21 @@ export function ConnectTwitterButton({
 
       window.location.href = connectData.authorizeUrl;
     } catch (error) {
-      const message = error instanceof Error ? error.message : undefined;
-      toast.error(formatTwitterError(message));
+      const code = getIssueErrorCode(error);
+      setLastIssueCode(code);
+      toast.error(formatTwitterError(code));
+      void reportIssueEvent({
+        eventType: "issue_auto",
+        category: "x-verification",
+        source: "connect-twitter-button",
+        summary: "X verification failed before the OAuth redirect completed.",
+        walletAddress: displayedWalletAddress || null,
+        code,
+        metadata: {
+          ...issueMetadata,
+          step: "connect",
+        },
+      });
     } finally {
       setClaiming(false);
     }
@@ -441,24 +521,44 @@ export function ConnectTwitterButton({
   // Not connected
   if (!normalizedConnectedWalletAddress) {
     return (
-      <button
-        type="button"
-        onClick={() => void connectWallet()}
-        className={`inline-flex items-center gap-2 rounded-xl border border-[#38bdf8]/25 bg-[#38bdf8]/8 px-4 py-2 text-sm font-medium text-[#9bddff] transition hover:border-[#38bdf8]/55 hover:bg-[#38bdf8]/14 ${className}`}
-      >
-        <svg
-          className="size-4 shrink-0"
-          viewBox="0 0 24 24"
-          fill="currentColor"
-          aria-hidden="true"
+      <div className="flex flex-col gap-2">
+        <button
+          type="button"
+          onClick={() => void handleWalletConnectAction()}
+          className={`inline-flex items-center gap-2 rounded-xl border border-[#38bdf8]/25 bg-[#38bdf8]/8 px-4 py-2 text-sm font-medium text-[#9bddff] transition hover:border-[#38bdf8]/55 hover:bg-[#38bdf8]/14 ${className}`}
         >
-          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.736l7.73-8.835L1.254 2.25H8.08l4.263 5.634 5.9-5.634Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-        </svg>
-        {connectWalletLabel ??
-          (normalizedTargetWalletAddress
-            ? "Connect Wallet to Claim"
-            : "Connect Wallet to Start")}
-      </button>
+          <svg
+            className="size-4 shrink-0"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.736l7.73-8.835L1.254 2.25H8.08l4.263 5.634 5.9-5.634Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+          </svg>
+          {connectWalletLabel ??
+            (normalizedTargetWalletAddress
+              ? "Connect Wallet to Claim"
+              : "Connect Wallet to Start")}
+        </button>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-foreground/45">
+            If the wallet modal fails, send the issue straight to internal
+            tools.
+          </p>
+          <IssueReportButton
+            category="wallet-connect"
+            source="connect-twitter-button"
+            walletAddress={displayedWalletAddress || null}
+            defaultSummary="Wallet login failed while trying to verify with X"
+            defaultDescription={
+              lastIssueCode
+                ? `Latest captured code: ${lastIssueCode}`
+                : undefined
+            }
+            metadata={issueMetadata}
+          />
+        </div>
+      </div>
     );
   }
 
@@ -483,26 +583,52 @@ export function ConnectTwitterButton({
         <p className="text-xs text-foreground/45">
           Connect the wallet that owns this profile to verify its X account.
         </p>
+        <div className="flex justify-end">
+          <IssueReportButton
+            category="x-verification"
+            source="connect-twitter-button"
+            walletAddress={displayedWalletAddress || null}
+            defaultSummary="Profile verification is blocked by a wallet mismatch"
+            metadata={issueMetadata}
+          />
+        </div>
       </div>
     );
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => void handleConnect()}
-      className={`inline-flex items-center gap-2 rounded-xl border border-[#38bdf8]/30 bg-[linear-gradient(180deg,rgba(17,64,108,0.28),rgba(11,31,52,0.28))] px-4 py-2 text-sm font-medium text-[#a5e3ff] transition hover:border-[#38bdf8]/60 hover:bg-[linear-gradient(180deg,rgba(24,92,153,0.32),rgba(13,42,69,0.32))] ${className}`}
-    >
-      <svg
-        className="size-4 shrink-0"
-        viewBox="0 0 24 24"
-        fill="currentColor"
-        aria-hidden="true"
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        onClick={() => void handleConnect()}
+        className={`inline-flex items-center gap-2 rounded-xl border border-[#38bdf8]/30 bg-[linear-gradient(180deg,rgba(17,64,108,0.28),rgba(11,31,52,0.28))] px-4 py-2 text-sm font-medium text-[#a5e3ff] transition hover:border-[#38bdf8]/60 hover:bg-[linear-gradient(180deg,rgba(24,92,153,0.32),rgba(13,42,69,0.32))] ${className}`}
       >
-        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.736l7.73-8.835L1.254 2.25H8.08l4.263 5.634 5.9-5.634Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
-      </svg>
-      <Sparkles className="size-3.5 text-[#7dd3fc]" />
-      {claimLabel}
-    </button>
+        <svg
+          className="size-4 shrink-0"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          aria-hidden="true"
+        >
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.736l7.73-8.835L1.254 2.25H8.08l4.263 5.634 5.9-5.634Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+        </svg>
+        <Sparkles className="size-3.5 text-[#7dd3fc]" />
+        {claimLabel}
+      </button>
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs text-foreground/45">
+          Trouble with the verification flow? Send a report with context.
+        </p>
+        <IssueReportButton
+          category="x-verification"
+          source="connect-twitter-button"
+          walletAddress={displayedWalletAddress || null}
+          defaultSummary="X verification flow is failing"
+          defaultDescription={
+            lastIssueCode ? `Latest captured code: ${lastIssueCode}` : undefined
+          }
+          metadata={issueMetadata}
+        />
+      </div>
+    </div>
   );
 }

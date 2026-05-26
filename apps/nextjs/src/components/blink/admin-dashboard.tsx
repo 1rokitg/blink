@@ -5,7 +5,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { ArrowUpRight, Loader2, RefreshCw, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  Loader2,
+  RefreshCw,
+  Search,
+} from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
 
 import { Badge } from "@acme/ui/badge";
@@ -75,6 +81,22 @@ function sourceBadge(source: "hyperliquid" | "offchain") {
   return (
     <Badge className="rounded-full border border-sky-400/35 bg-sky-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-sky-300">
       Off-Chain
+    </Badge>
+  );
+}
+
+function issueTypeBadge(type: "issue_auto" | "issue_feedback") {
+  if (type === "issue_feedback") {
+    return (
+      <Badge className="rounded-full border border-amber-400/35 bg-amber-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-amber-300">
+        User report
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge className="rounded-full border border-rose-400/30 bg-rose-400/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-rose-300">
+      Auto log
     </Badge>
   );
 }
@@ -676,6 +698,118 @@ export function AdminDashboard() {
                   )}
                 </div>
               </div>
+            </div>
+          </section>
+
+          <section className="mt-4 rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-white">
+                  Issues inbox
+                </h2>
+                <p className="mt-1 text-xs text-foreground/45">
+                  Automatic wallet / X verification failures plus manual user
+                  feedback flowing into the internal event stream.
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/18 bg-amber-400/8 px-3 py-1 text-[11px] uppercase tracking-[0.16em] text-amber-200">
+                <AlertTriangle className="size-3.5" />
+                Support signals
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  Issue events 24h
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {stats?.issues.total24h ?? 0}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  Auto captured 24h
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-rose-300">
+                  {stats?.issues.auto24h ?? 0}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-[#121726] p-3">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  User reports 24h
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-amber-300">
+                  {stats?.issues.feedback24h ?? 0}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {(stats?.issues.recent ?? []).length > 0 ? (
+                (stats?.issues.recent ?? []).map((issue) => (
+                  <div
+                    key={`${issue.createdAt}-${issue.requestId ?? issue.summary}`}
+                    className="rounded-xl border border-white/10 bg-[#101523] p-4"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          {issueTypeBadge(issue.eventType)}
+                          <Badge className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-white/60">
+                            {formatLabel(issue.category)}
+                          </Badge>
+                          <span className="text-xs text-foreground/42">
+                            {formatLabel(issue.source)}
+                          </span>
+                        </div>
+                        <p className="mt-3 text-sm font-semibold text-white">
+                          {issue.summary}
+                        </p>
+                        {issue.description ? (
+                          <p className="mt-2 text-sm leading-6 text-foreground/62">
+                            {issue.description}
+                          </p>
+                        ) : null}
+                        <div className="mt-3 flex flex-wrap gap-2 text-xs text-foreground/45">
+                          {issue.code ? (
+                            <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                              Code {issue.code}
+                            </span>
+                          ) : null}
+                          {issue.walletAddress ? (
+                            <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 font-mono">
+                              {truncateAddress(issue.walletAddress)}
+                            </span>
+                          ) : null}
+                          {issue.path ? (
+                            <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                              {issue.path}
+                            </span>
+                          ) : null}
+                          {issue.country ? (
+                            <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                              {issue.country}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="text-right text-xs text-foreground/40">
+                        <div>{timeAgo(issue.createdAt)}</div>
+                        {issue.requestId ? (
+                          <div className="mt-1 font-mono text-[10px] text-foreground/30">
+                            {issue.requestId}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-xl border border-white/10 bg-[#101523] px-4 py-5 text-sm text-foreground/48">
+                  No issue reports have been captured yet.
+                </div>
+              )}
             </div>
           </section>
 

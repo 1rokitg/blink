@@ -6,6 +6,7 @@ import { getAddress, recoverMessageAddress } from "viem";
 import { z } from "zod";
 
 import { env } from "~/env";
+import { trackMetricEvent } from "~/lib/blink/internal-metrics.server";
 import {
   TWITTER_CLAIM_CONTEXT_COOKIE,
   TWITTER_OAUTH_STATE_COOKIE,
@@ -62,6 +63,24 @@ function getCanonicalAppUrl() {
   return env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "");
 }
 
+async function trackTwitterConnectIssue(params: {
+  code: string;
+  walletAddress?: string | null;
+  stage: string;
+}) {
+  await trackMetricEvent({
+    eventType: "issue_auto",
+    walletAddress: params.walletAddress ?? null,
+    source: "twitter-connect",
+    metadata: {
+      category: "x-verification",
+      summary: "Twitter connect bootstrap failed.",
+      code: params.code,
+      step: params.stage,
+    },
+  });
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 /**
@@ -72,6 +91,10 @@ function getCanonicalAppUrl() {
  */
 export async function POST(req: NextRequest) {
   if (!env.TWITTER_CLIENT_ID) {
+    await trackTwitterConnectIssue({
+      code: "twitter_client_not_configured",
+      stage: "bootstrap",
+    });
     return NextResponse.json(
       { error: "twitter_client_not_configured" },
       { status: 500 },
@@ -82,6 +105,10 @@ export async function POST(req: NextRequest) {
   const parsed = bodySchema.safeParse(body);
 
   if (!parsed.success) {
+    await trackTwitterConnectIssue({
+      code: "invalid_payload",
+      stage: "payload",
+    });
     return NextResponse.json({ error: "invalid_payload" }, { status: 400 });
   }
 
@@ -92,6 +119,11 @@ export async function POST(req: NextRequest) {
   );
 
   if (!claimContext) {
+    await trackTwitterConnectIssue({
+      code: "claim_session_expired",
+      walletAddress,
+      stage: "claim-context",
+    });
     return NextResponse.json(
       { error: "claim_session_expired" },
       { status: 400 },
@@ -99,6 +131,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (claimContext.walletAddress !== walletAddress) {
+    await trackTwitterConnectIssue({
+      code: "claim_wallet_mismatch",
+      walletAddress,
+      stage: "claim-context",
+    });
     return NextResponse.json(
       { error: "claim_wallet_mismatch" },
       { status: 400 },
@@ -114,10 +151,20 @@ export async function POST(req: NextRequest) {
   }).catch(() => null);
 
   if (!recoveredAddress) {
+    await trackTwitterConnectIssue({
+      code: "invalid_signature",
+      walletAddress,
+      stage: "signature",
+    });
     return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
   }
 
   if (getAddress(recoveredAddress).toLowerCase() !== walletAddress) {
+    await trackTwitterConnectIssue({
+      code: "wallet_verification_failed",
+      walletAddress,
+      stage: "signature",
+    });
     return NextResponse.json(
       { error: "wallet_verification_failed" },
       { status: 401 },

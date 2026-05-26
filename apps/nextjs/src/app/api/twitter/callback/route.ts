@@ -5,6 +5,7 @@ import { db } from "@acme/db/client";
 import { TwitterConnection } from "@acme/db/schema";
 import { env } from "~/env";
 import { sendDiscordProfileVerificationSighting } from "~/lib/blink/discord.server";
+import { trackMetricEvent } from "~/lib/blink/internal-metrics.server";
 import {
   DEFAULT_TWITTER_RETURN_TO,
   TWITTER_CLAIM_CONTEXT_COOKIE,
@@ -103,7 +104,20 @@ export async function GET(req: NextRequest) {
   );
   const returnTo = claimContext?.returnTo ?? DEFAULT_TWITTER_RETURN_TO;
 
-  const failRedirect = (reason: string) => {
+  const failRedirect = async (reason: string) => {
+    await trackMetricEvent({
+      eventType: "issue_auto",
+      walletAddress: claimContext?.walletAddress ?? null,
+      source: "twitter-callback",
+      metadata: {
+        category: "x-verification",
+        summary: "Twitter OAuth callback failed.",
+        code: reason,
+        returnTo,
+        step: "callback",
+      },
+    });
+
     const response = NextResponse.redirect(
       buildReturnRedirect({
         appUrl,

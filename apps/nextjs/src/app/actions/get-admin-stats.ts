@@ -10,15 +10,15 @@ import {
   Referral,
 } from "@acme/db/schema";
 
+import { getFeatureFlags } from "~/lib/blink/feature-flags.server";
 import {
+  getBuilderAttributionSnapshot,
+  getBuilderMetricsSnapshot,
+  getLiveBuilderFillFeed,
   gethyperliquidBuilderMetricsSnapshot,
   gethyperliquidLiveBuilderFillFeed,
-  getBuilderAttributionSnapshot,
-  getLiveBuilderFillFeed,
-  getBuilderMetricsSnapshot,
   syncBuilderDailyMetrics,
 } from "~/lib/blink/internal-metrics.server";
-import { getFeatureFlags } from "~/lib/blink/feature-flags.server";
 
 type KpiSource = "hyperliquid" | "offchain";
 
@@ -45,6 +45,24 @@ export interface AdminStats {
       country: string;
       events: number;
       uniqueVisitors: number;
+    }>;
+  };
+  issues: {
+    total24h: number;
+    auto24h: number;
+    feedback24h: number;
+    recent: Array<{
+      eventType: "issue_auto" | "issue_feedback";
+      source: string;
+      createdAt: string;
+      walletAddress: string | null;
+      requestId: string | null;
+      category: string;
+      summary: string;
+      description: string | null;
+      code: string | null;
+      path: string | null;
+      country: string | null;
     }>;
   };
   today: {
@@ -231,8 +249,10 @@ export async function getAdminStats(options?: {
     db
       .select({
         eventType: MetricEvent.eventType,
+        walletAddress: MetricEvent.walletAddress,
         source: MetricEvent.source,
         visitorId: MetricEvent.visitorId,
+        requestId: MetricEvent.requestId,
         isBot: MetricEvent.isBot,
         metadata: MetricEvent.metadata,
         createdAt: MetricEvent.createdAt,
@@ -305,6 +325,31 @@ export async function getAdminStats(options?: {
   ).size;
   const botEvents24h = event24h.filter((row) => Boolean(row.isBot)).length;
   const humanEvents24h = event24h.length - botEvents24h;
+  const issueRows = metricRows.filter(
+    (row) =>
+      row.eventType === "issue_auto" || row.eventType === "issue_feedback",
+  );
+  const issueRows24h = issueRows.filter(
+    (row) => new Date(row.createdAt).getTime() > now - ms24h,
+  );
+  const recentIssues = issueRows.slice(0, 12).map((row) => {
+    const metadata = (row.metadata ?? {}) as Record<string, unknown>;
+
+    return {
+      eventType: row.eventType as "issue_auto" | "issue_feedback",
+      source: String(row.source ?? "unknown"),
+      createdAt: new Date(row.createdAt).toISOString(),
+      walletAddress: row.walletAddress ?? null,
+      requestId: row.requestId ?? null,
+      category: String(metadata.category ?? "general"),
+      summary: String(metadata.summary ?? row.eventType),
+      description:
+        typeof metadata.description === "string" ? metadata.description : null,
+      code: typeof metadata.code === "string" ? metadata.code : null,
+      path: typeof metadata.path === "string" ? metadata.path : null,
+      country: typeof metadata.country === "string" ? metadata.country : null,
+    };
+  });
 
   const sourceMap = new Map<
     string,
@@ -447,6 +492,15 @@ export async function getAdminStats(options?: {
         .sort((a, b) => b.events - a.events)
         .slice(0, 8),
     },
+    issues: {
+      total24h: issueRows24h.length,
+      auto24h: issueRows24h.filter((row) => row.eventType === "issue_auto")
+        .length,
+      feedback24h: issueRows24h.filter(
+        (row) => row.eventType === "issue_feedback",
+      ).length,
+      recent: recentIssues,
+    },
     today: {
       revenueUsd: todayRow?.revenue ?? 0,
       volumeUsd: todayRow?.volume ?? 0,
@@ -511,7 +565,10 @@ export async function getAdminStats(options?: {
       totalUsers: hyperliquidSnapshot.totals.totalUsers,
       avgRevenuePerUser: hyperliquidSnapshot.totals.avgRevenuePerUser,
       fillsCount: hyperliquidSnapshot.totals.fillsCount,
-      series: hyperliquidSnapshot.series,
+      series: hyperliquidSnapshot.series.map((row) => ({
+        ...row,
+        fills: 0,
+      })),
       attribution,
       live: {
         windowMinutes: liveWindowMinutes,

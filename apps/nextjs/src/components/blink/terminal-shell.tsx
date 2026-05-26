@@ -617,6 +617,7 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
 }
 
 function LeftRail(props: {
+  latestListing: (typeof LATEST_LISTINGS)[number];
   market: string;
   tradeEnabled: boolean;
   onRequireBuilderSetup: () => void;
@@ -653,26 +654,62 @@ function LeftRail(props: {
 
   return (
     <aside className="flex min-h-[calc(100vh-7rem)] w-[366px] flex-col gap-2.5">
-      <div className="flex h-[68px] items-end gap-2.5 px-1 py-1">
-        <motion.div
-          aria-hidden="true"
-          className="text-4xl md:text-5xl"
-          initial={{ opacity: 1 }}
-          animate={{
-            opacity: [1, 1, 0.3, 0, 0.3, 1, 1],
-          }}
-          transition={{
-            duration: 1000,
-            times: [0, 0.35, 0.45, 0.525, 0.61, 0.7, 1],
-            repeat: Number.POSITIVE_INFINITY,
-            ease: "easeInOut",
-          }}
-        >
-          👀
-        </motion.div>
-        <span className="mb-1 inline-flex items-center rounded-md border border-[#3be1ba30] bg-[#3be1ba0f] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[#3be1ba80]">
-          beta
-        </span>
+      <div className="flex h-[68px] items-center gap-2 px-1 py-1">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <div className="flex items-end gap-2">
+            <motion.div
+              aria-hidden="true"
+              className="text-4xl md:text-5xl"
+              initial={{ opacity: 1 }}
+              animate={{
+                opacity: [1, 1, 0.3, 0, 0.3, 1, 1],
+              }}
+              transition={{
+                duration: 1000,
+                times: [0, 0.35, 0.45, 0.525, 0.61, 0.7, 1],
+                repeat: Number.POSITIVE_INFINITY,
+                ease: "easeInOut",
+              }}
+            >
+              👀
+            </motion.div>
+            <span className="mb-1 inline-flex items-center rounded-md border border-[#3be1ba30] bg-[#3be1ba0f] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[#3be1ba80]">
+              beta
+            </span>
+          </div>
+          <Link
+            href={`/trade/${marketToSlug(props.latestListing.coin)}`}
+            className="group relative inline-flex h-10 min-w-0 flex-1 items-center overflow-hidden rounded-full border border-[#8fbaff36] bg-[#090d16eb] pl-2.5 pr-3 shadow-[0_10px_32px_rgba(6,12,24,0.34)] backdrop-blur-xl transition hover:border-[#a8ccff66] hover:bg-[#101728f4]"
+          >
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(120,167,255,0.14),transparent_58%)] opacity-80" />
+            <span className="relative flex size-6 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[#93bcff]">
+              <Disc className="size-3" />
+            </span>
+            <span className="relative ml-2 flex min-w-0 flex-1 flex-col leading-tight">
+              <span className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#8fbaffaa]">
+                Latest listing
+              </span>
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={props.latestListing.coin}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.2 }}
+                  className="mt-0.5 flex min-w-0 items-center gap-1 text-[13px] font-semibold text-white"
+                >
+                  <span className="shrink-0">{props.latestListing.label}</span>
+                  <span className="truncate text-[12px] font-medium text-foreground/45">
+                    {props.latestListing.note}
+                  </span>
+                </motion.span>
+              </AnimatePresence>
+            </span>
+            <span className="relative ml-2 inline-flex shrink-0 items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-foreground/55 transition group-hover:text-white">
+              {props.latestListing.deployer}
+            </span>
+          </Link>
+        </div>
       </div>
 
       {/* Onboarding CTA for new users */}
@@ -3021,6 +3058,7 @@ export function TerminalShell(props: { market: string }) {
       </div>
       <div className="relative z-10 mx-auto flex w-full max-w-[1900px] gap-3">
         <LeftRail
+          latestListing={latestListing}
           market={props.market}
           tradeEnabled={tradeEnabled}
           onRequireBuilderSetup={() => setBuilderModalOpen(true)}
@@ -3028,64 +3066,27 @@ export function TerminalShell(props: { market: string }) {
 
         <div className="min-w-0 flex-1">
           {/* ── Top header row — centered search with iOS glow ── */}
-          <div className="mb-3 flex h-[68px] items-center gap-3">
-            <div className="hidden flex-1 xl:block" />
-            <div className="relative w-full max-w-md xl:flex-1 xl:max-w-none">
-              <div className="mx-auto w-full max-w-md">
-                {/* Ambient glow layer */}
-                <div className="pointer-events-none absolute -inset-[3px] rounded-[18px] bg-[radial-gradient(ellipse_at_center,rgba(99,153,255,0.18)_0%,transparent_70%)] blur-[6px]" />
-                {/* Pulsing outer ring */}
-                <div className="pointer-events-none absolute -inset-px rounded-[16px] border border-[#5b8fff22] shadow-[0_0_18px_2px_rgba(91,143,255,0.10)]" />
-                <button
-                  type="button"
-                  onClick={() => setGlobalSearchOpen(true)}
-                  className="relative flex h-11 w-full items-center justify-between gap-3 rounded-[14px] border border-[#4a7fff30] bg-[#0d1527cc] px-4 text-sm text-foreground/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm transition-all hover:border-[#4a7fff55] hover:bg-[#0d1527ee] hover:text-foreground/70 hover:shadow-[0_0_24px_4px_rgba(91,143,255,0.12)]"
-                >
-                  <span className="inline-flex items-center gap-2.5">
-                    <Search className="size-3.5 shrink-0 text-[#5b8fff60]" />
-                    <span className="text-[13px]">
-                      Search markets or paste a wallet…
-                    </span>
-                  </span>
-                  <kbd className="rounded-md border border-white/[0.07] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-foreground/25">
-                    /
-                  </kbd>
-                </button>
-              </div>
-            </div>
-            <div className="hidden flex-1 justify-end xl:flex">
-              <Link
-                href={`/trade/${marketToSlug(latestListing.coin)}`}
-                className="group relative inline-flex h-11 min-w-[250px] items-center overflow-hidden rounded-full border border-[#8fbaff40] bg-[#090d16f0] pl-3 pr-4 text-left shadow-[0_10px_40px_rgba(6,12,24,0.45)] backdrop-blur-xl transition hover:border-[#a8ccff66] hover:bg-[#101728f4]"
+          <div className="mb-3 flex h-[68px] items-center justify-center">
+            <div className="relative w-full max-w-md">
+              {/* Ambient glow layer */}
+              <div className="pointer-events-none absolute -inset-[3px] rounded-[18px] bg-[radial-gradient(ellipse_at_center,rgba(99,153,255,0.18)_0%,transparent_70%)] blur-[6px]" />
+              {/* Pulsing outer ring */}
+              <div className="pointer-events-none absolute -inset-px rounded-[16px] border border-[#5b8fff22] shadow-[0_0_18px_2px_rgba(91,143,255,0.10)]" />
+              <button
+                type="button"
+                onClick={() => setGlobalSearchOpen(true)}
+                className="relative flex h-11 w-full items-center justify-between gap-3 rounded-[14px] border border-[#4a7fff30] bg-[#0d1527cc] px-4 text-sm text-foreground/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm transition-all hover:border-[#4a7fff55] hover:bg-[#0d1527ee] hover:text-foreground/70 hover:shadow-[0_0_24px_4px_rgba(91,143,255,0.12)]"
               >
-                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(120,167,255,0.16),transparent_58%)] opacity-80" />
-                <span className="relative flex size-7 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[#93bcff]">
-                  <Disc className="size-3.5" />
-                </span>
-                <span className="relative ml-2.5 flex min-w-0 flex-1 flex-col leading-tight">
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8fbaffaa]">
-                    Latest listing
+                <span className="inline-flex items-center gap-2.5">
+                  <Search className="size-3.5 shrink-0 text-[#5b8fff60]" />
+                  <span className="text-[13px]">
+                    Search markets or paste a wallet…
                   </span>
-                  <AnimatePresence mode="wait" initial={false}>
-                    <motion.span
-                      key={latestListing.coin}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      transition={{ duration: 0.24 }}
-                      className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-white"
-                    >
-                      <span>{latestListing.label}</span>
-                      <span className="text-xs font-medium text-foreground/45">
-                        {latestListing.note}
-                      </span>
-                    </motion.span>
-                  </AnimatePresence>
                 </span>
-                <span className="relative inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-foreground/55 transition group-hover:text-white">
-                  {latestListing.deployer}
-                </span>
-              </Link>
+                <kbd className="rounded-md border border-white/[0.07] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-foreground/25">
+                  /
+                </kbd>
+              </button>
             </div>
           </div>
 

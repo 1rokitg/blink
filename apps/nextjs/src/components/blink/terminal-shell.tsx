@@ -83,9 +83,11 @@ import {
   getAssetIndex,
   getAssetIndexSync,
   infoClient,
+  resolvePerpMarket,
 } from "~/lib/blink/hyperliquid";
 import {
   type MarketSummary,
+  PRIORITY_TRADFI_MARKETS,
   fetchTopMarketsByVolume,
   formatCompactNumber,
   formatUsd,
@@ -416,9 +418,10 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
         <div className="space-y-0.5">
           {gainers.map((m) =>
             m.isHip3 ? (
-              <div
+              <Link
                 key={m.coin}
-                className="flex items-center gap-2 rounded-[8px] border border-white/[0.06] px-2 py-1.5"
+                href={`/trade/${marketToSlug(m.coin)}`}
+                className="flex items-center gap-2 rounded-[8px] border border-white/[0.06] px-2 py-1.5 transition hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
               >
                 <CoinIcon coin={m.coin} size={22} />
                 <span className="flex-1 text-xs font-medium text-white/85">
@@ -433,7 +436,7 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
                 <span className="w-14 text-right font-mono text-xs font-medium text-emerald-300">
                   +{m.changePct.toFixed(2)}%
                 </span>
-              </div>
+              </Link>
             ) : (
               <Link
                 key={m.coin}
@@ -475,9 +478,10 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
         <div className="space-y-0.5">
           {losers.map((m) =>
             m.isHip3 ? (
-              <div
+              <Link
                 key={m.coin}
-                className="flex items-center gap-2 rounded-[8px] border border-white/[0.06] px-2 py-1.5"
+                href={`/trade/${marketToSlug(m.coin)}`}
+                className="flex items-center gap-2 rounded-[8px] border border-white/[0.06] px-2 py-1.5 transition hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
               >
                 <CoinIcon coin={m.coin} size={22} />
                 <span className="flex-1 text-xs font-medium text-white/85">
@@ -492,7 +496,7 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
                 <span className="w-14 text-right font-mono text-xs font-medium text-rose-300">
                   {m.changePct.toFixed(2)}%
                 </span>
-              </div>
+              </Link>
             ) : (
               <Link
                 key={m.coin}
@@ -597,7 +601,11 @@ function LeftRail(props: {
 
   const marketsQuery = useQuery({
     queryKey: ["blink", "watchlist"],
-    queryFn: () => fetchTopMarketsByVolume(25, { includeHip3Offers: true }),
+    queryFn: () =>
+      fetchTopMarketsByVolume(25, {
+        includeHip3Offers: true,
+        priorityCoins: PRIORITY_TRADFI_MARKETS,
+      }),
     staleTime: 86_400_000,
     refetchInterval: 86_400_000,
   });
@@ -744,44 +752,27 @@ function LeftRail(props: {
               marketRows.map((item) => {
                 const selected = item.coin === props.market;
                 const positive = item.changePct >= 0;
-                return item.isHip3 ? (
-                  <div
-                    key={item.coin}
-                    className="flex items-center gap-2.5 rounded-[10px] border border-white/[0.06] px-2.5 py-2"
-                  >
-                    <CoinIcon coin={item.coin} size={28} />
-                    <div className="min-w-0 flex-1">
-                      <p className="flex items-center gap-1.5 text-sm font-medium leading-none text-white">
-                        <span className="truncate">{item.coin}</span>
-                        <span className="rounded-full border border-[#7ea9ff33] bg-[#7ea9ff1a] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#a8c3ff]">
-                          HIP-3
-                        </span>
-                      </p>
-                      <p className="mt-0.5 text-xs text-foreground/45">
-                        {formatUsd(item.markPx)}
-                      </p>
-                    </div>
-                    <span
-                      className={`shrink-0 text-xs tabular-nums ${positive ? "text-emerald-300" : "text-rose-300"}`}
-                    >
-                      {positive ? "+" : ""}
-                      {item.changePct.toFixed(2)}%
-                    </span>
-                  </div>
-                ) : (
+                return (
                   <Link
                     key={item.coin}
                     href={`/trade/${marketToSlug(item.coin)}`}
                     className={`flex items-center gap-2.5 rounded-[10px] border px-2.5 py-2 transition ${
                       selected
                         ? "border-[#3be1ba9e] bg-[#2dc9ff2b]"
-                        : "border-white/0 bg-transparent hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
+                        : item.isHip3
+                          ? "border-white/[0.06] bg-white/[0.02] hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
+                          : "border-white/0 bg-transparent hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
                     }`}
                   >
                     <CoinIcon coin={item.coin} size={28} />
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-1.5 text-sm font-medium leading-none text-white">
                         <span className="truncate">{item.coin}</span>
+                        {item.isHip3 ? (
+                          <span className="rounded-full border border-[#7ea9ff33] bg-[#7ea9ff1a] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#a8c3ff]">
+                            HIP-3
+                          </span>
+                        ) : null}
                         {ZERO_FEE_MARKETS.has(item.coin) ? (
                           <span
                             className="size-1.5 shrink-0 rounded-full bg-[#39e5b6]"
@@ -971,13 +962,9 @@ function OrderEntryPanel(props: {
     };
   }, []);
 
-  // Live mark price — poll allMids every 3s
-  const markQuery = useQuery({
-    queryKey: ["blink", "mark", props.market],
-    queryFn: async () => {
-      const mids = await infoClient.allMids();
-      return Number(mids[props.market] ?? 0);
-    },
+  const marketQuery = useQuery({
+    queryKey: ["blink", "market", props.market],
+    queryFn: () => resolvePerpMarket(props.market),
     refetchInterval: 3_000,
     staleTime: 2_000,
   });
@@ -996,25 +983,14 @@ function OrderEntryPanel(props: {
     enabled: !!props.walletAddress,
   });
 
-  // Asset metadata — needed for szDecimals / min order size
-  const metaQuery = useQuery({
-    queryKey: ["blink", "meta"],
-    queryFn: async () => {
-      const [meta] = await infoClient.metaAndAssetCtxs();
-      return meta;
-    },
-    staleTime: 300_000,
-    gcTime: 600_000,
-  });
-
   const szDecimals = useMemo(() => {
-    const asset = metaQuery.data?.universe.find((a) => a.name === props.market);
+    const asset = marketQuery.data?.meta.universe[marketQuery.data.localIndex];
     return (asset as { szDecimals?: number } | undefined)?.szDecimals ?? 4;
-  }, [metaQuery.data, props.market]);
+  }, [marketQuery.data]);
 
   const minSize = useMemo(() => 10 ** -szDecimals, [szDecimals]);
 
-  const markPrice = markQuery.data ?? 0;
+  const markPrice = marketQuery.data?.midPrice ?? 0;
   const accountValue = Number(
     accountQuery.data?.marginSummary?.accountValue ?? 0,
   );
@@ -1080,14 +1056,14 @@ function OrderEntryPanel(props: {
       if (!props.walletAddress) return;
       setUpdatingLeverage(true);
       try {
-        const [exchClient, assetIdx] = await Promise.all([
+        const [exchClient, market] = await Promise.all([
           Promise.resolve(
             createAgentExchangeClient(props.walletAddress as `0x${string}`),
           ),
-          getAssetIndex(props.market),
+          resolvePerpMarket(props.market),
         ]);
         await exchClient.updateLeverage({
-          asset: assetIdx,
+          asset: market.assetId,
           isCross: true,
           leverage: newLeverage,
         });
@@ -1131,25 +1107,22 @@ function OrderEntryPanel(props: {
       });
     }
     try {
-      const [exchClient, metaAndCtxs, mids] = await Promise.all([
+      const [exchClient, market] = await Promise.all([
         Promise.resolve(
           createAgentExchangeClient(props.walletAddress as `0x${string}`),
         ),
-        infoClient.metaAndAssetCtxs(),
-        infoClient.allMids(),
+        resolvePerpMarket(props.market),
       ]);
-      const [meta] = metaAndCtxs;
-      const assetIdx = getAssetIndexSync(props.market, meta);
-      const universeEntry = meta.universe[assetIdx];
+      const assetIdx = market.assetId;
+      const universeEntry = market.meta.universe[market.localIndex];
       const sizeDecimals = Math.max(0, universeEntry?.szDecimals ?? 6);
-      const marketMidRaw = mids[props.market];
       const priceDecimals = getHyperliquidPerpPriceDecimals(
-        Number(marketMidRaw ?? 0),
+        market.midPrice,
         sizeDecimals,
       );
       const sizeStr = roundWithMode(sz, sizeDecimals, "down");
       const limitPxStr = roundWithMode(px, priceDecimals, "nearest");
-      const optimisticMarketPrice = markPrice || Number(marketMidRaw ?? 0);
+      const optimisticMarketPrice = markPrice || market.midPrice;
 
       const placeOrder = async () => {
         if (orderType === "limit") {
@@ -1841,20 +1814,18 @@ function AccountPanel(props: {
         `${params.coin}-${params.isBuy ? "buy" : "sell"}-${params.tif}`,
       );
       try {
-        const [exchClient, [meta], mids] = await Promise.all([
+        const [exchClient, market] = await Promise.all([
           Promise.resolve(
             createAgentExchangeClient(props.walletAddress as `0x${string}`),
           ),
-          infoClient.metaAndAssetCtxs(),
-          infoClient.allMids(),
+          resolvePerpMarket(params.coin),
         ]);
-        const assetIdx = getAssetIndexSync(params.coin, meta);
+        const assetIdx = market.assetId;
         const szDecimals = Math.max(
           0,
-          meta.universe[assetIdx]?.szDecimals ?? 6,
+          market.meta.universe[market.localIndex]?.szDecimals ?? 6,
         );
-        const midRaw = mids[params.coin];
-        const mid = Number(midRaw ?? 0);
+        const mid = market.midPrice;
         const pxDecimals = getHyperliquidPerpPriceDecimals(mid, szDecimals);
 
         if (!mid && params.tif === "Ioc") {
@@ -2676,7 +2647,11 @@ export function TerminalShell(props: { market: string }) {
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const topMarketsQuery = useQuery({
     queryKey: ["blink", "top-markets-search"],
-    queryFn: () => fetchTopMarketsByVolume(50),
+    queryFn: () =>
+      fetchTopMarketsByVolume(50, {
+        includeHip3Offers: true,
+        priorityCoins: PRIORITY_TRADFI_MARKETS,
+      }),
     staleTime: 60_000,
   });
   const { hideBalances: blurBalances, setHideBalances: setBlurBalances } =
@@ -3320,7 +3295,7 @@ export function TerminalShell(props: { market: string }) {
                     value={m.coin}
                     onSelect={() => {
                       setGlobalSearchOpen(false);
-                      router.push(`/trade/${m.coin}`);
+                      router.push(`/trade/${marketToSlug(m.coin)}`);
                     }}
                     className="flex items-center gap-3 px-3 py-2.5"
                   >
@@ -3334,7 +3309,7 @@ export function TerminalShell(props: { market: string }) {
                         {m.coin}
                       </span>
                       <span className="text-xs text-foreground/40">
-                        Perpetual
+                        {m.isHip3 ? "HIP-3 perpetual" : "Perpetual"}
                       </span>
                     </div>
                     {/* Price + change */}

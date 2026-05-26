@@ -89,7 +89,9 @@ interface AssetIconProps {
 }
 
 export function AssetIcon({ asset, className = "size-7" }: AssetIconProps) {
-  const symbol = asset.toUpperCase();
+  const symbol = asset.includes(":")
+    ? (asset.split(":").at(-1)?.toUpperCase() ?? asset.toUpperCase())
+    : asset.toUpperCase();
   const [primaryFailed, setPrimaryFailed] = useState(false);
   const [fallbackFailed, setFallbackFailed] = useState(false);
 

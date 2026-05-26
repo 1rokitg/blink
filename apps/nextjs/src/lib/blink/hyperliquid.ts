@@ -2,6 +2,8 @@ import * as hl from "@nktkas/hyperliquid";
 import type { ConnectedWallet } from "@privy-io/react-auth";
 import { getAddress } from "viem";
 
+const HYPERLIQUID_INFO_URL = "https://api.hyperliquid.xyz/info";
+
 function createHttpTransport() {
   return new hl.HttpTransport({
     // Some production runtimes reject RequestInit.keepalive on server-side fetches.
@@ -13,10 +15,117 @@ export const infoClient = new hl.InfoClient({
   transport: createHttpTransport(),
 });
 
+type PerpDex = { name: string } | null;
+type PerpMetaAndAssetCtxsResponse = [
+  {
+    universe: Array<{
+      name: string;
+      szDecimals?: number;
+    }>;
+  },
+  Array<{
+    dayNtlVlm?: string;
+    funding?: string;
+    markPx?: string;
+    openInterest?: string;
+    oraclePx?: string;
+    prevDayPx?: string;
+  }>,
+];
+
+type AllMidsResponse = Record<string, string>;
+
+async function postInfo<TResponse>(body: Record<string, unknown>) {
+  const response = await fetch(HYPERLIQUID_INFO_URL, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch ${String(body.type ?? "Hyperliquid info")} (${response.status})`,
+    );
+  }
+
+  return (await response.json()) as TResponse;
+}
+
 export function createSubscriptionClient() {
   return new hl.SubscriptionClient({
     transport: new hl.WebSocketTransport(),
   });
+}
+
+export function getPerpDexName(coin: string) {
+  if (!coin.includes(":")) return null;
+  const [dex] = coin.split(":", 1);
+  return dex?.toLowerCase() ?? null;
+}
+
+export async function fetchPerpDexs() {
+  return postInfo<PerpDex[]>({ type: "perpDexs" });
+}
+
+export async function fetchPerpMetaAndAssetCtxs(dex?: string | null) {
+  return postInfo<PerpMetaAndAssetCtxsResponse>(
+    dex ? { type: "metaAndAssetCtxs", dex } : { type: "metaAndAssetCtxs" },
+  );
+}
+
+export async function fetchPerpAllMids(dex?: string | null) {
+  return postInfo<AllMidsResponse>(
+    dex ? { type: "allMids", dex } : { type: "allMids" },
+  );
+}
+
+export async function resolvePerpMarket(coin: string) {
+  const dex = getPerpDexName(coin);
+
+  if (!dex) {
+    const [[meta, assetCtxs], mids] = await Promise.all([
+      infoClient.metaAndAssetCtxs(),
+      infoClient.allMids(),
+    ]);
+    const localIndex = getAssetIndexSync(coin, meta);
+
+    return {
+      assetCtx: assetCtxs[localIndex],
+      assetId: localIndex,
+      dex: null,
+      localIndex,
+      meta,
+      midPrice: Number(mids[coin] ?? 0),
+      mids,
+    };
+  }
+
+  const [dexes, [meta, assetCtxs], mids] = await Promise.all([
+    fetchPerpDexs(),
+    fetchPerpMetaAndAssetCtxs(dex),
+    fetchPerpAllMids(dex),
+  ]);
+  const localIndex = meta.universe.findIndex((market) => market.name === coin);
+  if (localIndex === -1) {
+    throw new Error(`Unknown market: ${coin}`);
+  }
+  const dexIndex = dexes.findIndex((entry) => entry?.name === dex);
+  if (dexIndex <= 0) {
+    throw new Error(`Unknown builder dex: ${dex}`);
+  }
+
+  return {
+    assetCtx: assetCtxs[localIndex],
+    assetId: 100000 + dexIndex * 10000 + localIndex,
+    dex,
+    localIndex,
+    meta,
+    midPrice: Number(mids[coin] ?? 0),
+    mids,
+  };
 }
 
 /**
@@ -153,9 +262,8 @@ export async function createExchangeClient(wallet: ConnectedWallet) {
  * Needed for order placement — Hyperliquid identifies markets by index, not name.
  */
 export async function getAssetIndex(coin: string): Promise<number> {
-  const [meta] = await infoClient.metaAndAssetCtxs();
-  const idx = getAssetIndexSync(coin, meta);
-  return idx;
+  const market = await resolvePerpMarket(coin);
+  return market.assetId;
 }
 
 export function getAssetIndexSync(

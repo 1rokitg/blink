@@ -6,11 +6,19 @@ function toTradingViewSymbol(market: string) {
   return `BINANCE:${market}USDT`;
 }
 
+function isExternalChartSupported(market: string) {
+  return !market.includes(":");
+}
+
 export function TradingViewPanel(props: { market: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetRef = useRef<{ remove?: () => void } | null>(null);
 
   useEffect(() => {
+    if (!isExternalChartSupported(props.market)) {
+      return;
+    }
+
     let cancelled = false;
 
     async function mountChart() {
@@ -82,6 +90,26 @@ export function TradingViewPanel(props: { market: string }) {
       }
     };
   }, [props.market]);
+
+  if (!isExternalChartSupported(props.market)) {
+    return (
+      <section className="glass-panel flex min-h-[640px] flex-col overflow-hidden p-2">
+        <div className="flex h-full min-h-[620px] flex-1 flex-col items-center justify-center rounded-[12px] border border-[#88b3ff2e] bg-[#060c18] px-8 text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8fbaff80]">
+            HIP-3 Chart
+          </p>
+          <h2 className="mt-3 text-2xl font-semibold text-white">
+            {props.market}
+          </h2>
+          <p className="mt-3 max-w-md text-sm text-foreground/50">
+            External TradingView mappings are not available for this
+            builder-deployed market yet. Live Hyperliquid price, book, and
+            trading are still active on this route.
+          </p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="glass-panel flex min-h-[640px] flex-col overflow-hidden p-2">

@@ -18,6 +18,8 @@ import {
   Twitter,
   Users,
 } from "lucide-react";
+
+import { BlinkProUpsellCard } from "~/components/blink/blink-pro-upsell-card";
 import {
   getGrowthReferralMultiplier,
   isGrowthModeEnabled,
@@ -192,6 +194,18 @@ export default function RewardsPage() {
     },
     enabled: !!address,
     refetchInterval: 60_000,
+  });
+
+  const proStatusQuery = useQuery({
+    queryKey: ["blink-pro-status", address],
+    queryFn: async () => {
+      if (!address) return null;
+      const response = await fetch(`/api/builder/fee?wallet=${address}`);
+      if (!response.ok) throw new Error("Failed to load Pro status");
+      return response.json() as Promise<{ feeUnits: number; isPro: boolean }>;
+    },
+    enabled: !!address,
+    staleTime: 60_000,
   });
 
   const twitterText = referralLink
@@ -428,6 +442,36 @@ export default function RewardsPage() {
 
             {/* ── Right: how it works ─────────────────────────────────────── */}
             <div className="space-y-4">
+              <BlinkProUpsellCard
+                ctaHref="/pro"
+                ctaLabel={
+                  proStatusQuery.data?.isPro
+                    ? "Manage membership"
+                    : "Upgrade to Pro"
+                }
+                description={
+                  proStatusQuery.data?.isPro
+                    ? "Your account already gets the lower-fee routing path. Use rewards as the social proof layer that turns referrals into stronger conversion."
+                    : "Blink Pro makes your public trader surface look sharper and gives your referred flow more gravity with better routing, cleaner status, and future premium analytics."
+                }
+                eyebrow="Referral edge"
+                isPro={proStatusQuery.data?.isPro}
+                perks={
+                  proStatusQuery.data?.isPro
+                    ? undefined
+                    : [
+                        "Lower builder fees once referred traders become active",
+                        "Premium profile polish and status-driven social proof",
+                        "Better rewards visibility and future conversion analytics",
+                      ]
+                }
+                title={
+                  proStatusQuery.data?.isPro
+                    ? "Blink Pro is already working for your account."
+                    : "Turn rewards into a stronger Pro conversion loop."
+                }
+              />
+
               {affiliateQuery.data?.isAffiliate ? (
                 <div className="overflow-hidden rounded-[20px] border border-emerald-400/30 bg-[linear-gradient(180deg,rgba(13,34,25,0.9),rgba(9,24,32,0.9))]">
                   <div className="border-b border-emerald-400/20 px-5 py-4">

@@ -3,11 +3,11 @@
 import { useState } from "react";
 
 import { useWallets } from "@privy-io/react-auth";
-import { AnimatePresence, motion } from "motion/react";
 import { Check, ExternalLink, Loader2, ShieldCheck, Zap } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 
-import { ConnectTwitterButton } from "./connect-twitter-button";
 import { toast } from "sonner";
+import { ConnectTwitterButton } from "./connect-twitter-button";
 
 import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
 
@@ -72,8 +72,8 @@ export function BuilderSetupModal(props: {
   walletAddress: string;
   market: string;
   requiredFeeUnits: number;
-  onClose: () => void;
-  onApproved: () => void;
+  onCloseAction: () => void;
+  onApprovedAction: () => void;
 }) {
   const { wallets } = useWallets();
   const [step, setStep] = useState<Step>("idle");
@@ -85,7 +85,7 @@ export function BuilderSetupModal(props: {
   const fundingError = isFundingRelatedError(error);
   const needsFunding =
     accountValueUsd !== null && accountValueUsd < MIN_HL_ACCOUNT_VALUE_USD;
-  const shareText = `DO NOT BLINK! Just enabled builder routing on Blink for ${props.market} perps.`;
+  const shareText = `DO NOT BLINK! Just enabled builder routing on Blink for ${props.market}.`;
   const shareUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent("https://blink.lat")}`;
 
   if (!props.open) return null;
@@ -189,7 +189,7 @@ export function BuilderSetupModal(props: {
       console.info("[setup] step 2 — trading agent approved ✓");
       setStep("done");
       setSuccessState(true);
-      props.onApproved();
+      props.onApprovedAction();
       toast.success("Trading enabled — one-click orders ready.");
     } catch (err) {
       console.error("[setup] step 2 failed:", err);
@@ -209,7 +209,7 @@ export function BuilderSetupModal(props: {
       );
       if (approved) {
         setSuccessState(true);
-        props.onApproved();
+        props.onApprovedAction();
         toast.success("You're all set.");
       } else {
         setError(
@@ -224,7 +224,10 @@ export function BuilderSetupModal(props: {
   };
 
   return (
-    <Dialog open={props.open} onOpenChange={(open) => !open && props.onClose()}>
+    <Dialog
+      open={props.open}
+      onOpenChange={(open) => !open && props.onCloseAction()}
+    >
       <AnimatePresence>
         {props.open ? (
           <DialogContent
@@ -304,7 +307,7 @@ export function BuilderSetupModal(props: {
                       <button
                         type="button"
                         className="whop-blue-btn mt-4"
-                        onClick={props.onClose}
+                        onClick={props.onCloseAction}
                       >
                         Continue Trading
                       </button>
@@ -528,7 +531,7 @@ export function BuilderSetupModal(props: {
                         <button
                           type="button"
                           className="whop-secondary-btn ml-auto"
-                          onClick={props.onClose}
+                          onClick={props.onCloseAction}
                         >
                           Not now
                         </button>

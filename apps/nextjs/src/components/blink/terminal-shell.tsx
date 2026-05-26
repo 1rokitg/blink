@@ -3204,11 +3204,11 @@ export function TerminalShell(props: { market: string }) {
         walletAddress={effectiveWalletAddress}
         market={props.market}
         requiredFeeUnits={resolvedBuilderFeeUnits}
-        onClose={() => {
+        onCloseAction={() => {
           setBuilderModalOpen(false);
           setAutoPromptDismissed(true);
         }}
-        onApproved={() => {
+        onApprovedAction={() => {
           setAutoPromptDismissed(false);
           void approvalQuery.refetch();
         }}

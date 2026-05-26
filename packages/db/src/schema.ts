@@ -1,5 +1,5 @@
 import { relations, sql } from "drizzle-orm";
-import { jsonb, pgTable, primaryKey } from "drizzle-orm/pg-core";
+import { jsonb, pgTable, primaryKey, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -174,6 +174,34 @@ export const UserProfile = pgTable("user_profile", (t) => ({
     .timestamp({ mode: "date", withTimezone: true })
     .$onUpdateFn(() => sql`now()`),
 }));
+
+/**
+ * Short thesis text attached to a trader's currently active position.
+ * One live thesis per wallet/coin pair.
+ */
+export const PositionThesis = pgTable(
+  "position_thesis",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    walletAddress: t.varchar({ length: 42 }).notNull(),
+    coin: t.varchar({ length: 64 }).notNull(),
+    thesis: t.varchar({ length: 240 }).notNull(),
+    side: t.varchar({ length: 8 }),
+    entryPrice: t.doublePrecision(),
+    status: t.varchar({ length: 16 }).notNull().default("open"),
+    createdAt: t.timestamp().defaultNow().notNull(),
+    closedAt: t.timestamp({ mode: "date", withTimezone: true }),
+    updatedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .$onUpdateFn(() => sql`now()`),
+  }),
+  (table) => ({
+    walletCoinKey: uniqueIndex("position_thesis_wallet_coin_idx").on(
+      table.walletAddress,
+      table.coin,
+    ),
+  }),
+);
 
 /**
  * Referral codes — one unique slug per wallet.

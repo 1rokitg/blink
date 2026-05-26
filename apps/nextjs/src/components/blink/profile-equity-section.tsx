@@ -5,8 +5,16 @@ import { type ReactNode, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 
 import { useWallets } from "@privy-io/react-auth";
-import { useQuery } from "@tanstack/react-query";
-import { Share2, Users } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  Loader2,
+  MessageSquarePlus,
+  PencilLine,
+  Share2,
+  Users,
+  X,
+} from "lucide-react";
+import { toast } from "sonner";
 
 import {
   Accordion,
@@ -29,6 +37,16 @@ import { PnlShareModal } from "./pnl-share-modal";
 import { ProfileEquityChart } from "./profile-equity-chart";
 
 type Period = "24H" | "7D" | "30D" | "ALL";
+
+type PositionThesisRow = {
+  coin: string;
+  createdAt: string;
+  entryPrice: number | null;
+  side: string | null;
+  thesis: string;
+  updatedAt: string | null;
+  walletAddress: string;
+};
 
 function SkeletonLine({ w }: { w: string }) {
   return (
@@ -134,6 +152,7 @@ export function ProfileEquitySection({
 }: {
   targetAddress?: string | null;
 }) {
+  const queryClient = useQueryClient();
   const { wallets } = useWallets();
   const ownAddress = wallets[0]?.address as `0x${string}` | undefined;
   const hasExplicitTarget = targetAddress !== undefined;
@@ -150,6 +169,11 @@ export function ProfileEquitySection({
 
   const [period, setPeriod] = useState<Period>("24H");
   const [shareOpen, setShareOpen] = useState(false);
+  const [editingThesisCoin, setEditingThesisCoin] = useState<string | null>(
+    null,
+  );
+  const [thesisDraft, setThesisDraft] = useState("");
+  const [savingThesisCoin, setSavingThesisCoin] = useState<string | null>(null);
   const { hideBalances } = useHideBalances();
 
   // ── Account state ─────────────────────────────────────────────────────────
@@ -250,6 +274,102 @@ export function ProfileEquitySection({
     }
   }, [ownAddress, walletAddress, isOwnProfile, followQuery]);
 
+  const openThesisEditor = useCallback(
+    (coin: string, currentThesis?: string) => {
+      setEditingThesisCoin(coin);
+      setThesisDraft(currentThesis ?? "");
+    },
+    [],
+  );
+
+  const closeThesisEditor = useCallback(() => {
+    setEditingThesisCoin(null);
+    setThesisDraft("");
+  }, []);
+
+  const refetchTheses = useCallback(() => {
+    return queryClient.invalidateQueries({
+      queryKey: ["blink", "profile-theses", walletAddress],
+    });
+  }, [queryClient, walletAddress]);
+
+  const saveThesis = useCallback(
+    async (params: {
+      coin: string;
+      entryPrice: number;
+      side: "long" | "short";
+    }) => {
+      if (!walletAddress) return;
+
+      const trimmed = thesisDraft.trim();
+      if (trimmed.length < 2) {
+        toast.error("Thesis is too short");
+        return;
+      }
+
+      setSavingThesisCoin(params.coin);
+      try {
+        const response = await fetch("/api/theses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            walletAddress,
+            coin: params.coin,
+            thesis: trimmed,
+            side: params.side,
+            entryPrice: params.entryPrice,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to save thesis");
+        }
+
+        await refetchTheses();
+        closeThesisEditor();
+        toast.success("Thesis linked to position");
+      } catch {
+        toast.error("Could not save thesis");
+      } finally {
+        setSavingThesisCoin(null);
+      }
+    },
+    [closeThesisEditor, refetchTheses, thesisDraft, walletAddress],
+  );
+
+  const clearThesis = useCallback(
+    async (coin: string) => {
+      if (!walletAddress) return;
+
+      setSavingThesisCoin(coin);
+      try {
+        const response = await fetch("/api/theses", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            walletAddress,
+            coin,
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to clear thesis");
+        }
+
+        await refetchTheses();
+        if (editingThesisCoin === coin) {
+          closeThesisEditor();
+        }
+        toast.success("Thesis cleared");
+      } catch {
+        toast.error("Could not clear thesis");
+      } finally {
+        setSavingThesisCoin(null);
+      }
+    },
+    [closeThesisEditor, editingThesisCoin, refetchTheses, walletAddress],
+  );
+
   // ── Derived values ────────────────────────────────────────────────────────
   const state = accountQuery.data?.state;
   const openOrders = accountQuery.data?.openOrders ?? [];
@@ -260,6 +380,32 @@ export function ProfileEquitySection({
   const perpsMarginUsed = Number(state?.marginSummary?.totalMarginUsed ?? 0);
   const positions = state?.assetPositions ?? [];
   const activePositions = positions.filter((p) => Number(p.position.szi) !== 0);
+  const activeCoinsKey = activePositions
+    .map(({ position }) => position.coin)
+    .sort((left, right) => left.localeCompare(right))
+    .join(",");
+  const thesesQuery = useQuery({
+    queryKey: ["blink", "profile-theses", walletAddress, activeCoinsKey],
+    queryFn: async () => {
+      if (!walletAddress) return [] as PositionThesisRow[];
+      const params = new URLSearchParams({ address: walletAddress });
+      if (activeCoinsKey) {
+        params.set("activeCoins", activeCoinsKey);
+      }
+      const response = await fetch(`/api/theses?${params.toString()}`);
+      if (!response.ok) throw new Error("Failed to load theses");
+      const data = (await response.json()) as { theses: PositionThesisRow[] };
+      return data.theses;
+    },
+    enabled: !!walletAddress && accountQuery.isSuccess,
+    refetchInterval: 30_000,
+    staleTime: 15_000,
+  });
+  const thesisByCoin = useMemo(
+    () =>
+      new Map((thesesQuery.data ?? []).map((thesis) => [thesis.coin, thesis])),
+    [thesesQuery.data],
+  );
 
   // Realized PnL = sum of closedPnl across all fills
   const totalRealizedPnl = (fillsQuery.data ?? []).reduce(
@@ -691,6 +837,10 @@ export function ProfileEquitySection({
                       const entry = Number(position.entryPx);
                       const positionValue = Number(position.positionValue);
                       const leverage = Number(position.leverage?.value ?? 1);
+                      const thesis = thesisByCoin.get(position.coin);
+                      const isEditing = editingThesisCoin === position.coin;
+                      const isSaving = savingThesisCoin === position.coin;
+                      const side = size > 0 ? "long" : "short";
 
                       return (
                         <div
@@ -739,6 +889,118 @@ export function ProfileEquitySection({
                               )}
                             />
                           </div>
+
+                          {thesis ? (
+                            <div className="mt-3 rounded-[12px] border border-[#7ea9ff24] bg-[#7ea9ff0f] px-3 py-2.5">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9fc2ff]">
+                                    Thesis live
+                                  </p>
+                                  <p className="mt-1 text-sm leading-6 text-white/82">
+                                    {thesis.thesis}
+                                  </p>
+                                </div>
+                                {isOwnProfile ? (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      openThesisEditor(
+                                        position.coin,
+                                        thesis.thesis,
+                                      )
+                                    }
+                                    className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-medium text-white/62 transition hover:text-white"
+                                  >
+                                    <PencilLine className="size-3" />
+                                    Edit
+                                  </button>
+                                ) : null}
+                              </div>
+                            </div>
+                          ) : null}
+
+                          {isOwnProfile ? (
+                            <div className="mt-3">
+                              {isEditing ? (
+                                <div className="rounded-[12px] border border-white/[0.06] bg-[#0b1020] p-3">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#9fc2ff]">
+                                      Position thesis
+                                    </p>
+                                    <span className="text-[10px] text-white/35">
+                                      240 chars max
+                                    </span>
+                                  </div>
+                                  <textarea
+                                    value={thesisDraft}
+                                    onChange={(event) =>
+                                      setThesisDraft(
+                                        event.target.value.slice(0, 240),
+                                      )
+                                    }
+                                    placeholder="Add the quick take behind this position..."
+                                    className="mt-3 h-24 w-full resize-none rounded-[10px] border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white outline-none placeholder:text-white/28"
+                                  />
+                                  <div className="mt-3 flex flex-wrap gap-2">
+                                    <Button
+                                      type="button"
+                                      onClick={() =>
+                                        void saveThesis({
+                                          coin: position.coin,
+                                          entryPrice: entry,
+                                          side,
+                                        })
+                                      }
+                                      disabled={isSaving}
+                                      className="h-9 rounded-xl bg-[#2c6bff] px-3 text-white hover:bg-[#2c6bff]/90"
+                                    >
+                                      {isSaving ? (
+                                        <Loader2 className="size-3.5 animate-spin" />
+                                      ) : (
+                                        "Save thesis"
+                                      )}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      onClick={closeThesisEditor}
+                                      className="h-9 rounded-xl border-white/10 bg-white/[0.03] px-3 text-white/72 hover:bg-white/[0.07] hover:text-white"
+                                    >
+                                      Cancel
+                                    </Button>
+                                    {thesis ? (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={() =>
+                                          void clearThesis(position.coin)
+                                        }
+                                        disabled={isSaving}
+                                        className="h-9 rounded-xl border-white/10 bg-white/[0.03] px-3 text-rose-200 hover:bg-rose-400/10 hover:text-rose-100"
+                                      >
+                                        Clear thesis
+                                      </Button>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    openThesisEditor(
+                                      position.coin,
+                                      thesis?.thesis,
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-[11px] font-medium text-white/58 transition hover:border-white/[0.16] hover:text-white"
+                                >
+                                  <MessageSquarePlus className="size-3.5" />
+                                  {thesis ? "Update thesis" : "Add thesis"}
+                                </button>
+                              )}
+                            </div>
+                          ) : null}
                         </div>
                       );
                     })}

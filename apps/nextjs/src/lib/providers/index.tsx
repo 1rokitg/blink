@@ -96,11 +96,11 @@ export function ContextProviders({ children }: { children: React.ReactNode }) {
               },
               embeddedWallets: {
                 ethereum: {
-                  createOnLogin: "users-without-wallets",
+                  createOnLogin: "off",
                 },
                 showWalletUIs: false,
               },
-              loginMethods: ["google", "wallet"],
+              loginMethods: ["wallet"],
             }}
           >
             {children}

@@ -69,6 +69,10 @@ export default function RootLayout(props: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta
+          name="talentapp:project_verification"
+          content="284aeb61d4b8b44a96d9bd3aea9761704afc3fd5baa4cdc361ec481cc468b8157f43b830aa96dff7f74c22376474b01b351620a65aabe738e5f347de1b030c40"
+        />
         <script src="/wallet-error-guard.js" />
       </head>
       <body

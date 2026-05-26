@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, desc, eq, inArray, or } from "drizzle-orm";
+import { and, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@acme/db/client";
@@ -122,6 +122,16 @@ export type SuperuserWalletSnapshot = {
   walletAddress: string;
 };
 
+export type SuperuserSearchResult = {
+  displayName: string | null;
+  isPro: boolean;
+  matchLabel: string;
+  referralCode: string | null;
+  role: BlinkRole;
+  twitterUsername: string | null;
+  walletAddress: string;
+};
+
 function normalizeWallet(walletAddress: string) {
   return walletAddress.trim().toLowerCase();
 }
@@ -156,6 +166,229 @@ async function resolveTargetWallet(query: string) {
     resolvedBy: "referral-code" as const,
     walletAddress: codeRow.walletAddress.toLowerCase(),
   };
+}
+
+export async function searchSuperuserWallets(input: unknown) {
+  const parsed = lookupSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new Error("Invalid search payload");
+  }
+
+  const actingWalletAddress = normalizeWallet(parsed.data.actingWalletAddress);
+  await assertSuperuser(actingWalletAddress);
+
+  const normalizedQuery = parsed.data.query.trim().toLowerCase();
+  const exactWalletMatch = walletSchema.safeParse(normalizedQuery).success
+    ? normalizedQuery
+    : null;
+  const prefixPattern = `${normalizedQuery}%`;
+  const partialPattern = `%${normalizedQuery}%`;
+
+  const [profileRows, twitterRows, referralRows] = await Promise.all([
+    db
+      .select({
+        displayName: UserProfile.displayName,
+        ensName: UserProfile.ensName,
+        isPro: UserProfile.isPro,
+        walletAddress: UserProfile.walletAddress,
+      })
+      .from(UserProfile)
+      .where(
+        or(
+          exactWalletMatch
+            ? eq(UserProfile.walletAddress, exactWalletMatch)
+            : undefined,
+          ilike(UserProfile.walletAddress, prefixPattern),
+          ilike(UserProfile.displayName, partialPattern),
+          ilike(UserProfile.ensName, partialPattern),
+        ),
+      )
+      .limit(8),
+    db
+      .select({
+        twitterUsername: TwitterConnection.twitterUsername,
+        walletAddress: TwitterConnection.walletAddress,
+      })
+      .from(TwitterConnection)
+      .where(ilike(TwitterConnection.twitterUsername, partialPattern))
+      .limit(8),
+    db
+      .select({
+        code: ReferralCode.code,
+        walletAddress: ReferralCode.walletAddress,
+      })
+      .from(ReferralCode)
+      .where(
+        or(
+          eq(ReferralCode.code, normalizedQuery),
+          ilike(ReferralCode.code, prefixPattern),
+        ),
+      )
+      .limit(8),
+  ]);
+
+  const walletMatches = new Map<
+    string,
+    {
+      displayName: string | null;
+      isPro: boolean;
+      matchLabel: string;
+      referralCode: string | null;
+      twitterUsername: string | null;
+      walletAddress: string;
+    }
+  >();
+
+  function upsertResult(
+    walletAddress: string,
+    next: Partial<SuperuserSearchResult> & { matchLabel: string },
+  ) {
+    const current = walletMatches.get(walletAddress);
+    walletMatches.set(walletAddress, {
+      displayName: next.displayName ?? current?.displayName ?? null,
+      isPro: next.isPro ?? current?.isPro ?? false,
+      matchLabel: next.matchLabel,
+      referralCode: next.referralCode ?? current?.referralCode ?? null,
+      twitterUsername: next.twitterUsername ?? current?.twitterUsername ?? null,
+      walletAddress,
+    });
+  }
+
+  for (const row of profileRows) {
+    const matchSource =
+      row.walletAddress === exactWalletMatch
+        ? "Wallet"
+        : row.displayName?.toLowerCase().includes(normalizedQuery)
+          ? "Profile"
+          : row.ensName?.toLowerCase().includes(normalizedQuery)
+            ? "ENS"
+            : "Wallet";
+
+    upsertResult(row.walletAddress, {
+      displayName: row.displayName ?? row.ensName ?? null,
+      isPro: row.isPro,
+      matchLabel: matchSource,
+    });
+  }
+
+  for (const row of twitterRows) {
+    upsertResult(row.walletAddress, {
+      matchLabel: "X",
+      twitterUsername: row.twitterUsername,
+    });
+  }
+
+  for (const row of referralRows) {
+    upsertResult(row.walletAddress, {
+      matchLabel: row.code === normalizedQuery ? "Referral code" : "Referral",
+      referralCode: row.code,
+    });
+  }
+
+  if (walletMatches.size === 0) {
+    return [] satisfies SuperuserSearchResult[];
+  }
+
+  const walletAddresses = [...walletMatches.keys()];
+  const [codeRows, twitterMetaRows, profileMetaRows, membershipRows, roleRows] =
+    await Promise.all([
+      db
+        .select({
+          code: ReferralCode.code,
+          walletAddress: ReferralCode.walletAddress,
+        })
+        .from(ReferralCode)
+        .where(inArray(ReferralCode.walletAddress, walletAddresses)),
+      db
+        .select({
+          twitterUsername: TwitterConnection.twitterUsername,
+          walletAddress: TwitterConnection.walletAddress,
+        })
+        .from(TwitterConnection)
+        .where(inArray(TwitterConnection.walletAddress, walletAddresses)),
+      db
+        .select({
+          displayName: UserProfile.displayName,
+          isPro: UserProfile.isPro,
+          walletAddress: UserProfile.walletAddress,
+        })
+        .from(UserProfile)
+        .where(inArray(UserProfile.walletAddress, walletAddresses)),
+      db
+        .select({
+          status: BlinkMembership.status,
+          walletAddress: BlinkMembership.walletAddress,
+        })
+        .from(BlinkMembership)
+        .where(inArray(BlinkMembership.walletAddress, walletAddresses)),
+      db
+        .select({
+          role: InternalRole.role,
+          walletAddress: InternalRole.walletAddress,
+        })
+        .from(InternalRole)
+        .where(inArray(InternalRole.walletAddress, walletAddresses)),
+    ]);
+
+  const codeByWallet = new Map(codeRows.map((row) => [row.walletAddress, row.code]));
+  const twitterByWallet = new Map(
+    twitterMetaRows.map((row) => [row.walletAddress, row.twitterUsername]),
+  );
+  const profileByWallet = new Map(
+    profileMetaRows.map((row) => [
+      row.walletAddress,
+      { displayName: row.displayName, isPro: row.isPro },
+    ]),
+  );
+  const membershipByWallet = new Map(
+    membershipRows.map((row) => [row.walletAddress, row.status]),
+  );
+  const explicitRoleByWallet = new Map(
+    roleRows.map((row) => [row.walletAddress, row.role as BlinkRole]),
+  );
+
+  const results = await Promise.all(
+    walletAddresses.map(async (walletAddress) => {
+      const base = walletMatches.get(walletAddress);
+      const explicitRole = explicitRoleByWallet.get(walletAddress);
+      const fallbackRole =
+        explicitRole ?? (await getWalletRoleFromDb(walletAddress));
+      const profile = profileByWallet.get(walletAddress);
+
+      return {
+        displayName: profile?.displayName ?? base?.displayName ?? null,
+        isPro:
+          profile?.isPro === true ||
+          membershipByWallet.get(walletAddress) === "active",
+        matchLabel: base?.matchLabel ?? "Wallet",
+        referralCode:
+          codeByWallet.get(walletAddress) ?? base?.referralCode ?? null,
+        role: fallbackRole,
+        twitterUsername:
+          twitterByWallet.get(walletAddress) ?? base?.twitterUsername ?? null,
+        walletAddress,
+      } satisfies SuperuserSearchResult;
+    }),
+  );
+
+  return results
+    .sort((left, right) => {
+      const leftExact =
+        left.walletAddress === exactWalletMatch ||
+        left.referralCode?.toLowerCase() === normalizedQuery ||
+        left.twitterUsername?.toLowerCase() === normalizedQuery;
+      const rightExact =
+        right.walletAddress === exactWalletMatch ||
+        right.referralCode?.toLowerCase() === normalizedQuery ||
+        right.twitterUsername?.toLowerCase() === normalizedQuery;
+
+      if (leftExact !== rightExact) {
+        return leftExact ? -1 : 1;
+      }
+
+      return left.walletAddress.localeCompare(right.walletAddress);
+    })
+    .slice(0, 12);
 }
 
 export async function getSuperuserWalletSnapshot(input: unknown) {

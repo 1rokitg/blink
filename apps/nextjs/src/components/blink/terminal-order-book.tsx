@@ -24,6 +24,20 @@ type FormattedTrade = {
   size: number;
 };
 
+export type OrderBookSelection =
+  | {
+      kind: "price";
+      price: number;
+      size: number;
+      side: "ask" | "bid";
+    }
+  | {
+      kind: "size";
+      price: number;
+      size: number;
+      side: "ask" | "bid";
+    };
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const LEVELS = 16;
@@ -111,7 +125,10 @@ function depthOpacity(index: number, total: number, closestIsLow: boolean) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-export function TerminalOrderBook(props: { market: string }) {
+export function TerminalOrderBook(props: {
+  market: string;
+  onSelectLevel?: (selection: OrderBookSelection) => void;
+}) {
   const [activeTab, setActiveTab] = useState<"orderbook" | "trades">(
     "orderbook",
   );
@@ -323,20 +340,42 @@ export function TerminalOrderBook(props: { market: string }) {
                       className="absolute inset-y-0 right-0 rounded-[5px] bg-rose-500/[0.12] transition-[width] duration-150 ease-out"
                       style={{ width: `${width}%` }}
                     />
-                    <span
-                      className={`relative z-10 min-w-0 truncate tabular-nums font-medium transition-colors duration-300 ${
+                    <button
+                      type="button"
+                      onClick={() =>
+                        props.onSelectLevel?.({
+                          kind: "price",
+                          price: row.price,
+                          size: row.size,
+                          side: "ask",
+                        })
+                      }
+                      className={`relative z-10 min-w-0 truncate border-0 bg-transparent p-0 text-left tabular-nums font-medium transition-colors duration-300 hover:text-white ${
                         changed === "down"
                           ? "text-rose-400"
                           : changed === "up"
                             ? "text-emerald-300"
                             : "text-rose-300"
                       }`}
+                      title={`Set limit price to ${fmtPrice(row.price)}`}
                     >
                       {fmtPrice(row.price)}
-                    </span>
-                    <span className="relative z-10 text-right tabular-nums text-foreground/60">
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        props.onSelectLevel?.({
+                          kind: "size",
+                          price: row.price,
+                          size: row.size,
+                          side: "ask",
+                        })
+                      }
+                      className="relative z-10 border-0 bg-transparent p-0 text-right tabular-nums text-foreground/60 transition-colors hover:text-white"
+                      title={`Set size to ${fmtSize(row.size)}`}
+                    >
                       {fmtSize(row.size)}
-                    </span>
+                    </button>
                     <span className="relative z-10 text-right tabular-nums text-foreground/35">
                       {fmtSize(row.total)}
                     </span>
@@ -390,20 +429,42 @@ export function TerminalOrderBook(props: { market: string }) {
                       className="absolute inset-y-0 right-0 rounded-[5px] bg-emerald-500/[0.12] transition-[width] duration-150 ease-out"
                       style={{ width: `${width}%` }}
                     />
-                    <span
-                      className={`relative z-10 min-w-0 truncate tabular-nums font-medium transition-colors duration-300 ${
+                    <button
+                      type="button"
+                      onClick={() =>
+                        props.onSelectLevel?.({
+                          kind: "price",
+                          price: row.price,
+                          size: row.size,
+                          side: "bid",
+                        })
+                      }
+                      className={`relative z-10 min-w-0 truncate border-0 bg-transparent p-0 text-left tabular-nums font-medium transition-colors duration-300 hover:text-white ${
                         changed === "up"
                           ? "text-emerald-400"
                           : changed === "down"
                             ? "text-rose-300"
                             : "text-emerald-300"
                       }`}
+                      title={`Set limit price to ${fmtPrice(row.price)}`}
                     >
                       {fmtPrice(row.price)}
-                    </span>
-                    <span className="relative z-10 text-right tabular-nums text-foreground/60">
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        props.onSelectLevel?.({
+                          kind: "size",
+                          price: row.price,
+                          size: row.size,
+                          side: "bid",
+                        })
+                      }
+                      className="relative z-10 border-0 bg-transparent p-0 text-right tabular-nums text-foreground/60 transition-colors hover:text-white"
+                      title={`Set size to ${fmtSize(row.size)}`}
+                    >
                       {fmtSize(row.size)}
-                    </span>
+                    </button>
                     <span className="relative z-10 text-right tabular-nums text-foreground/35">
                       {fmtSize(row.total)}
                     </span>

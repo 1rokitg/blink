@@ -6,6 +6,7 @@ import { TokenProgressPanel } from "~/components/blink/token-progress-panel";
 import { getBlinkTokenProgress } from "~/lib/blink/clanker.server";
 import {
   BLINK_TOKEN_CLANKER_URL,
+  BLINK_TOKEN_FOMO_URL,
   BLINK_TOKEN_HEADLINE,
   BLINK_TOKEN_SUBHEAD,
 } from "~/lib/blink/token";
@@ -130,6 +131,14 @@ export default async function TokenPage() {
             >
               Open token on Clanker
             </a>
+            <a
+              href={BLINK_TOKEN_FOMO_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-12 items-center justify-center rounded-2xl border border-[#f5d06d55] bg-[linear-gradient(180deg,rgba(245,208,109,0.16),rgba(245,208,109,0.08))] px-5 text-sm font-semibold text-[#ffe8a3] transition hover:border-[#f5d06d88] hover:bg-[linear-gradient(180deg,rgba(245,208,109,0.24),rgba(245,208,109,0.12))] hover:text-white"
+            >
+              $blink listed on $fomo using our ref link
+            </a>
             <Link
               href="/trade/BTC"
               className="inline-flex h-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08] hover:text-white"
@@ -137,6 +146,11 @@ export default async function TokenPage() {
               Open the terminal
             </Link>
           </div>
+
+          <p className="mt-3 text-xs leading-6 text-white/45">
+            Drive signups through Blink&apos;s lane by sending users to the Fomo
+            listing through our referral link.
+          </p>
 
           <div className="mt-6 rounded-[24px] border border-white/10 bg-white/[0.04] p-5 text-sm leading-6 text-white/58">
             <p className="font-semibold text-white">How this is measured</p>

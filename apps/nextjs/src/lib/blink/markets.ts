@@ -17,6 +17,7 @@ export type MarketSummary = {
 export const DEFAULT_MARKET = "BTC";
 export const PRIORITY_TRADFI_MARKETS = ["xyz:GOLD", "cash:WTI"] as const;
 export const SEMICONDUCTOR_MARKETS = [
+  "xyz:DRAM",
   "xyz:SNDK",
   "xyz:INTC",
   "xyz:NVDA",
@@ -31,6 +32,7 @@ export const CURATED_HIP3_MARKETS = [
   ...SEMICONDUCTOR_MARKETS,
   ...BIG_TECH_MARKETS,
 ] as const;
+export const CURATED_HIP3_MARKET_SET = new Set<string>(CURATED_HIP3_MARKETS);
 export const PRIORITY_HIP3_MARKETS = [
   ...PRIORITY_TRADFI_MARKETS,
   ...CURATED_HIP3_MARKETS,

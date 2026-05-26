@@ -86,8 +86,10 @@ import {
   resolvePerpMarket,
 } from "~/lib/blink/hyperliquid";
 import {
+  CURATED_HIP3_MARKETS,
+  CURATED_HIP3_MARKET_SET,
   type MarketSummary,
-  PRIORITY_TRADFI_MARKETS,
+  PRIORITY_HIP3_MARKETS,
   fetchTopMarketsByVolume,
   formatCompactNumber,
   formatUsd,
@@ -134,6 +136,8 @@ function getEventIdentityHeaders() {
 function asHexAddress(address: string) {
   return address as `0x${string}`;
 }
+
+const BLINK_DISCORD_INVITE_URL = "https://discord.gg/Myu962DMMA";
 
 function getHyperliquidPerpPriceDecimals(price: number, szDecimals: number) {
   // Hyperliquid perp constraints:
@@ -454,6 +458,17 @@ function SidePanelMarketRow(props: {
   );
 }
 
+function pickMarketsByCoin(
+  markets: MarketRow[],
+  coins: readonly string[],
+): MarketRow[] {
+  const marketsByCoin = new Map(markets.map((market) => [market.coin, market]));
+  return coins.flatMap((coin) => {
+    const market = marketsByCoin.get(coin);
+    return market ? [market] : [];
+  });
+}
+
 function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
   const sorted = [...markets].sort((a, b) => b.changePct - a.changePct);
   const gainers = sorted.slice(0, 4);
@@ -463,6 +478,13 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
   const hip3Markets = [...markets]
     .filter((market) => market.isHip3)
     .sort((left, right) => right.dailyVolume - left.dailyVolume)
+    .slice(0, 12);
+  const curatedHip3Markets = pickMarketsByCoin(
+    hip3Markets,
+    CURATED_HIP3_MARKETS,
+  );
+  const spotlightHip3Markets = hip3Markets
+    .filter((market) => !CURATED_HIP3_MARKET_SET.has(market.coin))
     .slice(0, 5);
 
   return (
@@ -499,7 +521,27 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
         </div>
       </div>
 
-      {hip3Markets.length > 0 ? (
+      {curatedHip3Markets.length > 0 ? (
+        <>
+          <div className="h-px bg-white/[0.06]" />
+
+          <div>
+            <div className="mb-2 flex items-center gap-1.5">
+              <Banknote className="size-3.5 text-[#8fbaff]" />
+              <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8fbaff]/80">
+                Semis + Big Tech
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              {curatedHip3Markets.map((market) => (
+                <SidePanelMarketRow key={market.coin} item={market} compact />
+              ))}
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      {spotlightHip3Markets.length > 0 ? (
         <>
           <div className="h-px bg-white/[0.06]" />
 
@@ -511,7 +553,7 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
               </span>
             </div>
             <div className="space-y-0.5">
-              {hip3Markets.map((market) => (
+              {spotlightHip3Markets.map((market) => (
                 <SidePanelMarketRow key={market.coin} item={market} compact />
               ))}
             </div>
@@ -604,7 +646,7 @@ function LeftRail(props: {
     queryFn: () =>
       fetchTopMarketsByVolume(25, {
         includeHip3Offers: true,
-        priorityCoins: PRIORITY_TRADFI_MARKETS,
+        priorityCoins: PRIORITY_HIP3_MARKETS,
       }),
     staleTime: 86_400_000,
     refetchInterval: 86_400_000,
@@ -618,6 +660,10 @@ function LeftRail(props: {
     : allRows;
   const coreRows = marketRows.filter((market) => !market.isHip3);
   const hip3Rows = marketRows.filter((market) => market.isHip3);
+  const curatedHip3Rows = pickMarketsByCoin(hip3Rows, CURATED_HIP3_MARKETS);
+  const otherHip3Rows = hip3Rows.filter(
+    (market) => !CURATED_HIP3_MARKET_SET.has(market.coin),
+  );
 
   return (
     <aside className="flex min-h-[calc(100vh-7rem)] w-[366px] flex-col gap-2.5">
@@ -771,20 +817,38 @@ function LeftRail(props: {
                 {hip3Rows.length > 0 ? (
                   <div className="pt-2">
                     <div className="mb-1 h-px bg-white/[0.06]" />
-                    <div className="px-1.5 pb-1 pt-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8fbaff80]">
-                        HIP-3
-                      </p>
-                    </div>
-                    <div className="space-y-0.5">
-                      {hip3Rows.map((item) => (
-                        <SidePanelMarketRow
-                          key={item.coin}
-                          item={item}
-                          selected={item.coin === props.market}
-                        />
-                      ))}
-                    </div>
+                    {curatedHip3Rows.length > 0 ? (
+                      <div className="space-y-0.5">
+                        <div className="px-1.5 pb-1 pt-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8fbaff80]">
+                            Semis + Big Tech
+                          </p>
+                        </div>
+                        {curatedHip3Rows.map((item) => (
+                          <SidePanelMarketRow
+                            key={item.coin}
+                            item={item}
+                            selected={item.coin === props.market}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                    {otherHip3Rows.length > 0 ? (
+                      <div className="space-y-0.5 pt-2">
+                        <div className="px-1.5 pb-1 pt-2">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#8fbaff80]">
+                            More HIP-3
+                          </p>
+                        </div>
+                        {otherHip3Rows.map((item) => (
+                          <SidePanelMarketRow
+                            key={item.coin}
+                            item={item}
+                            selected={item.coin === props.market}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </>
@@ -930,6 +994,7 @@ function OrderEntryPanel(props: {
   const [leverage, setLeverage] = useState(10);
   const [updatingLeverage, setUpdatingLeverage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [requestListingOpen, setRequestListingOpen] = useState(false);
   const [orderResult, setOrderResult] = useState<"idle" | "success" | "error">(
     "idle",
   );
@@ -983,6 +1048,21 @@ function OrderEntryPanel(props: {
   }, [marketQuery.data]);
 
   const minSize = useMemo(() => 10 ** -szDecimals, [szDecimals]);
+  const isHip3Market = props.market.includes(":");
+  const hip3Deployer = isHip3Market
+    ? (props.market.split(":")[0]?.toLowerCase() ?? null)
+    : null;
+  const requestListingTemplate = useMemo(() => {
+    if (!hip3Deployer) return "";
+
+    return [
+      "HIP-3 listing request",
+      `Deployer: ${hip3Deployer}`,
+      `Current market on Blink: ${props.market}`,
+      "Requested market:",
+      "Why it should be listed:",
+    ].join("\n");
+  }, [hip3Deployer, props.market]);
 
   const markPrice = marketQuery.data?.midPrice ?? 0;
   const accountValue = Number(
@@ -1069,6 +1149,20 @@ function OrderEntryPanel(props: {
     },
     [props.market, props.walletAddress],
   );
+
+  const handleCopyListingRequest = useCallback(async () => {
+    if (!requestListingTemplate || !hip3Deployer) return;
+
+    try {
+      await navigator.clipboard.writeText(requestListingTemplate);
+      toast.success("Listing request copied", {
+        description: `Drop it in Discord to request another ${hip3Deployer} market.`,
+      });
+      setRequestListingOpen(false);
+    } catch {
+      toast.error("Could not copy the listing request");
+    }
+  }, [hip3Deployer, requestListingTemplate]);
 
   const handleSubmit = useCallback(async () => {
     if (!props.tradeEnabled) {
@@ -1313,11 +1407,71 @@ function OrderEntryPanel(props: {
               BLINK PRO: Lower builder fee, faster fills.
             </div>
           ) : null}
+          {hip3Deployer ? (
+            <div className="mt-2 flex items-center gap-2 text-[11px] text-foreground/40">
+              <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 font-mono uppercase text-foreground/48">
+                {hip3Deployer}
+              </span>
+              <button
+                type="button"
+                onClick={() => setRequestListingOpen(true)}
+                className="inline-flex items-center gap-1 text-[#8fbaffb8] transition hover:text-white"
+              >
+                Request another listing
+                <ArrowRight className="size-3" />
+              </button>
+            </div>
+          ) : null}
         </div>
         <Badge className="rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[10px] font-medium text-foreground/60">
           Live routing
         </Badge>
       </div>
+
+      {hip3Deployer ? (
+        <Dialog open={requestListingOpen} onOpenChange={setRequestListingOpen}>
+          <DialogContent className="max-w-md border-white/10 bg-[#0a1020] text-white">
+            <DialogTitle>Request another {hip3Deployer} market</DialogTitle>
+            <p className="mt-2 text-sm leading-6 text-foreground/62">
+              Blink already routes live HIP-3 markets. Copy the request template
+              below and drop it in Discord without leaving your flow for long.
+            </p>
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8fbaffb8]">
+                Current route
+              </p>
+              <p className="mt-2 font-mono text-sm text-white">
+                {props.market}
+              </p>
+              <pre className="mt-3 whitespace-pre-wrap font-mono text-xs leading-5 text-foreground/58">
+                {requestListingTemplate}
+              </pre>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                onClick={() => void handleCopyListingRequest()}
+                className="rounded-xl bg-[#2c6bff] text-white hover:bg-[#1f5df2]"
+              >
+                Copy request
+              </Button>
+              <Button
+                asChild
+                variant="outline"
+                className="rounded-xl border-white/10 bg-white/[0.03] text-white hover:bg-white/[0.07]"
+              >
+                <a
+                  href={BLINK_DISCORD_INVITE_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open Discord
+                </a>
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      ) : null}
 
       {/* Available margin */}
       <div className="mt-4 grid grid-cols-2 gap-2">
@@ -2644,7 +2798,7 @@ export function TerminalShell(props: { market: string }) {
     queryFn: () =>
       fetchTopMarketsByVolume(50, {
         includeHip3Offers: true,
-        priorityCoins: PRIORITY_TRADFI_MARKETS,
+        priorityCoins: PRIORITY_HIP3_MARKETS,
       }),
     staleTime: 60_000,
   });

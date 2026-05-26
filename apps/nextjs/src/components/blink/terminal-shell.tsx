@@ -52,6 +52,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@acme/ui/command";
 import {
   DropdownMenu,
@@ -79,6 +80,7 @@ import {
   maskValue,
   useHideBalances,
 } from "~/lib/blink/hide-balances";
+import { fetchHip4Markets, getHip4MarketPath } from "~/lib/blink/hip4/markets";
 import {
   getAssetIndex,
   getAssetIndexSync,
@@ -2913,6 +2915,12 @@ export function TerminalShell(props: { market: string }) {
       }),
     staleTime: 60_000,
   });
+  const outcomesSearchQuery = useQuery({
+    queryKey: ["blink", "outcomes-search"],
+    queryFn: fetchHip4Markets,
+    enabled: globalSearchOpen,
+    staleTime: 60_000,
+  });
   const { hideBalances: blurBalances, setHideBalances: setBlurBalances } =
     useHideBalances();
   const [autoPromptDismissed, setAutoPromptDismissed] = useState(false);
@@ -3041,6 +3049,33 @@ export function TerminalShell(props: { market: string }) {
 
   const latestListing =
     LATEST_LISTINGS[latestListingIndex] ?? LATEST_LISTINGS[0];
+  const normalizedSearchQuery = globalSearchQuery.trim().toLowerCase();
+  const filteredPerpResults = (topMarketsQuery.data ?? []).filter((market) =>
+    normalizedSearchQuery
+      ? market.coin.toLowerCase().includes(normalizedSearchQuery)
+      : true,
+  );
+  const corePerpResults = filteredPerpResults
+    .filter((market) => !market.isHip3)
+    .slice(0, 8);
+  const hip3PerpResults = filteredPerpResults
+    .filter((market) => market.isHip3)
+    .slice(0, 8);
+  const outcomeResults = (outcomesSearchQuery.data ?? [])
+    .filter((market) => {
+      if (!normalizedSearchQuery) return true;
+
+      return [
+        market.title,
+        market.subtitle,
+        market.underlying ?? "",
+        market.marketClass ?? "",
+        market.slug,
+        market.yes.name,
+        market.no.name,
+      ].some((value) => value.toLowerCase().includes(normalizedSearchQuery));
+    })
+    .slice(0, 6);
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-background px-3 pb-14 pt-3 text-foreground">
@@ -3526,13 +3561,16 @@ export function TerminalShell(props: { market: string }) {
           setGlobalSearchOpen(open);
           if (!open) setGlobalSearchQuery("");
         }}
+        contentClassName="overflow-hidden rounded-[30px] border border-[#8fbaff3d] bg-[radial-gradient(circle_at_top,rgba(91,171,255,0.2),rgba(8,12,24,0.96)_34%,rgba(4,8,18,0.98)_100%)] p-0 shadow-[0_30px_100px_rgba(6,12,26,0.84),0_0_0_1px_rgba(143,186,255,0.08),0_0_80px_rgba(59,130,246,0.16)] backdrop-blur-2xl"
+        commandClassName="relative overflow-hidden bg-transparent text-white before:pointer-events-none before:absolute before:inset-x-10 before:top-0 before:h-24 before:rounded-full before:bg-[#5baaff1a] before:blur-3xl after:pointer-events-none after:absolute after:inset-x-16 after:bottom-[-18px] after:h-14 after:rounded-full after:bg-[#3be1ba14] after:blur-3xl [&_[cmdk-group-heading]]:px-4 [&_[cmdk-group-heading]]:pb-2 [&_[cmdk-group-heading]]:pt-3 [&_[cmdk-group-heading]]:text-[11px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-[0.22em] [&_[cmdk-group-heading]]:text-[#8fbaffb8]"
       >
         <CommandInput
           placeholder="Search perps or paste a wallet address..."
           value={globalSearchQuery}
           onValueChange={setGlobalSearchQuery}
+          className="h-14 text-[15px] text-white placeholder:text-[#9db0d2]"
         />
-        <CommandList>
+        <CommandList className="max-h-[430px] px-2 pb-2">
           <CommandEmpty>
             <span className="text-foreground/40">No markets found</span>
           </CommandEmpty>
@@ -3564,66 +3602,150 @@ export function TerminalShell(props: { market: string }) {
             </CommandGroup>
           )}
 
-          {/* Markets */}
-          <CommandGroup heading="Perpetuals">
-            {(topMarketsQuery.data ?? [])
-              .filter(
-                (m) =>
-                  !globalSearchQuery.trim() ||
-                  m.coin
-                    .toLowerCase()
-                    .includes(globalSearchQuery.trim().toLowerCase()),
-              )
-              .slice(0, 12)
-              .map((m) => {
-                const pos = m.changePct >= 0;
+          {corePerpResults.length > 0 ? (
+            <CommandGroup heading="Core Perps">
+              {corePerpResults.map((market) => {
+                const isPositive = market.changePct >= 0;
+
                 return (
                   <CommandItem
-                    key={m.coin}
-                    value={m.coin}
+                    key={market.coin}
+                    value={market.coin}
                     onSelect={() => {
                       setGlobalSearchOpen(false);
-                      router.push(`/trade/${marketToSlug(m.coin)}`);
+                      router.push(`/trade/${marketToSlug(market.coin)}`);
                     }}
-                    className="flex items-center gap-3 px-3 py-2.5"
+                    className="flex items-center gap-3 rounded-2xl border border-transparent px-3 py-3 data-[selected=true]:border-[#8fbaff44] data-[selected=true]:bg-[linear-gradient(180deg,rgba(20,31,55,0.96),rgba(11,17,31,0.98))] data-[selected=true]:text-white"
                   >
-                    {/* Coin circle */}
-                    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#1a2340] text-[11px] font-bold text-foreground/70">
-                      {m.coin.slice(0, 2)}
-                    </div>
-                    {/* Name */}
-                    <div className="flex flex-col">
-                      <span className="text-sm font-semibold text-white">
-                        {m.coin}
+                    <AssetIcon asset={market.coin} size={34} />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-sm font-semibold text-white">
+                        {market.coin}
                       </span>
-                      <span className="text-xs text-foreground/40">
-                        {m.isHip3 ? "HIP-3 perpetual" : "Perpetual"}
+                      <span className="text-xs text-[#95a6c5]">
+                        Hyperliquid core perpetual
                       </span>
                     </div>
-                    {/* Price + change */}
                     <div className="ml-auto flex items-center gap-3 text-right">
-                      <span className="text-sm tabular-nums text-foreground/70">
-                        {m.markPx < 0.01
-                          ? `$${m.markPx.toFixed(5)}`
-                          : m.markPx < 1
-                            ? `$${m.markPx.toFixed(4)}`
-                            : `$${m.markPx.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}
+                      <span className="text-sm tabular-nums text-[#d9e2f1]">
+                        {market.markPx < 0.01
+                          ? `$${market.markPx.toFixed(5)}`
+                          : market.markPx < 1
+                            ? `$${market.markPx.toFixed(4)}`
+                            : `$${market.markPx.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}
                       </span>
                       <span
-                        className={`w-[58px] rounded-md px-1.5 py-0.5 text-center text-[11px] font-semibold tabular-nums ${
-                          pos
-                            ? "bg-emerald-500/10 text-emerald-400"
-                            : "bg-rose-500/10 text-rose-400"
+                        className={`w-[58px] rounded-full px-1.5 py-1 text-center text-[11px] font-semibold tabular-nums ${
+                          isPositive
+                            ? "bg-emerald-500/12 text-emerald-300"
+                            : "bg-rose-500/12 text-rose-300"
                         }`}
                       >
-                        {pos ? "+" : ""}
-                        {m.changePct.toFixed(2)}%
+                        {isPositive ? "+" : ""}
+                        {market.changePct.toFixed(2)}%
                       </span>
                     </div>
                   </CommandItem>
                 );
               })}
-          </CommandGroup>
+            </CommandGroup>
+          ) : null}
+
+          {corePerpResults.length > 0 &&
+          (hip3PerpResults.length > 0 || outcomeResults.length > 0) ? (
+            <CommandSeparator className="mx-4 bg-white/6" />
+          ) : null}
+
+          {hip3PerpResults.length > 0 ? (
+            <CommandGroup heading="HIP-3">
+              {hip3PerpResults.map((market) => {
+                const isPositive = market.changePct >= 0;
+
+                return (
+                  <CommandItem
+                    key={market.coin}
+                    value={market.coin}
+                    onSelect={() => {
+                      setGlobalSearchOpen(false);
+                      router.push(`/trade/${marketToSlug(market.coin)}`);
+                    }}
+                    className="flex items-center gap-3 rounded-2xl border border-transparent px-3 py-3 data-[selected=true]:border-[#ffd36e2f] data-[selected=true]:bg-[linear-gradient(180deg,rgba(74,54,13,0.94),rgba(24,18,8,0.98))] data-[selected=true]:text-white"
+                  >
+                    <AssetIcon asset={market.coin} size={34} />
+                    <div className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate text-sm font-semibold text-white">
+                        {market.coin}
+                      </span>
+                      <span className="text-xs text-[#d7c38a]">
+                        Builder-deployed perpetual
+                      </span>
+                    </div>
+                    <div className="ml-auto flex items-center gap-3 text-right">
+                      <span className="text-sm tabular-nums text-[#f4e5bc]">
+                        {market.markPx < 0.01
+                          ? `$${market.markPx.toFixed(5)}`
+                          : market.markPx < 1
+                            ? `$${market.markPx.toFixed(4)}`
+                            : `$${market.markPx.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}
+                      </span>
+                      <span
+                        className={`w-[58px] rounded-full px-1.5 py-1 text-center text-[11px] font-semibold tabular-nums ${
+                          isPositive
+                            ? "bg-emerald-500/12 text-emerald-300"
+                            : "bg-rose-500/12 text-rose-300"
+                        }`}
+                      >
+                        {isPositive ? "+" : ""}
+                        {market.changePct.toFixed(2)}%
+                      </span>
+                    </div>
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          ) : null}
+
+          {hip3PerpResults.length > 0 && outcomeResults.length > 0 ? (
+            <CommandSeparator className="mx-4 bg-white/6" />
+          ) : null}
+
+          {outcomeResults.length > 0 ? (
+            <CommandGroup heading="Outcomes">
+              {outcomeResults.map((market) => (
+                <CommandItem
+                  key={market.slug}
+                  value={`${market.title} ${market.subtitle} ${market.underlying ?? ""}`}
+                  onSelect={() => {
+                    setGlobalSearchOpen(false);
+                    router.push(getHip4MarketPath(market.slug));
+                  }}
+                  className="flex items-center gap-3 rounded-2xl border border-transparent px-3 py-3 data-[selected=true]:border-[#3be1ba3d] data-[selected=true]:bg-[linear-gradient(180deg,rgba(8,52,52,0.96),rgba(5,22,25,0.98))] data-[selected=true]:text-white"
+                >
+                  <div className="flex size-[34px] shrink-0 items-center justify-center rounded-full border border-[#3be1ba2b] bg-[#081b1e] text-[11px] font-bold uppercase tracking-[0.18em] text-[#7bf8da]">
+                    {market.underlying?.slice(0, 2) ?? "O"}
+                  </div>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm font-semibold text-white">
+                      {market.title}
+                    </span>
+                    <span className="truncate text-xs text-[#8dd9cc]">
+                      {market.subtitle}
+                    </span>
+                  </div>
+                  <div className="ml-auto flex flex-col items-end text-right">
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#7bf8da]">
+                      HIP-4
+                    </span>
+                    <span className="text-xs text-[#8dd9cc]">
+                      {market.yes.probabilityPct !== null
+                        ? `Yes ${market.yes.probabilityPct.toFixed(1)}%`
+                        : (market.marketClass ?? "Outcome")}
+                    </span>
+                  </div>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          ) : null}
         </CommandList>
       </CommandDialog>
     </main>

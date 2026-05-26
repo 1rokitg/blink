@@ -37,8 +37,8 @@ const tierMeta: Record<
 > = {
   basic: {
     name: "Basic",
-    monthly: 19,
-    yearly: 190,
+    monthly: 9.99,
+    yearly: 99,
     blurb: "Best for active traders scaling from zero.",
     feeDiscount: 0.2,
   },
@@ -101,7 +101,7 @@ const tierBenefits: Record<Tier, string[]> = {
 
 export default function BlinkProPage() {
   const { wallets } = useWallets();
-  const [billing, setBilling] = useState<Billing>("yearly");
+  const [billing, setBilling] = useState<Billing>("monthly");
   const [selectedTier, setSelectedTier] = useState<Tier>("basic");
   const [monthlyVolume, setMonthlyVolume] = useState<number>(1_000_000);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("crypto");

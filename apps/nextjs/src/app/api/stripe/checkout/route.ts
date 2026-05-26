@@ -27,7 +27,7 @@ const PRICING: Record<
   "basic" | "preferred" | "premium",
   { monthly: number; yearly: number }
 > = {
-  basic: { monthly: 19, yearly: 190 },
+  basic: { monthly: 9.99, yearly: 99 },
   preferred: { monthly: 79, yearly: 790 },
   premium: { monthly: 249, yearly: 2490 },
 };
@@ -81,10 +81,11 @@ export async function POST(request: Request) {
     ? getGrowthProDiscountRate()
     : 0;
   const growthDiscountedAmount = baseAmount * (1 - growthDiscountRate);
-  const amount =
+  const amountUsd =
     paymentMethod === "crypto"
-      ? Math.round(growthDiscountedAmount * (1 - CRYPTO_DISCOUNT_RATE))
-      : Math.round(growthDiscountedAmount);
+      ? growthDiscountedAmount * (1 - CRYPTO_DISCOUNT_RATE)
+      : growthDiscountedAmount;
+  const amountCents = Math.round(amountUsd * 100);
   const stripe = new Stripe(env.STRIPE_SECRET_KEY);
   const appUrl = resolveAppUrl(request);
 
@@ -103,7 +104,7 @@ export async function POST(request: Request) {
               name: `Blink Pro ${tier.charAt(0).toUpperCase()}${tier.slice(1)}`,
               description: "Blink Pro membership for Hyperliquid perp traders",
             },
-            unit_amount: amount * 100,
+            unit_amount: amountCents,
             recurring: {
               interval: billing === "monthly" ? "month" : "year",
             },
@@ -140,7 +141,7 @@ export async function POST(request: Request) {
         billing,
         paymentMethod,
         growthMode: isGrowthModeEnabled(),
-        amountUsd: amount,
+        amountUsd: Number(amountUsd.toFixed(2)),
       },
     });
 

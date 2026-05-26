@@ -138,6 +138,14 @@ function asHexAddress(address: string) {
 }
 
 const BLINK_DISCORD_INVITE_URL = "https://discord.gg/Myu962DMMA";
+const LATEST_LISTINGS = [
+  {
+    coin: "xyz:DRAM",
+    deployer: "xyz",
+    label: "$DRAM",
+    note: "DRAM memory index",
+  },
+] as const;
 
 function getHyperliquidPerpPriceDecimals(price: number, szDecimals: number) {
   // Hyperliquid perp constraints:
@@ -2793,6 +2801,7 @@ export function TerminalShell(props: { market: string }) {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const [latestListingIndex, setLatestListingIndex] = useState(0);
   const topMarketsQuery = useQuery({
     queryKey: ["blink", "top-markets-search"],
     queryFn: () =>
@@ -2865,6 +2874,18 @@ export function TerminalShell(props: { market: string }) {
   }, [globalSearchOpen]);
 
   useEffect(() => {
+    if (LATEST_LISTINGS.length <= 1) return;
+
+    const timer = window.setInterval(() => {
+      setLatestListingIndex((current) =>
+        current === LATEST_LISTINGS.length - 1 ? 0 : current + 1,
+      );
+    }, 4_500);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     if (!effectiveWalletAddress) return;
     if (approvalQuery.isLoading) return;
     if (tradeEnabled) return;
@@ -2907,6 +2928,9 @@ export function TerminalShell(props: { market: string }) {
     return <ConnectGate />;
   }
 
+  const latestListing =
+    LATEST_LISTINGS[latestListingIndex] ?? LATEST_LISTINGS[0];
+
   return (
     <main className="relative min-h-screen overflow-hidden bg-background px-3 pb-14 pt-3 text-foreground">
       {/* ── Dynamic Island — primary feedback loop ───────────────────────── */}
@@ -2930,27 +2954,64 @@ export function TerminalShell(props: { market: string }) {
 
         <div className="min-w-0 flex-1">
           {/* ── Top header row — centered search with iOS glow ── */}
-          <div className="mb-3 flex h-[68px] items-center justify-center">
-            <div className="relative w-full max-w-md">
-              {/* Ambient glow layer */}
-              <div className="pointer-events-none absolute -inset-[3px] rounded-[18px] bg-[radial-gradient(ellipse_at_center,rgba(99,153,255,0.18)_0%,transparent_70%)] blur-[6px]" />
-              {/* Pulsing outer ring */}
-              <div className="pointer-events-none absolute -inset-px rounded-[16px] border border-[#5b8fff22] shadow-[0_0_18px_2px_rgba(91,143,255,0.10)]" />
-              <button
-                type="button"
-                onClick={() => setGlobalSearchOpen(true)}
-                className="relative flex h-11 w-full items-center justify-between gap-3 rounded-[14px] border border-[#4a7fff30] bg-[#0d1527cc] px-4 text-sm text-foreground/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm transition-all hover:border-[#4a7fff55] hover:bg-[#0d1527ee] hover:text-foreground/70 hover:shadow-[0_0_24px_4px_rgba(91,143,255,0.12)]"
-              >
-                <span className="inline-flex items-center gap-2.5">
-                  <Search className="size-3.5 shrink-0 text-[#5b8fff60]" />
-                  <span className="text-[13px]">
-                    Search markets or paste a wallet…
+          <div className="mb-3 flex h-[68px] items-center gap-3">
+            <div className="hidden flex-1 xl:block" />
+            <div className="relative w-full max-w-md xl:flex-1 xl:max-w-none">
+              <div className="mx-auto w-full max-w-md">
+                {/* Ambient glow layer */}
+                <div className="pointer-events-none absolute -inset-[3px] rounded-[18px] bg-[radial-gradient(ellipse_at_center,rgba(99,153,255,0.18)_0%,transparent_70%)] blur-[6px]" />
+                {/* Pulsing outer ring */}
+                <div className="pointer-events-none absolute -inset-px rounded-[16px] border border-[#5b8fff22] shadow-[0_0_18px_2px_rgba(91,143,255,0.10)]" />
+                <button
+                  type="button"
+                  onClick={() => setGlobalSearchOpen(true)}
+                  className="relative flex h-11 w-full items-center justify-between gap-3 rounded-[14px] border border-[#4a7fff30] bg-[#0d1527cc] px-4 text-sm text-foreground/45 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-sm transition-all hover:border-[#4a7fff55] hover:bg-[#0d1527ee] hover:text-foreground/70 hover:shadow-[0_0_24px_4px_rgba(91,143,255,0.12)]"
+                >
+                  <span className="inline-flex items-center gap-2.5">
+                    <Search className="size-3.5 shrink-0 text-[#5b8fff60]" />
+                    <span className="text-[13px]">
+                      Search markets or paste a wallet…
+                    </span>
                   </span>
+                  <kbd className="rounded-md border border-white/[0.07] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-foreground/25">
+                    /
+                  </kbd>
+                </button>
+              </div>
+            </div>
+            <div className="hidden flex-1 justify-end xl:flex">
+              <Link
+                href={`/trade/${marketToSlug(latestListing.coin)}`}
+                className="group relative inline-flex h-11 min-w-[250px] items-center overflow-hidden rounded-full border border-[#8fbaff40] bg-[#090d16f0] pl-3 pr-4 text-left shadow-[0_10px_40px_rgba(6,12,24,0.45)] backdrop-blur-xl transition hover:border-[#a8ccff66] hover:bg-[#101728f4]"
+              >
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(120,167,255,0.16),transparent_58%)] opacity-80" />
+                <span className="relative flex size-7 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[#93bcff]">
+                  <Disc className="size-3.5" />
                 </span>
-                <kbd className="rounded-md border border-white/[0.07] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[10px] text-foreground/25">
-                  /
-                </kbd>
-              </button>
+                <span className="relative ml-2.5 flex min-w-0 flex-1 flex-col leading-tight">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8fbaffaa]">
+                    Latest listing
+                  </span>
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.span
+                      key={latestListing.coin}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      transition={{ duration: 0.24 }}
+                      className="mt-0.5 flex items-center gap-1.5 text-sm font-semibold text-white"
+                    >
+                      <span>{latestListing.label}</span>
+                      <span className="text-xs font-medium text-foreground/45">
+                        {latestListing.note}
+                      </span>
+                    </motion.span>
+                  </AnimatePresence>
+                </span>
+                <span className="relative inline-flex items-center rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-foreground/55 transition group-hover:text-white">
+                  {latestListing.deployer}
+                </span>
+              </Link>
             </div>
           </div>
 

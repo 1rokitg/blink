@@ -40,13 +40,7 @@ import {
   Wallet,
   X,
 } from "lucide-react";
-import {
-  AnimatePresence,
-  animate,
-  motion,
-  useMotionValue,
-  useTransform,
-} from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 
 import { Badge } from "@acme/ui/badge";
@@ -74,7 +68,6 @@ import { createAgentExchangeClient } from "~/lib/blink/agent-wallet";
 import {
   BUILDER_ADDRESS,
   BUILDER_FEE_UNITS,
-  getApprovedBuilderFeeUnits,
   isBuilderApproved,
 } from "~/lib/blink/builder";
 import {
@@ -799,23 +792,10 @@ const LEVERAGE_RISK: Record<
 };
 
 /**
- * Hold-to-confirm order button.
- *
- * UX philosophy: zero perceived latency.
- * - Press and hold → fill sweeps left → right in 600 ms
- * - On 100%: immediately flash white, reset the bar, fire onConfirm in background
- * - The button never shows a spinner — the toast owns loading/success feedback
- * - "submitting" only blocks re-pressing (prevents double orders), invisible to user
- */
-/**
  * Optimistic order submit button.
  *
- * Flow:
- *   1. Press → order fires INSTANTLY (zero latency)
- *   2. Gentle fill sweeps left→right as in-flight feedback (~750ms)
- *   3. Soft white pulse at sweep completion, graceful spring-back
- *   4. When HL confirms the fill → emerald/rose glow pulses around the button
- *   5. Toast owns success/error messaging — button is purely visual
+ * Direct click, no hold-to-place friction.
+ * The parent submit flow can still render optimistic feedback for market orders.
  */
 function OrderSubmitButton({
   onConfirm,
@@ -832,48 +812,7 @@ function OrderSubmitButton({
   submitting: boolean;
   orderResult: "idle" | "success" | "error";
 }) {
-  const fillX = useMotionValue(0);
-  const flashOpacity = useMotionValue(0);
-  const glowOpacity = useMotionValue(0);
-  const fillWidth = useTransform(fillX, [0, 100], ["0%", "100%"]);
-  const animRef = useRef<ReturnType<typeof animate> | null>(null);
   const isBuy = side === "buy";
-
-  // ── Press handler — fire order first, then animate ────────────────────────
-  const handlePress = useCallback(() => {
-    if (disabled || submitting) return;
-
-    onConfirm(); // instant
-
-    animRef.current?.stop();
-    fillX.set(0);
-    animRef.current = animate(fillX, 100, {
-      duration: 0.75, // a touch slower — easier on the eye
-      ease: [0.4, 0, 0.2, 1], // material ease-in-out
-      onComplete: () => {
-        // Soft white pulse
-        void animate(flashOpacity, 0.22, { duration: 0.1 }).then(() =>
-          animate(flashOpacity, 0, { duration: 0.28 }),
-        );
-        // Graceful spring-back
-        setTimeout(() => {
-          void animate(fillX, 0, {
-            duration: 0.5,
-            ease: [0.22, 1, 0.36, 1],
-          });
-        }, 110);
-      },
-    });
-  }, [fillX, flashOpacity, disabled, submitting, onConfirm]);
-
-  // ── Glow when HL confirms the fill ───────────────────────────────────────
-  useEffect(() => {
-    if (orderResult === "idle") return;
-    // Quick in, slow fade — like a heartbeat
-    void animate(glowOpacity, 1, { duration: 0.15 }).then(() =>
-      animate(glowOpacity, 0, { duration: 1.1, ease: [0.16, 1, 0.3, 1] }),
-    );
-  }, [orderResult, glowOpacity]);
 
   const glowColor =
     orderResult === "error"
@@ -884,45 +823,37 @@ function OrderSubmitButton({
 
   return (
     <div className="relative mt-4">
-      {/* Glow ring — sits outside the button, doesn't clip */}
-      <motion.div
-        className="pointer-events-none absolute inset-0 rounded-full"
-        style={{
-          opacity: glowOpacity,
-          boxShadow: `0 0 0 3px ${glowColor}, 0 0 24px 6px ${glowColor}`,
-        }}
-      />
+      <AnimatePresence>
+        {orderResult !== "idle" ? (
+          <motion.div
+            key={orderResult}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="pointer-events-none absolute inset-0 rounded-full"
+            style={{
+              boxShadow: `0 0 0 3px ${glowColor}, 0 0 24px 6px ${glowColor}`,
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
 
       <motion.button
         type="button"
         disabled={disabled}
-        onClick={handlePress}
-        className={`relative h-12 w-full select-none overflow-hidden rounded-full border text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40 ${
+        onClick={() => {
+          if (disabled || submitting) return;
+          onConfirm();
+        }}
+        className={`relative h-12 w-full select-none overflow-hidden rounded-full border text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40 ${
           isBuy
-            ? "border-emerald-400/30 bg-emerald-400/[0.06]"
-            : "border-rose-400/30 bg-rose-400/[0.06]"
+            ? "border-emerald-400/30 bg-emerald-400/[0.06] hover:bg-emerald-400/[0.1]"
+            : "border-rose-400/30 bg-rose-400/[0.06] hover:bg-rose-400/[0.1]"
         }`}
         whileTap={{ scale: 0.976 }}
         transition={{ type: "spring", stiffness: 500, damping: 32 }}
       >
-        {/* Fill bar */}
-        <motion.div
-          className="absolute inset-y-0 left-0"
-          style={{
-            width: fillWidth,
-            background: isBuy
-              ? "linear-gradient(90deg,#047857 0%,#34d399 75%,#6ee7b7 100%)"
-              : "linear-gradient(90deg,#9f1239 0%,#f87171 75%,#fca5a5 100%)",
-          }}
-        />
-
-        {/* Soft white pulse */}
-        <motion.div
-          className="pointer-events-none absolute inset-0 bg-white"
-          style={{ opacity: flashOpacity }}
-        />
-
-        {/* Label */}
         <span
           className="relative z-10 flex items-center justify-center font-semibold text-white"
           style={{ textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}
@@ -956,6 +887,28 @@ function OrderEntryPanel(props: {
   const [orderResult, setOrderResult] = useState<"idle" | "success" | "error">(
     "idle",
   );
+  const orderResultTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+
+  const pulseOrderResult = useCallback((nextResult: "success" | "error") => {
+    if (orderResultTimeoutRef.current) {
+      clearTimeout(orderResultTimeoutRef.current);
+    }
+    setOrderResult(nextResult);
+    orderResultTimeoutRef.current = setTimeout(() => {
+      setOrderResult("idle");
+      orderResultTimeoutRef.current = null;
+    }, 1600);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (orderResultTimeoutRef.current) {
+        clearTimeout(orderResultTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Live mark price — poll allMids every 3s
   const markQuery = useQuery({
@@ -1091,16 +1044,6 @@ function OrderEntryPanel(props: {
       props.onRequireBuilderSetup();
       return;
     }
-    const liveApprovedFeeUnits = await getApprovedBuilderFeeUnits(
-      asHexAddress(props.walletAddress),
-    );
-    if (liveApprovedFeeUnits < props.builderFeeUnits) {
-      toast.error(
-        `Builder fee has not been approved (${liveApprovedFeeUnits}/${props.builderFeeUnits}).`,
-      );
-      props.onRequireBuilderSetup();
-      return;
-    }
 
     const sz = Number.parseFloat(size);
     const px = orderType === "limit" ? Number.parseFloat(price) : 0;
@@ -1119,11 +1062,13 @@ function OrderEntryPanel(props: {
     }
 
     setSubmitting(true);
-    emitTradingEvent({
-      type: "loading",
-      message: `${orderType === "market" ? "Market" : "Limit"} ${side === "buy" ? "long" : "short"} ${props.market} ${sz}`,
-      id: "order",
-    });
+    if (orderType === "limit") {
+      emitTradingEvent({
+        type: "loading",
+        message: `Limit ${side === "buy" ? "long" : "short"} ${props.market} ${sz}`,
+        id: "order",
+      });
+    }
     try {
       const [exchClient, metaAndCtxs, mids] = await Promise.all([
         Promise.resolve(
@@ -1143,6 +1088,7 @@ function OrderEntryPanel(props: {
       );
       const sizeStr = roundWithMode(sz, sizeDecimals, "down");
       const limitPxStr = roundWithMode(px, priceDecimals, "nearest");
+      const optimisticMarketPrice = markPrice || Number(marketMidRaw ?? 0);
 
       const placeOrder = async () => {
         if (orderType === "limit") {
@@ -1163,7 +1109,7 @@ function OrderEntryPanel(props: {
           return;
         }
 
-        const mid = markPrice || Number(marketMidRaw ?? 0);
+        const mid = optimisticMarketPrice;
         if (!mid) throw new Error("Could not fetch mark price");
         const slippage = side === "buy" ? mid * 1.05 : mid * 0.95;
         const marketPxStr =
@@ -1212,6 +1158,17 @@ function OrderEntryPanel(props: {
           orderType: "limit",
         });
       } else {
+        pulseOrderResult("success");
+        emitTradingEvent({
+          type: "order_placed",
+          coin: props.market,
+          side: side === "buy" ? "Buy" : "Sell",
+          price: optimisticMarketPrice
+            ? optimisticMarketPrice.toString()
+            : "market",
+          size: sizeStr,
+          orderType: "market",
+        });
         try {
           await placeOrder();
         } catch (err) {
@@ -1228,19 +1185,11 @@ function OrderEntryPanel(props: {
             throw err;
           }
         }
-        emitTradingEvent({
-          type: "order_placed",
-          coin: props.market,
-          side: side === "buy" ? "Buy" : "Sell",
-          price: markPrice?.toString() ?? "market",
-          size: sizeStr,
-          orderType: "market",
-        });
       }
 
-      // Signal fill confirmation — triggers glow on the button
-      setOrderResult("success");
-      setTimeout(() => setOrderResult("idle"), 1800);
+      if (orderType === "limit") {
+        pulseOrderResult("success");
+      }
 
       // First successful trade marker for funnel analytics
       if (typeof window !== "undefined") {
@@ -1276,8 +1225,7 @@ function OrderEntryPanel(props: {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       const msgLower = msg.toLowerCase();
-      setOrderResult("error");
-      setTimeout(() => setOrderResult("idle"), 1800);
+      pulseOrderResult("error");
       if (
         msgLower.includes("does not exist") ||
         msgLower.includes("builder fee has not been approved")
@@ -1313,6 +1261,7 @@ function OrderEntryPanel(props: {
     props.builderFeeUnits,
     props.onRequireBuilderSetup,
     props.walletAddress,
+    pulseOrderResult,
     queryClient,
   ]);
 

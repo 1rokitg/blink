@@ -14,7 +14,11 @@ import {
 export function GlobalTokenCta() {
   const pathname = usePathname();
 
-  if (pathname === BLINK_TOKEN_ROUTE) {
+  if (
+    pathname === BLINK_TOKEN_ROUTE ||
+    pathname.startsWith("/trade") ||
+    pathname.startsWith("/outcomes")
+  ) {
     return null;
   }
 

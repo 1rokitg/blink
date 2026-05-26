@@ -24,6 +24,7 @@ import {
 import { type AdminStats, getAdminStats } from "~/app/actions/get-admin-stats";
 import { setFeatureFlagAction } from "~/app/actions/set-feature-flag";
 import { BUILDER_ADDRESS } from "~/lib/blink/builder";
+import { SuperuserPanel } from "./superuser-panel";
 
 function truncateAddress(address: string) {
   if (!address) return "—";
@@ -450,6 +451,10 @@ export function AdminDashboard() {
               </button>
             </div>
           </div>
+
+          {role === "superuser" && walletAddress ? (
+            <SuperuserPanel actingWalletAddress={walletAddress} />
+          ) : null}
 
           <section className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">

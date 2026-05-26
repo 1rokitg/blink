@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useCallback, useState } from "react";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
 
 import Link from "next/link";
 
@@ -21,6 +21,7 @@ import {
   maskValue,
   useHideBalances,
 } from "~/lib/blink/hide-balances";
+import { fetchHip4Markets, getHip4MarketPath } from "~/lib/blink/hip4/markets";
 import { infoClient } from "~/lib/blink/hyperliquid";
 import { formatUsd } from "~/lib/blink/markets";
 
@@ -64,6 +65,22 @@ function formatTimestamp(timestamp: number) {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(timestamp));
+}
+
+function parseOutcomeBalanceCoin(coin: string) {
+  const match = coin.match(/^\+(\d+)$/);
+  if (!match) return null;
+
+  const encoded = Number(match[1]);
+  if (!Number.isFinite(encoded)) return null;
+
+  const side = encoded % 10;
+  if (side !== 0 && side !== 1) return null;
+
+  return {
+    outcome: Math.floor(encoded / 10),
+    side,
+  } as const;
 }
 
 function BreakdownRow({
@@ -202,6 +219,17 @@ export function ProfileEquitySection({
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
+  const hasOutcomeBalances = (
+    assetLocationQuery.data?.spot?.balances ?? []
+  ).some((balance) => parseOutcomeBalanceCoin(balance.coin) !== null);
+  const outcomeMarketsQuery = useQuery({
+    queryKey: ["blink", "hip4-markets", "profile"],
+    queryFn: fetchHip4Markets,
+    enabled: Boolean(walletAddress && hasOutcomeBalances),
+    refetchInterval: 120_000,
+    staleTime: 60_000,
+    gcTime: 300_000,
+  });
 
   const [followLoading, setFollowLoading] = useState(false);
   const toggleFollow = useCallback(async () => {
@@ -263,13 +291,98 @@ export function ProfileEquitySection({
   const spotEscrows = assetLocationQuery.data?.spot?.evmEscrows ?? [];
   const stakingSummary = assetLocationQuery.data?.stakingSummary;
   const stakingDelegations = assetLocationQuery.data?.delegations ?? [];
+  const plainSpotBalances = spotBalances.filter(
+    (balance) => parseOutcomeBalanceCoin(balance.coin) === null,
+  );
+  const outcomeBalanceMetaByCoin = useMemo(() => {
+    const entries = outcomeMarketsQuery.data ?? [];
+    const map = new Map<
+      string,
+      {
+        expiryLabel: string | null;
+        mid: number | null;
+        sideName: string;
+        slug: string;
+        subtitle: string;
+        title: string;
+      }
+    >();
+
+    for (const market of entries) {
+      map.set(market.yes.balanceCoin, {
+        expiryLabel: market.expiryLabel,
+        mid: market.yes.mid,
+        sideName: market.yes.name,
+        slug: market.slug,
+        subtitle: market.subtitle,
+        title: market.title,
+      });
+      map.set(market.no.balanceCoin, {
+        expiryLabel: market.expiryLabel,
+        mid: market.no.mid,
+        sideName: market.no.name,
+        slug: market.slug,
+        subtitle: market.subtitle,
+        title: market.title,
+      });
+    }
+
+    return map;
+  }, [outcomeMarketsQuery.data]);
+  const outcomeHoldings = useMemo(
+    () =>
+      spotBalances
+        .map((balance) => {
+          const parsed = parseOutcomeBalanceCoin(balance.coin);
+          if (!parsed) return null;
+
+          const total = Number(balance.total);
+          const hold = Number(balance.hold);
+          const available = Math.max(total - hold, 0);
+          const market = outcomeBalanceMetaByCoin.get(balance.coin);
+          const markPrice = market?.mid ?? null;
+
+          return {
+            available,
+            balanceCoin: balance.coin,
+            estimatedValue: markPrice !== null ? total * markPrice : null,
+            expiryLabel: market?.expiryLabel ?? null,
+            hold,
+            href: market ? getHip4MarketPath(market.slug) : null,
+            markPrice,
+            sideLabel: market?.sideName ?? (parsed.side === 0 ? "Yes" : "No"),
+            subtitle: market?.subtitle ?? "HIP-4 outcome market",
+            title: market?.title ?? `Outcome #${parsed.outcome}`,
+            total,
+          };
+        })
+        .filter((holding) => holding !== null),
+    [outcomeBalanceMetaByCoin, spotBalances],
+  );
+  const outcomesValue = outcomeHoldings.reduce(
+    (sum, holding) => sum + (holding.estimatedValue ?? 0),
+    0,
+  );
+  const totalOutcomeShares = outcomeHoldings.reduce(
+    (sum, holding) => sum + holding.total,
+    0,
+  );
+  const unpricedOutcomeCount = outcomeHoldings.filter(
+    (holding) => holding.estimatedValue === null,
+  ).length;
   const spotMeta =
-    spotBalances.length > 0 || spotEscrows.length > 0
-      ? `${spotBalances.length} spot asset${spotBalances.length === 1 ? "" : "s"}${spotEscrows.length ? ` • ${spotEscrows.length} escrowed` : ""}`
-      : `${spotPct.toFixed(0)}% of account value`;
+    plainSpotBalances.length > 0 || spotEscrows.length > 0
+      ? `${plainSpotBalances.length} spot asset${plainSpotBalances.length === 1 ? "" : "s"}${spotEscrows.length ? ` • ${spotEscrows.length} escrowed` : ""}`
+      : outcomeHoldings.length > 0
+        ? `${outcomeHoldings.length} HIP-4 holding${outcomeHoldings.length === 1 ? "" : "s"} moved below`
+        : `${spotPct.toFixed(0)}% of account value`;
   const stakingMeta = stakingSummary
     ? `${stakingDelegations.length} validator${stakingDelegations.length === 1 ? "" : "s"} • ${stakingSummary.nPendingWithdrawals} pending withdrawal${stakingSummary.nPendingWithdrawals === 1 ? "" : "s"}`
     : `${stakingPct.toFixed(0)}% of account value`;
+  const outcomesMeta =
+    outcomeHoldings.length > 0
+      ? `${outcomeHoldings.length} live holding${outcomeHoldings.length === 1 ? "" : "s"} • ${formatTokenAmount(totalOutcomeShares)} share${totalOutcomeShares === 1 ? "" : "s"}${unpricedOutcomeCount ? ` • ${unpricedOutcomeCount} awaiting mark` : ""}`
+      : "0 live holdings";
 
   const follows = followQuery.data;
 
@@ -452,12 +565,12 @@ export function ProfileEquitySection({
                   />
                 </div>
 
-                {spotBalances.length > 0 ? (
+                {plainSpotBalances.length > 0 ? (
                   <div className="space-y-2">
                     <p className="text-xs font-medium uppercase tracking-[0.14em] text-white/35">
                       Spot balances
                     </p>
-                    {spotBalances.map((balance) => {
+                    {plainSpotBalances.map((balance) => {
                       const total = Number(balance.total);
                       const hold = Number(balance.hold);
                       const available = Math.max(total - hold, 0);
@@ -500,7 +613,9 @@ export function ProfileEquitySection({
                   </div>
                 ) : (
                   <p className="text-sm text-white/42">
-                    No spot balances tracked in spot clearinghouse state.
+                    {outcomeHoldings.length > 0
+                      ? "All live spot balances for this wallet are allocated to HIP-4 outcomes, shown below."
+                      : "No spot balances tracked in spot clearinghouse state."}
                   </p>
                 )}
 
@@ -528,7 +643,7 @@ export function ProfileEquitySection({
 
                 <DetailRow
                   label="Tracked asset buckets"
-                  value={String(spotBalances.length + spotEscrows.length)}
+                  value={String(plainSpotBalances.length + spotEscrows.length)}
                 />
                 <p className="text-xs text-white/42">
                   Spot clearinghouse data reports token balances plus escrowed
@@ -743,6 +858,137 @@ export function ProfileEquitySection({
             </BreakdownRow>
 
             <BreakdownRow
+              itemValue="outcomes"
+              label="Outcome holdings"
+              meta={outcomesMeta}
+              value={
+                outcomeHoldings.length > 0 &&
+                unpricedOutcomeCount === outcomeHoldings.length
+                  ? "—"
+                  : maskNumberish(outcomesValue, formatUsd, hideBalances)
+              }
+              color="#8b5cf6"
+            >
+              <div className="space-y-4">
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <DetailRow
+                    label="Live holdings"
+                    value={String(outcomeHoldings.length)}
+                  />
+                  <DetailRow
+                    label="Total shares"
+                    value={maskValue(
+                      `${formatTokenAmount(totalOutcomeShares)} shares`,
+                      hideBalances,
+                    )}
+                  />
+                  <DetailRow
+                    label="Priced balances"
+                    value={`${outcomeHoldings.length - unpricedOutcomeCount}/${outcomeHoldings.length}`}
+                  />
+                </div>
+
+                {outcomeHoldings.length > 0 ? (
+                  <div className="space-y-2">
+                    {outcomeHoldings.map((holding) => (
+                      <div
+                        key={holding.balanceCoin}
+                        className="rounded-[12px] border border-white/[0.06] bg-white/[0.03] px-4 py-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium text-white">
+                                {holding.title}
+                              </p>
+                              <span className="rounded-full border border-[#8b5cf6]/35 bg-[#8b5cf6]/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#c4b5fd]">
+                                {holding.sideLabel}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-white/45">
+                              {holding.subtitle}
+                            </p>
+                            {holding.expiryLabel ? (
+                              <p className="mt-2 text-xs text-white/35">
+                                Settles {holding.expiryLabel}
+                              </p>
+                            ) : null}
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <p className="font-mono text-sm text-white/82">
+                              {maskValue(
+                                `${formatTokenAmount(holding.total)} shares`,
+                                hideBalances,
+                              )}
+                            </p>
+                            <p className="mt-1 text-xs text-white/45">
+                              {holding.estimatedValue !== null
+                                ? maskNumberish(
+                                    holding.estimatedValue,
+                                    formatUsd,
+                                    hideBalances,
+                                  )
+                                : "Mark unavailable"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                          <DetailRow
+                            label="Available"
+                            value={maskValue(
+                              `${formatTokenAmount(holding.available)} shares`,
+                              hideBalances,
+                            )}
+                          />
+                          <DetailRow
+                            label="On hold"
+                            value={maskValue(
+                              `${formatTokenAmount(holding.hold)} shares`,
+                              hideBalances,
+                            )}
+                          />
+                          <DetailRow
+                            label="Mark"
+                            value={
+                              holding.markPrice !== null
+                                ? maskValue(
+                                    `${holding.markPrice.toFixed(3)} USDH`,
+                                    hideBalances,
+                                  )
+                                : "—"
+                            }
+                          />
+                        </div>
+                        {holding.href ? (
+                          <div className="mt-3">
+                            <Link
+                              href={holding.href}
+                              className="text-xs font-medium text-[#bda7ff] transition hover:text-[#d4c1ff]"
+                            >
+                              Open outcome market
+                            </Link>
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-white/42">
+                    No HIP-4 outcome balances found in spot clearinghouse state.
+                  </p>
+                )}
+
+                {outcomeHoldings.length > 0 && unpricedOutcomeCount > 0 ? (
+                  <p className="text-xs text-white/42">
+                    Some outcome balances are already detected, but Blink is
+                    still waiting on live market metadata to price every line
+                    item.
+                  </p>
+                ) : null}
+              </div>
+            </BreakdownRow>
+
+            <BreakdownRow
               itemValue="orders"
               label="Pending orders (notional)"
               meta={`${openOrderCount} working orders`}
@@ -846,7 +1092,7 @@ export function ProfileEquitySection({
 
       <p className="mt-2 text-xs text-white/35">
         Realized PnL sums all closed fills. Equity includes spot + perps margin
-        + staking.
+        + staking + outcome holdings.
       </p>
 
       {!loading && !walletAddress && hasExplicitTarget && (

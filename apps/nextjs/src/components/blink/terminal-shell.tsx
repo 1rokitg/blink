@@ -101,6 +101,7 @@ import {
 import { emitTradingEvent } from "~/lib/blink/island-bus";
 import { AccountManagementModal } from "./account-management-modal";
 import { AssetIcon } from "./asset-icon";
+import { BlinkProUpsellCard } from "./blink-pro-upsell-card";
 import { BuilderSetupModal } from "./builder-setup-modal";
 import { MarketInfoBar } from "./market-info-bar";
 import { type PnlPositionData, PnlShareModal } from "./pnl-share-modal";
@@ -2928,6 +2929,20 @@ export function TerminalShell(props: { market: string }) {
                           <Wallet className="size-4" />
                           Import HL account
                         </DropdownMenuItem>
+                        {!isProMember ? (
+                          <DropdownMenuItem
+                            asChild
+                            className="rounded-[10px] px-3 py-2 text-sm text-[#9bddff] focus:bg-white/[0.08] focus:text-white"
+                          >
+                            <Link
+                              href="/pro"
+                              onClick={() => setProfileMenuOpen(false)}
+                            >
+                              <Sparkles className="size-4" />
+                              Upgrade to Pro
+                            </Link>
+                          </DropdownMenuItem>
+                        ) : null}
                         <DropdownMenuItem
                           className="rounded-[10px] px-3 py-2 text-sm text-white focus:bg-white/[0.08] focus:text-white"
                           onClick={() => setBlurBalances(!blurBalances)}
@@ -3006,26 +3021,27 @@ export function TerminalShell(props: { market: string }) {
             </div>
           ) : null}
           {tradeEnabled && showProPromo ? (
-            <div className="mt-3 flex items-center justify-between gap-3 rounded-[14px] border border-amber-300/30 bg-gradient-to-r from-amber-300/12 to-yellow-300/8 px-3 py-2.5">
-              <p className="text-sm text-amber-100/95">
-                Blink Pro unlocks lower builder fees and priority routing.
-              </p>
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/pro"
-                  className="rounded-lg border border-amber-200/30 bg-amber-200/20 px-2.5 py-1 text-xs font-semibold text-amber-100 transition hover:bg-amber-200/30"
-                >
-                  View Pro
-                </Link>
-                <button
-                  type="button"
-                  onClick={dismissProPromo}
-                  className="rounded-md border border-white/15 bg-white/[0.04] p-1 text-foreground/60 transition hover:text-white"
-                  aria-label="Dismiss Pro banner"
-                >
-                  <X className="size-3.5" />
-                </button>
-              </div>
+            <div className="relative mt-3">
+              <BlinkProUpsellCard
+                ctaHref="/pro"
+                ctaLabel="See Blink Pro"
+                description="Free trading stays open, but Pro is where the sharper desk layer starts: lower builder fees, faster routing priority, and better account surfaces."
+                eyebrow="Upgrade surface"
+                perks={[
+                  "Lower builder fees on eligible routed volume",
+                  "Priority routing and cleaner desk-level account surfaces",
+                  "Power-user upgrades for multi-wallet workflows and rewards visibility",
+                ]}
+                title="Push your edge with Blink Pro."
+              />
+              <button
+                type="button"
+                onClick={dismissProPromo}
+                className="absolute right-3 top-3 rounded-md border border-white/15 bg-white/[0.04] p-1 text-foreground/60 transition hover:text-white"
+                aria-label="Dismiss Pro banner"
+              >
+                <X className="size-3.5" />
+              </button>
             </div>
           ) : null}
 

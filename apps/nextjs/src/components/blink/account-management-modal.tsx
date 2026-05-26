@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircle2,
   ExternalLink,
@@ -24,6 +25,7 @@ import {
 } from "~/lib/blink/builder";
 import { createExchangeClient } from "~/lib/blink/hyperliquid";
 
+import { BlinkProUpsellCard } from "./blink-pro-upsell-card";
 import { ConnectTwitterButton } from "./connect-twitter-button";
 
 function truncateAddress(address: string) {
@@ -211,6 +213,21 @@ function ConnectionsTab() {
         </p>
       </div>
 
+      <div className="mt-5">
+        <BlinkProUpsellCard
+          ctaHref="/pro"
+          ctaLabel="See Pro desk layer"
+          description="Free gets you connected. Pro is where Blink starts feeling like a proper desk: sharper routing economics, stronger public profile status, and cleaner multi-wallet ops."
+          eyebrow="Desk upgrade"
+          perks={[
+            "Lower builder fees on active trading",
+            "Premium profile polish and status surfaces",
+            "Future multi-wallet and workflow upgrades",
+          ]}
+          title="Going beyond one basic setup?"
+        />
+      </div>
+
       {/* Connected wallets */}
       {wallets.length > 0 && (
         <div className="mt-5">
@@ -254,6 +271,18 @@ export function AccountManagementModal(props: {
   const [activeTab, setActiveTab] = useState<Tab>(
     props.initialTab ?? "Account",
   );
+  const proStatusQuery = useQuery({
+    queryKey: ["blink-pro-status", props.walletAddress],
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/builder/fee?wallet=${props.walletAddress}`,
+      );
+      if (!response.ok) throw new Error("Failed to load Pro status");
+      return response.json() as Promise<{ feeUnits: number; isPro: boolean }>;
+    },
+    enabled: Boolean(props.walletAddress),
+    staleTime: 60_000,
+  });
   const short = truncateAddress(props.walletAddress);
   const avatarUrl = `https://avatar.vercel.sh/${props.walletAddress}.png?size=96`;
 
@@ -356,6 +385,37 @@ export function AccountManagementModal(props: {
                   <div className="mt-2">
                     <VerificationRouteLink />
                   </div>
+                </div>
+                <div className="mt-4">
+                  <BlinkProUpsellCard
+                    ctaHref="/pro"
+                    ctaLabel={
+                      proStatusQuery.data?.isPro
+                        ? "View Blink Pro"
+                        : "Upgrade to Pro"
+                    }
+                    description={
+                      proStatusQuery.data?.isPro
+                        ? "Your account already gets the Pro routing tier. Keep using this profile surface as the social layer around your trading identity."
+                        : "Blink Pro sharpens the identity layer around your trading: lower fees, stronger profile status, and more convincing public surfaces when you share your account."
+                    }
+                    eyebrow="Account status"
+                    isPro={proStatusQuery.data?.isPro}
+                    perks={
+                      proStatusQuery.data?.isPro
+                        ? undefined
+                        : [
+                            "Lower builder fees on eligible volume",
+                            "Premium profile polish and status treatments",
+                            "Stronger social-proof surfaces across Blink",
+                          ]
+                    }
+                    title={
+                      proStatusQuery.data?.isPro
+                        ? "Blink Pro is active on this wallet."
+                        : "Turn this account into a stronger Blink identity."
+                    }
+                  />
                 </div>
                 <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
                   <button

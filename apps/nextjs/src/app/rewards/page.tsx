@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import Link from "next/link";
 
@@ -18,6 +18,7 @@ import {
   Twitter,
   Users,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { BlinkProUpsellCard } from "~/components/blink/blink-pro-upsell-card";
 import {
@@ -125,6 +126,10 @@ export default function RewardsPage() {
   const address = wallets[0]?.address;
   const growthMode = isGrowthModeEnabled();
   const referralMultiplier = growthMode ? getGrowthReferralMultiplier() : 1;
+
+  function handleClaimRequest() {
+    toast.success("Requested claim.");
+  }
 
   // Fetch or create referral code for this wallet
   const codeQuery = useQuery({
@@ -593,19 +598,45 @@ export default function RewardsPage() {
               </div>
 
               {/* Coming soon card */}
-              <div className="rounded-[20px] border border-[#fbbf24]/20 bg-[#fbbf24]/[0.05] p-5">
-                <div className="flex items-start gap-3">
-                  <Gift className="mt-0.5 size-5 shrink-0 text-amber-300/60" />
-                  <div>
-                    <p className="text-sm font-semibold text-white">
-                      Rewards coming soon
-                    </p>
-                    <p className="mt-1.5 text-xs leading-relaxed text-white/40">
-                      Fee-sharing and on-chain rewards for top referrers are in
-                      development. Every referral you make now counts toward
-                      your allocation.
-                    </p>
+              <div className="relative overflow-hidden rounded-[20px] border border-[#8fbaff33] bg-[linear-gradient(180deg,rgba(18,28,52,0.95),rgba(10,18,34,0.98))] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
+                <div className="pointer-events-none absolute inset-x-10 top-0 h-24 rounded-full bg-[#7ea9ff22] blur-3xl" />
+                <div className="pointer-events-none absolute -right-6 bottom-0 h-28 w-28 rounded-full bg-[#9bddff14] blur-3xl" />
+                <div className="relative">
+                  <div className="flex items-start gap-3">
+                    <Gift className="mt-0.5 size-5 shrink-0 text-amber-300/60" />
+                    <div>
+                      <p className="text-sm font-semibold text-white">
+                        Rewards coming soon
+                      </p>
+                      <p className="mt-1.5 text-xs leading-relaxed text-white/40">
+                        Fee-sharing and on-chain rewards for top referrers are
+                        in development. Every referral you make now counts
+                        toward your allocation.
+                      </p>
+                    </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={handleClaimRequest}
+                    className="group relative mt-4 w-full overflow-hidden rounded-[16px] border border-[#8fbaff52] bg-[linear-gradient(180deg,rgba(60,118,255,0.96),rgba(36,87,219,0.98))] px-4 py-3 text-left shadow-[0_18px_44px_rgba(37,90,224,0.28)] transition hover:scale-[1.01] hover:border-[#b5d2ff88] hover:shadow-[0_22px_56px_rgba(37,90,224,0.38)]"
+                  >
+                    <span className="pointer-events-none absolute inset-x-8 -top-5 h-12 rounded-full bg-white/20 blur-2xl transition group-hover:bg-white/25" />
+                    <span className="pointer-events-none absolute inset-px rounded-[15px] border border-white/10" />
+                    <span className="relative flex items-center justify-between gap-3">
+                      <span>
+                        <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+                          Early payout access
+                        </span>
+                        <span className="mt-1 block text-sm font-semibold text-white">
+                          Request claim
+                        </span>
+                      </span>
+                      <span className="inline-flex size-9 items-center justify-center rounded-full bg-white/12 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
+                        <ArrowUpRight className="size-4 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                      </span>
+                    </span>
+                  </button>
                 </div>
               </div>
 

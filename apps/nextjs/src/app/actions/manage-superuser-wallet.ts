@@ -22,6 +22,7 @@ import {
   grantInternalRole,
 } from "~/lib/blink/admin-roles.server";
 import { BUILDER_ADDRESS, builderMaxFeeRate } from "~/lib/blink/builder";
+import { upsertGiftBlinkMembership } from "~/lib/blink/gift-membership.server";
 import { infoClient } from "~/lib/blink/hyperliquid";
 
 const walletSchema = z.string().regex(/^0x[0-9a-fA-F]{40}$/);
@@ -51,7 +52,12 @@ const referralSchema = z.object({
 
 const membershipSchema = z.object({
   actingWalletAddress: walletSchema,
-  durationDays: z.union([z.literal(30), z.literal(90), z.literal(365)]),
+  durationDays: z.union([
+    z.literal(30),
+    z.literal(90),
+    z.literal(365),
+    z.literal("lifetime"),
+  ]),
   targetWalletAddress: walletSchema,
   tier: z.enum(["basic", "preferred", "premium"]),
 });
@@ -236,6 +242,13 @@ export type SuperuserSearchResult = {
 
 function normalizeWallet(walletAddress: string) {
   return walletAddress.trim().toLowerCase();
+}
+
+function toIsoTimestamp(value: Date | string | null | undefined) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
 }
 
 function getMetadataString(metadata: unknown, key: string): string | null {
@@ -726,7 +739,7 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
       city: getMetadataString(metadata, "city"),
       code: getMetadataString(metadata, "code"),
       country: getMetadataString(metadata, "country"),
-      createdAt: row.createdAt.toISOString(),
+      createdAt: toIsoTimestamp(row.createdAt) ?? new Date().toISOString(),
       eventType: row.eventType,
       fingerprint: getMetadataString(metadata, "fingerprint"),
       ipAddress: getMetadataString(metadata, "ipAddress"),
@@ -741,7 +754,7 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
     };
   });
   const builderApprovals = approvalHistoryRows.map((row) => ({
-    approvedAt: row.approvedAt.toISOString(),
+    approvedAt: toIsoTimestamp(row.approvedAt) ?? new Date().toISOString(),
     builderAddress: row.builderAddress,
     maxFeeRate: row.maxFeeRate,
     status: row.status,
@@ -900,7 +913,9 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
     appFingerprint,
     builderApproval: approvalRow[0]
       ? {
-          approvedAt: approvalRow[0].approvedAt.toISOString(),
+          approvedAt:
+            toIsoTimestamp(approvalRow[0].approvedAt) ??
+            new Date().toISOString(),
           builderAddress: approvalRow[0].builderAddress,
           maxFeeRate: approvalRow[0].maxFeeRate,
           status: approvalRow[0].status,
@@ -913,12 +928,11 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
     },
     membership: membershipRow[0]
       ? {
-          currentPeriodEnd:
-            membershipRow[0].currentPeriodEnd?.toISOString() ?? null,
+          currentPeriodEnd: toIsoTimestamp(membershipRow[0].currentPeriodEnd),
           paymentMethod: membershipRow[0].paymentMethod,
           status: membershipRow[0].status,
           tier: membershipRow[0].tier,
-          updatedAt: membershipRow[0].updatedAt?.toISOString() ?? null,
+          updatedAt: toIsoTimestamp(membershipRow[0].updatedAt),
         }
       : null,
     metrics: {
@@ -933,13 +947,15 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
     recentReferrals: recentReferrals.map((row) => ({
       address: row.address,
       code: row.code,
-      joinedAt: row.joinedAt.toISOString(),
+      joinedAt: toIsoTimestamp(row.joinedAt) ?? new Date().toISOString(),
     })),
     referredCount: referredCountRows[0]?.count ?? 0,
     referredBy: referredByRow[0]
       ? {
           code: referredByRow[0].code,
-          createdAt: referredByRow[0].createdAt.toISOString(),
+          createdAt:
+            toIsoTimestamp(referredByRow[0].createdAt) ??
+            new Date().toISOString(),
           referrerAddress: referredByRow[0].referrerAddress,
         }
       : null,
@@ -949,11 +965,13 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
       grantedBy: roleRow[0]?.grantedBy ?? null,
       note: roleRow[0]?.note ?? null,
       role,
-      updatedAt: roleRow[0]?.updatedAt?.toISOString() ?? null,
+      updatedAt: toIsoTimestamp(roleRow[0]?.updatedAt),
     },
     twitter: twitterRow[0]
       ? {
-          connectedAt: twitterRow[0].connectedAt.toISOString(),
+          connectedAt:
+            toIsoTimestamp(twitterRow[0].connectedAt) ??
+            new Date().toISOString(),
           twitterName: twitterRow[0].twitterName,
           twitterUsername: twitterRow[0].twitterUsername,
         }
@@ -964,7 +982,8 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
           displayName: profileRow[0].displayName,
           ensName: profileRow[0].ensName,
           isPro: profileRow[0].isPro,
-          joinedAt: profileRow[0].joinedAt.toISOString(),
+          joinedAt:
+            toIsoTimestamp(profileRow[0].joinedAt) ?? new Date().toISOString(),
         }
       : null,
     walletAddress,
@@ -1033,52 +1052,53 @@ export async function upsertSuperuserReferralCodeAction(input: unknown) {
 export async function giftBlinkMembershipAction(input: unknown) {
   const parsed = membershipSchema.safeParse(input);
   if (!parsed.success) {
-    throw new Error("Invalid membership payload");
+    return {
+      ok: false as const,
+      code: "invalid_payload" as const,
+      error: "Invalid membership payload.",
+    };
   }
 
-  const actingWalletAddress = normalizeWallet(parsed.data.actingWalletAddress);
-  const targetWalletAddress = normalizeWallet(parsed.data.targetWalletAddress);
-  await assertSuperuser(actingWalletAddress);
+  try {
+    const actingWalletAddress = normalizeWallet(
+      parsed.data.actingWalletAddress,
+    );
+    await assertSuperuser(actingWalletAddress);
+  } catch (error) {
+    return {
+      ok: false as const,
+      code: "unauthorized" as const,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unauthorized superuser action.",
+    };
+  }
 
-  const currentPeriodEnd = new Date(
-    Date.now() + parsed.data.durationDays * 24 * 60 * 60 * 1000,
-  );
+  const result = await upsertGiftBlinkMembership({
+    duration: parsed.data.durationDays,
+    tier: parsed.data.tier,
+    walletAddress: parsed.data.targetWalletAddress,
+  });
 
-  await db
-    .insert(BlinkMembership)
-    .values({
-      currentPeriodEnd,
-      paymentMethod: "gift",
-      status: "active",
-      tier: parsed.data.tier,
-      walletAddress: targetWalletAddress,
-    })
-    .onConflictDoUpdate({
-      target: BlinkMembership.walletAddress,
-      set: {
-        currentPeriodEnd,
-        paymentMethod: "gift",
-        status: "active",
-        tier: parsed.data.tier,
-      },
-    });
-
-  await db
-    .insert(UserProfile)
-    .values({
-      isPro: true,
-      walletAddress: targetWalletAddress,
-    })
-    .onConflictDoUpdate({
-      target: UserProfile.walletAddress,
-      set: {
-        isPro: true,
-      },
-    });
+  if (!result.ok) {
+    return {
+      ok: false as const,
+      code: result.code,
+      error: result.error,
+    };
+  }
 
   return {
-    currentPeriodEnd: currentPeriodEnd.toISOString(),
-    ok: true,
+    ok: true as const,
+    membership: {
+      currentPeriodEnd: result.currentPeriodEnd,
+      paymentMethod: result.paymentMethod,
+      status: result.status,
+      tier: result.tier,
+      updatedAt: new Date().toISOString(),
+    },
+    walletAddress: result.walletAddress,
   };
 }
 

@@ -87,7 +87,9 @@ export function SuperuserPanel(props: { actingWalletAddress: string }) {
   const [giftTier, setGiftTier] = useState<"basic" | "preferred" | "premium">(
     "basic",
   );
-  const [giftDuration, setGiftDuration] = useState<30 | 90 | 365>(30);
+  const [giftDuration, setGiftDuration] = useState<30 | 90 | 365 | "lifetime">(
+    365,
+  );
   const [builderFeeDraft, setBuilderFeeDraft] = useState(builderMaxFeeRate());
 
   useEffect(() => {
@@ -158,11 +160,14 @@ export function SuperuserPanel(props: { actingWalletAddress: string }) {
     key: string,
     action: () => Promise<void>,
     successMessage: string,
+    options?: { skipRefresh?: boolean },
   ) {
     try {
       setSaving(key);
       await action();
-      await refreshSnapshot();
+      if (!options?.skipRefresh) {
+        await refreshSnapshot();
+      }
       toast.success(successMessage);
     } catch (error) {
       const message =
@@ -1112,32 +1117,85 @@ export function SuperuserPanel(props: { actingWalletAddress: string }) {
                 <select
                   value={giftDuration}
                   onChange={(event) =>
-                    setGiftDuration(Number(event.target.value) as 30 | 90 | 365)
+                    setGiftDuration(
+                      event.target.value === "lifetime"
+                        ? "lifetime"
+                        : (Number(event.target.value) as 30 | 90 | 365),
+                    )
                   }
                   className="h-11 rounded-xl border border-white/10 bg-[#121726] px-3 text-sm text-white outline-none"
                 >
                   <option value={30}>30 days</option>
                   <option value={90}>90 days</option>
                   <option value={365}>365 days</option>
+                  <option value="lifetime">Lifetime</option>
                 </select>
               </div>
               <button
                 type="button"
-                disabled={saving === "membership"}
-                onClick={() =>
-                  void runAction(
-                    "membership",
-                    async () => {
-                      await giftBlinkMembershipAction({
+                disabled={saving === "membership" || !snapshot}
+                onClick={() => {
+                  if (!snapshot) return;
+
+                  void (async () => {
+                    try {
+                      setSaving("membership");
+                      const result = await giftBlinkMembershipAction({
                         actingWalletAddress: props.actingWalletAddress,
                         durationDays: giftDuration,
                         targetWalletAddress: snapshot.walletAddress,
                         tier: giftTier,
                       });
-                    },
-                    "Gifted Blink Pro membership.",
-                  )
-                }
+
+                      if (!result.ok) {
+                        toast.error(result.error);
+                        return;
+                      }
+
+                      setSnapshot((current) =>
+                        current
+                          ? {
+                              ...current,
+                              membership: result.membership,
+                              userProfile: {
+                                bio: current.userProfile?.bio ?? null,
+                                displayName:
+                                  current.userProfile?.displayName ?? null,
+                                ensName: current.userProfile?.ensName ?? null,
+                                isPro: true,
+                                joinedAt:
+                                  current.userProfile?.joinedAt ??
+                                  new Date().toISOString(),
+                              },
+                            }
+                          : current,
+                      );
+
+                      toast.success(
+                        giftDuration === "lifetime"
+                          ? "Gifted lifetime Blink Pro."
+                          : `Gifted Blink Pro for ${giftDuration} days.`,
+                      );
+
+                      try {
+                        await refreshSnapshot();
+                      } catch (refreshError) {
+                        console.warn(
+                          "[superuser] membership gifted but snapshot refresh failed",
+                          refreshError,
+                        );
+                      }
+                    } catch (error) {
+                      const message =
+                        error instanceof Error
+                          ? error.message
+                          : "Failed to gift membership";
+                      toast.error(message);
+                    } finally {
+                      setSaving(null);
+                    }
+                  })();
+                }}
                 className="mt-3 inline-flex h-11 w-full items-center justify-center rounded-xl border border-emerald-400/30 bg-emerald-400/10 text-sm font-medium text-emerald-200 transition hover:bg-emerald-400/15 disabled:opacity-60"
               >
                 {saving === "membership" ? (

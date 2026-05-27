@@ -145,7 +145,10 @@ function getRangeConfig(range: AdminRange) {
   return ADMIN_RANGE_OPTIONS[0] as (typeof ADMIN_RANGE_OPTIONS)[number];
 }
 
-export function AdminDashboard(props?: { section?: "overview" | "users" }) {
+export function AdminDashboard(props?: {
+  section?: "overview" | "users";
+  initialUserAddress?: string;
+}) {
   const pathname = usePathname();
   const { user } = usePrivy();
   const { wallets } = useWallets();
@@ -221,7 +224,10 @@ export function AdminDashboard(props?: { section?: "overview" | "users" }) {
         active:
           item.href === "/internal"
             ? currentSection === "overview"
-            : item.href !== "#" && pathname === item.href,
+            : item.href === "/internal/users"
+              ? currentSection === "users" &&
+                pathname.startsWith("/internal/users")
+              : item.href !== "#" && pathname === item.href,
       })),
     [currentSection, pathname],
   );
@@ -479,7 +485,10 @@ export function AdminDashboard(props?: { section?: "overview" | "users" }) {
 
             <div className="mt-4">
               {role === "superuser" && walletAddress ? (
-                <SuperuserPanel actingWalletAddress={walletAddress} />
+                <SuperuserPanel
+                  actingWalletAddress={walletAddress}
+                  initialWalletAddress={props.initialUserAddress}
+                />
               ) : (
                 <section className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
                   <p className="text-sm leading-6 text-foreground/58">

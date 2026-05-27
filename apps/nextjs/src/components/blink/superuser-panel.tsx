@@ -1,14 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import {
   Activity,
   ArrowUpRight,
+  Copy,
   Fingerprint,
+  Link2,
   Loader2,
+  RefreshCw,
   Search,
   Shield,
   Sparkles,
@@ -24,6 +28,7 @@ import {
   upsertSuperuserReferralCodeAction,
 } from "~/app/actions/manage-superuser-wallet";
 import { builderMaxFeeRate } from "~/lib/blink/builder";
+import { getInternalUserPath } from "~/lib/blink/wallet-address";
 
 function formatTimestamp(value: string | null | undefined) {
   if (!value) return "—";
@@ -70,9 +75,14 @@ function truncateMiddle(value: string, max = 42) {
   return `${value.slice(0, edge)}…${value.slice(-edge)}`;
 }
 
-export function SuperuserPanel(props: { actingWalletAddress: string }) {
-  const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(false);
+export function SuperuserPanel(props: {
+  actingWalletAddress: string;
+  initialWalletAddress?: string;
+}) {
+  const router = useRouter();
+  const [query, setQuery] = useState(props.initialWalletAddress ?? "");
+  const [loading, setLoading] = useState(Boolean(props.initialWalletAddress));
+  const initialLoadKeyRef = useRef<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<SuperuserWalletSnapshot | null>(
     null,
@@ -109,52 +119,103 @@ export function SuperuserPanel(props: { actingWalletAddress: string }) {
     );
   }, [snapshot]);
 
+  const loadWallet = useCallback(
+    async (
+      searchQuery: string,
+      options?: { syncUrl?: boolean; showLoading?: boolean },
+    ) => {
+      const nextQuery = searchQuery.trim();
+      if (!nextQuery) {
+        setLookupError("Enter a wallet address or referral code.");
+        return;
+      }
+
+      if (options?.showLoading !== false) {
+        setLoading(true);
+      }
+      setLookupError(null);
+
+      try {
+        const result = await getSuperuserWalletSnapshot({
+          actingWalletAddress: props.actingWalletAddress,
+          query: nextQuery,
+        });
+
+        if (!result) {
+          setSnapshot(null);
+          setLookupError("No wallet found for that search.");
+          return;
+        }
+
+        setSnapshot(result);
+        setQuery(result.walletAddress);
+
+        if (options?.syncUrl !== false) {
+          router.replace(getInternalUserPath(result.walletAddress), {
+            scroll: false,
+          });
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Failed to load wallet snapshot";
+        setSnapshot(null);
+        setLookupError(message);
+        toast.error(message);
+      } finally {
+        if (options?.showLoading !== false) {
+          setLoading(false);
+        }
+      }
+    },
+    [props.actingWalletAddress, router],
+  );
+
+  useEffect(() => {
+    const wallet = props.initialWalletAddress?.trim();
+    if (!wallet || !props.actingWalletAddress) return;
+
+    const loadKey = `${props.actingWalletAddress}:${wallet}`;
+    if (initialLoadKeyRef.current === loadKey) return;
+    initialLoadKeyRef.current = loadKey;
+
+    setQuery(wallet);
+    void loadWallet(wallet, { syncUrl: false, showLoading: true });
+  }, [props.actingWalletAddress, props.initialWalletAddress, loadWallet]);
+
   async function handleLookup() {
-    const nextQuery = query.trim();
-    if (!nextQuery) {
-      toast.error("Enter a wallet address or referral code.");
-      return;
-    }
+    await loadWallet(query, { syncUrl: true, showLoading: true });
+  }
+
+  async function refreshSnapshot() {
+    const target =
+      snapshot?.walletAddress ?? props.initialWalletAddress ?? query;
+    if (!target.trim()) return;
 
     setLoading(true);
     setLookupError(null);
 
     try {
-      const result = await getSuperuserWalletSnapshot({
-        actingWalletAddress: props.actingWalletAddress,
-        query: nextQuery,
-      });
-
-      if (!result) {
-        setSnapshot(null);
-        setLookupError("No wallet found for that search.");
-        return;
-      }
-
-      setSnapshot(result);
-      setQuery(result.walletAddress);
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Failed to load wallet snapshot";
-      setSnapshot(null);
-      setLookupError(message);
-      toast.error(message);
+      await loadWallet(target, { syncUrl: true, showLoading: false });
     } finally {
       setLoading(false);
     }
   }
 
-  async function refreshSnapshot() {
-    if (!snapshot) return;
+  const copyShareLink = useCallback(async () => {
+    const wallet = snapshot?.walletAddress ?? props.initialWalletAddress;
+    if (!wallet || typeof window === "undefined") return;
 
-    const result = await getSuperuserWalletSnapshot({
-      actingWalletAddress: props.actingWalletAddress,
-      query: snapshot.walletAddress,
-    });
-    setSnapshot(result);
-  }
+    const url = `${window.location.origin}${getInternalUserPath(wallet)}`;
+
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Internal user link copied.");
+    } catch {
+      toast.error("Could not copy link.");
+    }
+  }, [props.initialWalletAddress, snapshot?.walletAddress]);
 
   async function runAction(
     key: string,
@@ -233,6 +294,16 @@ export function SuperuserPanel(props: { actingWalletAddress: string }) {
             )}
             Inspect wallet
           </button>
+          <button
+            type="button"
+            onClick={() => void refreshSnapshot()}
+            disabled={loading || (!snapshot && !props.initialWalletAddress)}
+            title="Reload wallet data"
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm font-medium text-white/80 transition hover:bg-white/[0.08] disabled:opacity-60"
+          >
+            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
         </div>
         {lookupError ? (
           <p className="mt-3 text-sm text-rose-300">{lookupError}</p>
@@ -273,6 +344,27 @@ export function SuperuserPanel(props: { actingWalletAddress: string }) {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void copyShareLink()}
+                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 text-sm text-amber-100 transition hover:bg-amber-400/15"
+                  >
+                    <Link2 className="size-3.5" />
+                    Copy internal link
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(
+                        snapshot.walletAddress,
+                      );
+                      toast.success("Wallet address copied.");
+                    }}
+                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-sm text-white/78 transition hover:bg-white/[0.08]"
+                  >
+                    <Copy className="size-3.5" />
+                    Copy wallet
+                  </button>
                   <Link
                     href={`/profile/${snapshot.referralCode ?? snapshot.walletAddress}`}
                     className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 text-sm text-white/78 transition hover:bg-white/[0.08]"

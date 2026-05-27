@@ -5,6 +5,7 @@ import {
   postDiscordWebhook,
 } from "./discord-webhook.server";
 import { getProfileSlugByWalletAddress } from "./resolve-address";
+import { getInternalUserPath } from "./wallet-address";
 
 export const LIVE_ACTIVITY_EVENT_TYPES = [
   "signup",
@@ -90,7 +91,7 @@ export async function notifyLiveActivityAlert(input: {
   const profileSlug =
     (await getProfileSlugByWalletAddress(walletAddress)) ?? walletAddress;
   const profileUrl = `${getCanonicalAppUrl()}/profile/${encodeURIComponent(profileSlug)}`;
-  const internalUrl = `${getCanonicalAppUrl()}/internal/users`;
+  const internalUrl = `${getCanonicalAppUrl()}${getInternalUserPath(walletAddress)}`;
   const pingPrefix = env.DISCORD_ACTIVITY_PING_USER_ID
     ? `<@${env.DISCORD_ACTIVITY_PING_USER_ID}> `
     : "";

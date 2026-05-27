@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { getTwitterConnection } from "~/app/actions/get-twitter-connection";
 import {
   getIssueErrorCode,
+  getWalletConnectErrorMessage,
   isLikelyDismissedWalletFlow,
   reportIssueEvent,
 } from "~/lib/blink/issue-reporting";
@@ -352,7 +353,7 @@ export function ConnectTwitterButton({
 
       const code = getIssueErrorCode(error);
       setLastIssueCode(code);
-      toast.error("Could not log in with wallet. Please try connecting again.");
+      toast.error(getWalletConnectErrorMessage(error, { authenticated }));
       void reportIssueEvent({
         eventType: "issue_auto",
         category: "wallet-connect",

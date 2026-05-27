@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -34,6 +34,7 @@ import {
   getHip4MarketPath,
 } from "~/lib/blink/hip4/markets";
 import { infoClient } from "~/lib/blink/hyperliquid";
+import { runWalletConnect } from "~/lib/blink/wallet-connect";
 import { BuilderSetupModal } from "../builder-setup-modal";
 import { TerminalOrderBook } from "../terminal-order-book";
 
@@ -90,7 +91,7 @@ function OutcomeStatCard(props: {
 }
 
 export function OutcomeMarketShell(props: { market: OutcomeMarket }) {
-  const { authenticated, login } = usePrivy();
+  const { authenticated, login, linkWallet } = usePrivy();
   const { wallets } = useWallets();
   const queryClient = useQueryClient();
 
@@ -171,9 +172,16 @@ export function OutcomeMarketShell(props: { market: OutcomeMarket }) {
       ? shareCount
       : Math.max(0, selectedOutcomeBalance - shareCount) * effectivePrice;
 
+  const requestWallet = useCallback(async () => {
+    await runWalletConnect(
+      { authenticated, login, linkWallet },
+      { source: "outcome-market-shell" },
+    );
+  }, [authenticated, linkWallet, login]);
+
   const handleSubmit = async () => {
     if (!authenticated || !walletAddress) {
-      login();
+      await requestWallet();
       return;
     }
 
@@ -487,9 +495,9 @@ export function OutcomeMarketShell(props: { market: OutcomeMarket }) {
                 </p>
                 <Button
                   className="mt-5 h-11 w-full rounded-xl bg-[#2c6bff] font-semibold hover:bg-[#2c6bff]/90"
-                  onClick={() => login()}
+                  onClick={() => void requestWallet()}
                 >
-                  Connect wallet
+                  {authenticated ? "Link wallet" : "Connect wallet"}
                 </Button>
               </div>
             ) : (

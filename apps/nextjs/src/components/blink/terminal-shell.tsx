@@ -105,6 +105,7 @@ import {
 } from "~/lib/blink/order-entry-preferences";
 
 import { emitTradingEvent } from "~/lib/blink/island-bus";
+import { runWalletConnect } from "~/lib/blink/wallet-connect";
 import { AccountManagementModal } from "./account-management-modal";
 import { AssetIcon } from "./asset-icon";
 import { BlinkProUpsellCard } from "./blink-pro-upsell-card";
@@ -188,7 +189,20 @@ function roundWithMode(
 }
 
 function ConnectGate() {
-  const { login } = usePrivy();
+  const { login, linkWallet, authenticated, logout } = usePrivy();
+  const [connecting, setConnecting] = useState(false);
+
+  const handleConnect = useCallback(async () => {
+    setConnecting(true);
+    try {
+      await runWalletConnect(
+        { authenticated, login, linkWallet },
+        { source: "terminal-connect-gate" },
+      );
+    } finally {
+      setConnecting(false);
+    }
+  }, [authenticated, linkWallet, login]);
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-6 py-10 text-foreground">
@@ -211,22 +225,37 @@ function ConnectGate() {
           <div className="pointer-events-none absolute inset-0 rounded-[24px] bg-[radial-gradient(ellipse_at_top_left,rgba(44,107,255,0.08),transparent_55%)]" />
 
           <h1 className="text-[2rem] font-semibold leading-tight tracking-[-0.03em] text-white">
-            Sign in to trade.
+            {authenticated ? "Link wallet to trade." : "Sign in to trade."}
           </h1>
           <p className="mt-3 text-sm leading-6 text-foreground/50">
-            Blink creates a non-custodial wallet automatically. Connect your
-            wallet to get started.
+            {authenticated
+              ? "You're signed in, but Blink still needs your external wallet linked before trading."
+              : "Connect a non-custodial wallet to access Hyperliquid markets on Blink."}
           </p>
 
-          {/* Wallet fallback */}
           <button
             type="button"
-            onClick={() => login()}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-[14px] border border-white/[0.09] bg-white/[0.04] text-sm font-medium text-white/80 transition hover:border-white/[0.16] hover:bg-white/[0.07] active:scale-[0.98]"
+            disabled={connecting}
+            onClick={() => void handleConnect()}
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-[14px] border border-white/[0.09] bg-white/[0.04] text-sm font-medium text-white/80 transition hover:border-white/[0.16] hover:bg-white/[0.07] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
           >
-            <Wallet className="size-4 text-white/55" />
-            Connect Wallet
+            {connecting ? (
+              <Loader2 className="size-4 animate-spin text-white/55" />
+            ) : (
+              <Wallet className="size-4 text-white/55" />
+            )}
+            {authenticated ? "Link wallet" : "Connect wallet"}
           </button>
+
+          {authenticated ? (
+            <button
+              type="button"
+              onClick={() => void logout()}
+              className="mt-3 w-full text-center text-xs text-foreground/40 transition hover:text-foreground/65"
+            >
+              Sign out and start over
+            </button>
+          ) : null}
 
           {/* Feature pills */}
           <div className="mt-6 grid grid-cols-3 gap-2">

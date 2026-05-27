@@ -44,6 +44,31 @@ export function isLikelyDismissedWalletFlow(error: unknown) {
   ].some((token) => message.includes(token));
 }
 
+export function isPrivyAlreadyLoggedInError(error: unknown) {
+  const message = getIssueErrorCode(error).toLowerCase();
+
+  return (
+    message.includes("already logged in") ||
+    message.includes("use a `link`") ||
+    message.includes("use a link helper")
+  );
+}
+
+export function getWalletConnectErrorMessage(
+  error: unknown,
+  options?: { authenticated?: boolean },
+) {
+  if (isPrivyAlreadyLoggedInError(error)) {
+    return "You're already signed in. Use Link wallet to connect your external wallet, or sign out and try again.";
+  }
+
+  if (options?.authenticated) {
+    return "Couldn't link your wallet. Try again, disable other wallet extensions, or use another browser.";
+  }
+
+  return "Couldn't connect your wallet. Try again, or use another browser if the popup doesn't open.";
+}
+
 export async function reportIssueEvent(input: ReportIssueEventInput) {
   try {
     await fetch("/api/metrics/event", {

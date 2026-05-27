@@ -12,6 +12,7 @@ import {
   Loader2,
   RefreshCw,
   Search,
+  Wrench,
 } from "lucide-react";
 import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
 
@@ -102,7 +103,12 @@ function issueTypeBadge(type: "issue_auto" | "issue_feedback") {
   );
 }
 
-type NavItem = { label: string; href: string; soon?: boolean };
+type NavItem = {
+  label: string;
+  href: string;
+  soon?: boolean;
+  icon?: typeof Wrench;
+};
 type AdminRange = "5m" | "15m" | "1h" | "1d" | "7d" | "30d" | "90d";
 
 const ADMIN_RANGE_OPTIONS: Array<{
@@ -122,6 +128,7 @@ const ADMIN_RANGE_OPTIONS: Array<{
 
 const INTERNAL_NAV_ITEMS: NavItem[] = [
   { label: "Home", href: "/internal" },
+  { label: "Tools", href: "/internal/tools", icon: Wrench },
   { label: "Affiliates", href: "/internal/affiliates" },
   { label: "Users", href: "/internal/users" },
   { label: "Payments", href: "#", soon: true },
@@ -212,7 +219,7 @@ export function AdminDashboard(props?: { section?: "overview" | "users" }) {
         active:
           item.href === "/internal"
             ? currentSection === "overview"
-            : pathname === item.href,
+            : item.href !== "#" && pathname === item.href,
       })),
     [currentSection, pathname],
   );
@@ -403,17 +410,20 @@ export function AdminDashboard(props?: { section?: "overview" | "users" }) {
               Internal
             </p>
             <div className="mt-2 space-y-1">
-              {navItems.map(({ label, active, href, soon }) => (
+              {navItems.map(({ label, active, href, soon, icon: Icon }) => (
                 <Link
                   key={label}
                   href={href}
-                  className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition ${
+                  className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${
                     active
                       ? "bg-white/12 text-white"
                       : "text-foreground/60 hover:bg-white/[0.06] hover:text-white/85"
                   }`}
                 >
-                  {label}
+                  {Icon ? (
+                    <Icon className="size-4 shrink-0 text-foreground/55" />
+                  ) : null}
+                  <span className="flex-1">{label}</span>
                   {!active && soon ? (
                     <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">
                       Soon
@@ -487,17 +497,20 @@ export function AdminDashboard(props?: { section?: "overview" | "users" }) {
             Internal
           </p>
           <div className="mt-2 space-y-1">
-            {navItems.map(({ label, active, href, soon }) => (
+            {navItems.map(({ label, active, href, soon, icon: Icon }) => (
               <Link
                 key={label}
                 href={href}
-                className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm transition ${
+                className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${
                   active
                     ? "bg-white/12 text-white"
                     : "text-foreground/60 hover:bg-white/[0.06] hover:text-white/85"
                 }`}
               >
-                {label}
+                {Icon ? (
+                  <Icon className="size-4 shrink-0 text-foreground/55" />
+                ) : null}
+                <span className="flex-1">{label}</span>
                 {!active && soon ? (
                   <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">
                     Soon

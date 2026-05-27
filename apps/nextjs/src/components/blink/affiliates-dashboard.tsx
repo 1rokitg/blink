@@ -3,20 +3,22 @@
 import { useEffect, useMemo, useState } from "react";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { Copy, ExternalLink } from "lucide-react";
+import { Copy, ExternalLink, Wrench } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@acme/ui/badge";
 
 import {
-  getAdminAccess,
   type AdminAccessResult,
+  getAdminAccess,
 } from "~/app/actions/get-admin-access";
 import { AFFILIATE_SEEDS } from "~/lib/blink/affiliate-seeds";
 
 export function AffiliatesDashboard() {
+  const pathname = usePathname();
   const { user } = usePrivy();
   const { wallets } = useWallets();
   const connectedWallets = useMemo(
@@ -28,10 +30,9 @@ export function AffiliatesDashboard() {
   );
   const identityEmails = useMemo(
     () =>
-      [
-        user?.email?.address,
-        user?.google?.email,
-      ].filter((email): email is string => Boolean(email)),
+      [user?.email?.address, user?.google?.email].filter(
+        (email): email is string => Boolean(email),
+      ),
     [user],
   );
   const [adminAccess, setAdminAccess] = useState<AdminAccessResult>({
@@ -126,13 +127,32 @@ export function AffiliatesDashboard() {
           <div className="mt-2 space-y-1">
             <Link
               href="/internal"
-              className="flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm text-foreground/60 transition hover:bg-white/[0.06] hover:text-white/85"
+              className={`flex w-full items-center rounded-xl px-3 py-2 text-left text-sm transition ${
+                pathname === "/internal"
+                  ? "bg-white/12 text-white"
+                  : "text-foreground/60 hover:bg-white/[0.06] hover:text-white/85"
+              }`}
             >
               Home
             </Link>
             <Link
+              href="/internal/tools"
+              className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${
+                pathname === "/internal/tools"
+                  ? "bg-white/12 text-white"
+                  : "text-foreground/60 hover:bg-white/[0.06] hover:text-white/85"
+              }`}
+            >
+              <Wrench className="size-4 shrink-0 text-foreground/55" />
+              Tools
+            </Link>
+            <Link
               href="/internal/affiliates"
-              className="flex w-full items-center justify-between rounded-xl bg-white/12 px-3 py-2 text-left text-sm text-white transition"
+              className={`flex w-full items-center rounded-xl px-3 py-2 text-left text-sm transition ${
+                pathname === "/internal/affiliates"
+                  ? "bg-white/12 text-white"
+                  : "text-foreground/60 hover:bg-white/[0.06] hover:text-white/85"
+              }`}
             >
               Affiliates
             </Link>

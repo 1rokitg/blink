@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, count, desc, eq, gte, sql } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
 import {
@@ -10,6 +10,10 @@ import {
 
 import { env } from "~/env";
 
+import {
+  isLiveActivityEventType,
+  notifyLiveActivityAlert,
+} from "./activity-alerts.server";
 import { BUILDER_FEE_UNITS } from "./builder";
 import { GROWTH_ZERO_FEE_MARKETS, isGrowthModeEnabled } from "./growth-mode";
 import { infoClient } from "./hyperliquid";
@@ -126,11 +130,41 @@ async function getActiveProSet() {
   return new Set(activeProRows.map((row) => row.walletAddress.toLowerCase()));
 }
 
+async function countWalletMetricEvents(
+  eventType: string,
+  walletAddress: string,
+) {
+  const rows = await db
+    .select({ c: count() })
+    .from(MetricEvent)
+    .where(
+      and(
+        eq(MetricEvent.eventType, eventType),
+        eq(MetricEvent.walletAddress, walletAddress.toLowerCase()),
+      ),
+    );
+  return Number(rows[0]?.c ?? 0);
+}
+
 export async function trackMetricEvent(input: TrackMetricEventInput) {
+  const walletAddress = input.walletAddress?.toLowerCase() ?? null;
+  const shouldNotify =
+    walletAddress && !input.isBot && isLiveActivityEventType(input.eventType);
+
+  let isFirstForWallet = false;
+
   try {
+    if (shouldNotify) {
+      const priorCount = await countWalletMetricEvents(
+        input.eventType,
+        walletAddress,
+      );
+      isFirstForWallet = priorCount === 0;
+    }
+
     await db.insert(MetricEvent).values({
       eventType: input.eventType,
-      walletAddress: input.walletAddress?.toLowerCase(),
+      walletAddress,
       visitorId: input.visitorId ?? null,
       sessionId: input.sessionId ?? null,
       source: input.source ?? "app",
@@ -139,6 +173,15 @@ export async function trackMetricEvent(input: TrackMetricEventInput) {
       botId: input.botId ?? null,
       metadata: input.metadata ?? {},
     });
+
+    if (shouldNotify && isFirstForWallet) {
+      void notifyLiveActivityAlert({
+        eventType: input.eventType,
+        walletAddress,
+        source: input.source ?? null,
+        metadata: input.metadata,
+      });
+    }
   } catch (error) {
     console.error("[metrics] trackMetricEvent failed", error);
   }
@@ -406,7 +449,9 @@ export async function gethyperliquidBuilderMetricsSnapshot(days = 30) {
   const uniqueUsers = includedUsers.size;
   // Freshness should reflect recency of observed L1 fill data, not wall-clock "now".
   const hasObservedData = latestObservedFillTime > 0;
-  const lastSyncedAtMs = hasObservedData ? latestObservedFillTime : syncStartedAt;
+  const lastSyncedAtMs = hasObservedData
+    ? latestObservedFillTime
+    : syncStartedAt;
   const lastSyncedAt = new Date(lastSyncedAtMs).toISOString();
   const freshness: SyncFreshness = !hasObservedData
     ? "unknown"

@@ -10,6 +10,7 @@ import {
   Referral,
 } from "@acme/db/schema";
 
+import { LIVE_ACTIVITY_EVENT_TYPES } from "~/lib/blink/activity-alerts.server";
 import { getFeatureFlags } from "~/lib/blink/feature-flags.server";
 import {
   getBuilderAttributionSnapshot,
@@ -48,6 +49,15 @@ export interface AdminStats {
       uniqueVisitors: number;
     }>;
   };
+  liveActivity: Array<{
+    eventType: "signup" | "builder_approved" | "first_trade";
+    createdAt: string;
+    walletAddress: string;
+    source: string;
+    country: string | null;
+    market: string | null;
+    detail: string;
+  }>;
   issues: {
     total24h: number;
     auto24h: number;
@@ -336,6 +346,53 @@ export async function getAdminStats(options?: {
   const issueRows24h = issueRows.filter(
     (row) => new Date(row.createdAt).getTime() > now - ms24h,
   );
+  const liveActivity = metricRows
+    .filter(
+      (row) =>
+        LIVE_ACTIVITY_EVENT_TYPES.includes(
+          row.eventType as (typeof LIVE_ACTIVITY_EVENT_TYPES)[number],
+        ) && Boolean(row.walletAddress),
+    )
+    .slice(0, 40)
+    .map((row) => {
+      const metadata = (row.metadata ?? {}) as Record<string, unknown>;
+      const country =
+        typeof metadata.country === "string" ? metadata.country : null;
+      const market =
+        typeof metadata.market === "string"
+          ? metadata.market
+          : typeof metadata.firstMarket === "string"
+            ? metadata.firstMarket
+            : null;
+      const maxFeeRate =
+        typeof metadata.maxFeeRate === "string" ? metadata.maxFeeRate : null;
+      const side = typeof metadata.side === "string" ? metadata.side : null;
+      const orderType =
+        typeof metadata.orderType === "string" ? metadata.orderType : null;
+
+      let detail = String(row.source ?? "app");
+      if (row.eventType === "builder_approved" && maxFeeRate) {
+        detail = `Approved ${maxFeeRate}`;
+      } else if (row.eventType === "first_trade" && market) {
+        detail = `${market}${side ? ` · ${side}` : ""}${orderType ? ` · ${orderType}` : ""}`;
+      } else if (country) {
+        detail = `${country} · ${detail}`;
+      }
+
+      return {
+        eventType: row.eventType as
+          | "signup"
+          | "builder_approved"
+          | "first_trade",
+        createdAt: new Date(row.createdAt).toISOString(),
+        walletAddress: row.walletAddress ?? "",
+        source: String(row.source ?? "app"),
+        country,
+        market,
+        detail,
+      };
+    });
+
   const recentIssues = issueRows.slice(0, 12).map((row) => {
     const metadata = (row.metadata ?? {}) as Record<string, unknown>;
 
@@ -496,6 +553,7 @@ export async function getAdminStats(options?: {
         .sort((a, b) => b.events - a.events)
         .slice(0, 8),
     },
+    liveActivity,
     issues: {
       total24h: issueRows24h.length,
       auto24h: issueRows24h.filter((row) => row.eventType === "issue_auto")

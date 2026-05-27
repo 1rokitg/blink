@@ -1,5 +1,6 @@
 import { env } from "~/env";
 
+import { postDiscordWebhook } from "./discord-webhook.server";
 import { getProfileSlugByWalletAddress } from "./resolve-address";
 
 function getCanonicalAppUrl() {
@@ -10,19 +11,9 @@ function truncateAddress(address: string) {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
-async function postDiscordWebhook(payload: Record<string, unknown>) {
+async function postSightingsWebhook(payload: Record<string, unknown>) {
   if (!env.DISCORD_SIGHTINGS_WEBHOOK_URL) return;
-
-  const response = await fetch(env.DISCORD_SIGHTINGS_WEBHOOK_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(4_000),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Discord webhook failed with status ${response.status}`);
-  }
+  await postDiscordWebhook(env.DISCORD_SIGHTINGS_WEBHOOK_URL, payload);
 }
 
 export async function sendDiscordProfileVerificationSighting(params: {
@@ -37,7 +28,7 @@ export async function sendDiscordProfileVerificationSighting(params: {
   const displayName =
     params.twitterName?.trim() || `@${params.twitterUsername}`;
 
-  await postDiscordWebhook({
+  await postSightingsWebhook({
     content: "👀 New Blink sighting",
     embeds: [
       {

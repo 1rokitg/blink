@@ -32,6 +32,7 @@ import {
 import { type AdminStats, getAdminStats } from "~/app/actions/get-admin-stats";
 import { setFeatureFlagAction } from "~/app/actions/set-feature-flag";
 import { BUILDER_ADDRESS } from "~/lib/blink/builder";
+import { LiveActivityFeed } from "./live-activity-feed";
 import { SuperuserPanel } from "./superuser-panel";
 
 function truncateAddress(address: string) {
@@ -1240,6 +1241,11 @@ export function AdminDashboard(props?: { section?: "overview" | "users" }) {
               </table>
             </div>
           </section>
+
+          <LiveActivityFeed
+            items={stats?.liveActivity ?? []}
+            loading={loading}
+          />
 
           <section className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-[#0b0d13] p-0">
             <div className="border-b border-white/8 px-5 py-4">

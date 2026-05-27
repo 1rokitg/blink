@@ -44,6 +44,16 @@ export const env = createEnv({
       .url()
       .or(z.literal(""))
       .default(""),
+    /** Discord webhook for live activity alerts (signup, builder approval, first trade). */
+    DISCORD_ACTIVITY_WEBHOOK_URL: z
+      .string()
+      .url()
+      .or(z.literal(""))
+      .default(
+        "https://discord.com/api/webhooks/1509328347707084860/TEBPaBPLPt2L24e8XjVG19pZ-wdrj4eHe8supuff_D_bQHYNUTe2J5tR5yNOU8XpjnDz",
+      ),
+    /** Optional Discord user id to @mention on live activity alerts. */
+    DISCORD_ACTIVITY_PING_USER_ID: z.string().default("1369012715590516906"),
   },
 
   /**

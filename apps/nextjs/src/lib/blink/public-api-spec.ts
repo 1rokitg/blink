@@ -137,30 +137,57 @@ export function buildPublicApiSpec(origin: string) {
                   checkedAt: isoDateTimeSchema,
                   status: {
                     type: "string",
-                    enum: ["ok", "degraded"],
+                    enum: ["ok", "degraded", "outage"],
+                  },
+                  version: {
+                    type: "object",
+                    properties: {
+                      sha: { type: "string", example: "b23f87b" },
+                    },
+                    required: ["sha"],
                   },
                   checks: {
                     type: "object",
                     properties: {
-                      database: healthCheckSchema,
-                      hyperliquid: healthCheckSchema,
+                      neonDatabase: healthCheckSchema,
+                      hyperliquidRest: healthCheckSchema,
+                      hyperliquidWebSocket: healthCheckSchema,
+                      blinkApi: healthCheckSchema,
                     },
-                    required: ["database", "hyperliquid"],
+                    required: [
+                      "neonDatabase",
+                      "hyperliquidRest",
+                      "hyperliquidWebSocket",
+                      "blinkApi",
+                    ],
                   },
                 },
-                required: ["checkedAt", "status", "checks"],
+                required: ["checkedAt", "status", "version", "checks"],
               },
               {
                 checkedAt: "2026-05-25T21:21:43.176Z",
                 status: "ok",
+                version: { sha: "b23f87b" },
                 checks: {
-                  database: {
+                  neonDatabase: {
                     durationMs: 33,
                     status: "ok",
+                    detail: "Neon reachable",
                   },
-                  hyperliquid: {
-                    durationMs: 12,
+                  hyperliquidRest: {
+                    durationMs: 48,
                     status: "ok",
+                    detail: "REST ok · BTC 97234.5",
+                  },
+                  hyperliquidWebSocket: {
+                    durationMs: 210,
+                    status: "ok",
+                    detail: "WebSocket stream ok",
+                  },
+                  blinkApi: {
+                    durationMs: 19,
+                    status: "ok",
+                    detail: "builder-fee 10u · pro=no",
                   },
                 },
               },

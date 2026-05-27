@@ -128,6 +128,7 @@ const ADMIN_RANGE_OPTIONS: Array<{
 
 const INTERNAL_NAV_ITEMS: NavItem[] = [
   { label: "Home", href: "/internal" },
+  { label: "Status", href: "/status" },
   { label: "Tools", href: "/internal/tools", icon: Wrench },
   { label: "Affiliates", href: "/internal/affiliates" },
   { label: "Users", href: "/internal/users" },

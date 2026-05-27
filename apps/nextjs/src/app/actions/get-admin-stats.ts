@@ -19,6 +19,7 @@ import {
   gethyperliquidLiveBuilderFillFeed,
   syncBuilderDailyMetrics,
 } from "~/lib/blink/internal-metrics.server";
+import { syncRecentBuilderApprovalsFromChain } from "~/lib/blink/sync-builder-approvals.server";
 
 type KpiSource = "hyperliquid" | "offchain";
 
@@ -198,7 +199,10 @@ export async function getAdminStats(options?: {
   const canonicalWindowDays = 2;
 
   if (options?.syncHyperliquid) {
-    await syncBuilderDailyMetrics(canonicalWindowDays);
+    await Promise.all([
+      syncBuilderDailyMetrics(canonicalWindowDays),
+      syncRecentBuilderApprovalsFromChain({ lookbackDays: 7, maxWallets: 80 }),
+    ]);
   }
 
   const now = Date.now();

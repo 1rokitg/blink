@@ -247,6 +247,11 @@ export function AdminDashboard(props?: { section?: "overview" | "users" }) {
         setLastFetched(new Date());
       } catch (err) {
         console.error("[admin] Failed to load stats:", err);
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Failed to refresh dashboard stats.",
+        );
       } finally {
         if (!options?.isBackground) {
           setLoading(false);
@@ -1241,6 +1246,10 @@ export function AdminDashboard(props?: { section?: "overview" | "users" }) {
               <h2 className="text-base font-semibold text-white">
                 Recent builder approvals
               </h2>
+              <p className="mt-1 text-xs text-foreground/45">
+                Synced from Neon on refresh (includes on-chain backfill for
+                recent wallets).
+              </p>
             </div>
 
             {loading && !stats ? (

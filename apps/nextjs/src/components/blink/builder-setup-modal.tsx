@@ -11,6 +11,7 @@ import { ConnectTwitterButton } from "./connect-twitter-button";
 
 import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
 
+import { recordBuilderApproval } from "~/app/actions/record-builder-approval";
 import { getOrCreateAgentKey } from "~/lib/blink/agent-wallet";
 import {
   BUILDER_ADDRESS,
@@ -136,6 +137,11 @@ export function BuilderSetupModal(props: {
         "Builder fee approval was not accepted by Hyperliquid",
       );
       console.info("[setup] step 1 — builder fee approved ✓");
+      void recordBuilderApproval(
+        props.walletAddress,
+        BUILDER_ADDRESS,
+        builderMaxFeeRate(),
+      );
       setStep("step1-done");
     } catch (err) {
       console.error("[setup] step 1 failed:", err);
@@ -186,6 +192,11 @@ export function BuilderSetupModal(props: {
           `Builder fee has not been approved yet (${props.requiredFeeUnits} units required).`,
         );
       }
+      void recordBuilderApproval(
+        props.walletAddress,
+        BUILDER_ADDRESS,
+        builderMaxFeeRate(),
+      );
       console.info("[setup] step 2 — trading agent approved ✓");
       setStep("done");
       setSuccessState(true);
@@ -208,6 +219,11 @@ export function BuilderSetupModal(props: {
         props.requiredFeeUnits,
       );
       if (approved) {
+        void recordBuilderApproval(
+          props.walletAddress,
+          BUILDER_ADDRESS,
+          builderMaxFeeRate(),
+        );
         setSuccessState(true);
         props.onApprovedAction();
         toast.success("You're all set.");

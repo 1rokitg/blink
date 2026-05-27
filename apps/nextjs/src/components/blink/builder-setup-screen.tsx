@@ -125,7 +125,7 @@ export function BuilderSetupScreen(props: { market: string | null }) {
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
             {[
-              "Sign in with Google and use your embedded wallet",
+              "Connect your wallet to get started",
               `Review fee disclosure: max ${feeRate} per trade`,
               "One-click approval — return to terminal immediately after",
             ].map((step) => (

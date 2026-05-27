@@ -214,16 +214,9 @@ function ConnectGate() {
             Sign in to trade.
           </h1>
           <p className="mt-3 text-sm leading-6 text-foreground/50">
-            Blink creates a non-custodial wallet automatically. Continue with
-            Google, or connect an existing wallet.
+            Blink creates a non-custodial wallet automatically. Connect your
+            wallet to get started.
           </p>
-
-          {/* Divider */}
-          <div className="my-5 flex items-center gap-3">
-            <div className="h-px flex-1 bg-white/[0.07]" />
-            <span className="text-[11px] text-foreground/35">or</span>
-            <div className="h-px flex-1 bg-white/[0.07]" />
-          </div>
 
           {/* Wallet fallback */}
           <button
@@ -232,7 +225,7 @@ function ConnectGate() {
             className="flex h-11 w-full items-center justify-center gap-2 rounded-[14px] border border-white/[0.09] bg-white/[0.04] text-sm font-medium text-white/80 transition hover:border-white/[0.16] hover:bg-white/[0.07] active:scale-[0.98]"
           >
             <Wallet className="size-4 text-white/55" />
-            Continue with Google or wallet
+            Connect Wallet
           </button>
 
           {/* Feature pills */}

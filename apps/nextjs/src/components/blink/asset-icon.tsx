@@ -73,6 +73,7 @@ const COINGECKO_IDS: Record<string, string> = {
 
 const HIP3_COMPANY_LOGO_DOMAINS: Record<string, string> = {
   AAPL: "apple.com",
+  APPL: "apple.com",
   AMZN: "amazon.com",
   AMD: "amd.com",
   ANTHROPIC: "anthropic.com",
@@ -89,6 +90,26 @@ const HIP3_COMPANY_LOGO_DOMAINS: Record<string, string> = {
   SNDK: "sandisk.com",
   TSLA: "tesla.com",
   TSM: "tsmc.com",
+  GOLD: "gold.org",
+  XAU: "gold.org",
+  SP500: "spglobal.com",
+  US500: "spglobal.com",
+  USA500: "spglobal.com",
+  SPX: "spglobal.com",
+  MAG7: "roundhillinvestments.com",
+  USTECH: "nasdaq.com",
+  USA100: "nasdaq.com",
+  NAS100: "nasdaq.com",
+};
+
+const SYMBOL_ALIASES: Record<string, string> = {
+  APPL: "AAPL",
+  SPX500: "SP500",
+  SPX: "SP500",
+  XAUUSD: "XAU",
+  GOLDUSD: "GOLD",
+  NASDAQ100: "USA100",
+  NDX: "USA100",
 };
 
 const HIP3_BADGE_OVERRIDES: Record<
@@ -158,9 +179,11 @@ function badgeLogoUrl(symbol: string) {
 }
 
 function getAssetIconSources(asset: string) {
-  const symbol = asset.includes(":")
+  const rawSymbol = asset.includes(":")
     ? (asset.split(":").at(-1)?.toUpperCase() ?? asset.toUpperCase())
     : asset.toUpperCase();
+  const normalizedSymbol = rawSymbol.replace(/[^A-Z0-9]/g, "");
+  const symbol = SYMBOL_ALIASES[normalizedSymbol] ?? normalizedSymbol;
   const isHip3 = asset.includes(":");
   const sources: string[] = [];
 
@@ -192,9 +215,11 @@ interface AssetIconProps {
 }
 
 function AssetIconImage({ asset, className = "size-7", size }: AssetIconProps) {
-  const symbol = asset.includes(":")
+  const rawSymbol = asset.includes(":")
     ? (asset.split(":").at(-1)?.toUpperCase() ?? asset.toUpperCase())
     : asset.toUpperCase();
+  const normalizedSymbol = rawSymbol.replace(/[^A-Z0-9]/g, "");
+  const symbol = SYMBOL_ALIASES[normalizedSymbol] ?? normalizedSymbol;
   const [sourceIndex, setSourceIndex] = useState(0);
 
   const color = symbolColor(symbol);

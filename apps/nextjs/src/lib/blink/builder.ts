@@ -16,6 +16,7 @@
 
 import { env } from "~/env";
 
+import { hasBlinkWebAgent } from "./blink-agent";
 import { infoClient } from "./hyperliquid";
 
 /** Builder address (rokitg.eth resolved) — EIP-55 checksummed via env schema transform. */
@@ -90,4 +91,19 @@ export async function isBuilderApproved(
 ): Promise<boolean> {
   const approvedUnits = await getApprovedBuilderFeeUnits(userAddress);
   return approvedUnits >= Math.max(0, Math.round(requiredFeeUnits));
+}
+
+/**
+ * Full Blink onboarding: builder fee on our code + approveAgent with agentName
+ * {@link BLINK_WEB_AGENT_NAME} (visible on Hyperliquid explorer).
+ */
+export async function isBlinkTradingEnabled(
+  userAddress: `0x${string}`,
+  requiredFeeUnits: number = BUILDER_FEE_UNITS,
+): Promise<boolean> {
+  const [feeApproved, agentApproved] = await Promise.all([
+    isBuilderApproved(userAddress, requiredFeeUnits),
+    hasBlinkWebAgent(userAddress),
+  ]);
+  return feeApproved && agentApproved;
 }

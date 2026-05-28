@@ -3,6 +3,7 @@ import { and, desc, eq, gte, isNotNull } from "drizzle-orm";
 import { db } from "@acme/db/client";
 import { BuilderApproval, MetricEvent, Referral } from "@acme/db/schema";
 
+import { BLINK_WEB_AGENT_NAME, getBlinkWebAgent } from "./blink-agent";
 import {
   BUILDER_ADDRESS,
   builderMaxFeeRate,
@@ -79,10 +80,14 @@ export async function syncRecentBuilderApprovalsFromChain(options?: {
     }
 
     try {
-      const approvedUnits = await getApprovedBuilderFeeUnits(
-        walletAddress as `0x${string}`,
-      );
+      const user = walletAddress as `0x${string}`;
+      const approvedUnits = await getApprovedBuilderFeeUnits(user);
       if (approvedUnits <= 0) {
+        continue;
+      }
+
+      const agent = await getBlinkWebAgent(user);
+      if (!agent) {
         continue;
       }
 
@@ -91,6 +96,8 @@ export async function syncRecentBuilderApprovalsFromChain(options?: {
         builderAddress: BUILDER_ADDRESS_LOWER,
         maxFeeRate,
         status: "approved",
+        agentName: BLINK_WEB_AGENT_NAME,
+        agentAddress: agent.address.toLowerCase(),
       });
 
       existingWallets.add(walletAddress);

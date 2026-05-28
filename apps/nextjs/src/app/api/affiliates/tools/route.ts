@@ -14,6 +14,7 @@ import {
   getAffiliateProfile,
   isAffiliateWallet,
 } from "~/lib/blink/affiliate-program";
+import { BLINK_WEB_AGENT_NAME } from "~/lib/blink/blink-agent";
 
 export const runtime = "nodejs";
 
@@ -102,7 +103,12 @@ export async function GET(request: Request) {
       db
         .select({ walletAddress: BuilderApproval.walletAddress })
         .from(BuilderApproval)
-        .where(inArray(BuilderApproval.walletAddress, referredWallets)),
+        .where(
+          and(
+            inArray(BuilderApproval.walletAddress, referredWallets),
+            eq(BuilderApproval.agentName, BLINK_WEB_AGENT_NAME),
+          ),
+        ),
       db
         .select({ walletAddress: MetricEvent.walletAddress })
         .from(MetricEvent)

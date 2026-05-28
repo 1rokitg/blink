@@ -66,6 +66,7 @@ export type GrowthMetrics = {
     signups: number;
     builderApproved: number;
     firstTrade: number;
+    tradingEnabled: number;
     proStarted: number;
   }>;
 };
@@ -99,6 +100,8 @@ export async function getGrowthMetrics(days = 90): Promise<GrowthMetrics> {
           inArray(MetricEvent.eventType, [
             "signup",
             "builder_approved",
+            "builder_fee_approved",
+            "trading_enabled",
             "first_trade",
             "pro_started",
           ]),
@@ -124,6 +127,7 @@ export async function getGrowthMetrics(days = 90): Promise<GrowthMetrics> {
       dau: number;
       signups: number;
       builderApproved: number;
+      tradingEnabled: number;
       firstTrade: number;
       proStarted: number;
     }
@@ -138,6 +142,7 @@ export async function getGrowthMetrics(days = 90): Promise<GrowthMetrics> {
       dau: row.activeUsers,
       signups: 0,
       builderApproved: 0,
+      tradingEnabled: 0,
       firstTrade: 0,
       proStarted: 0,
     });
@@ -150,11 +155,18 @@ export async function getGrowthMetrics(days = 90): Promise<GrowthMetrics> {
       dau: 0,
       signups: 0,
       builderApproved: 0,
+      tradingEnabled: 0,
       firstTrade: 0,
       proStarted: 0,
     };
     if (row.eventType === "signup") current.signups += 1;
-    if (row.eventType === "builder_approved") current.builderApproved += 1;
+    if (
+      row.eventType === "builder_approved" ||
+      row.eventType === "builder_fee_approved"
+    ) {
+      current.builderApproved += 1;
+    }
+    if (row.eventType === "trading_enabled") current.tradingEnabled += 1;
     if (row.eventType === "first_trade") current.firstTrade += 1;
     if (row.eventType === "pro_started") current.proStarted += 1;
     dayMap.set(day, current);

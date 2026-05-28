@@ -14,6 +14,7 @@ import {
   isLiveActivityEventType,
   notifyLiveActivityAlert,
 } from "./activity-alerts.server";
+import { BLINK_WEB_AGENT_NAME } from "./blink-agent";
 import { BUILDER_FEE_UNITS } from "./builder";
 import { GROWTH_ZERO_FEE_MARKETS, isGrowthModeEnabled } from "./growth-mode";
 import { infoClient } from "./hyperliquid";
@@ -100,12 +101,12 @@ function getStrictBuilderFeeUsd(fill: Record<string, unknown>) {
   return explicitBuilderFeeUsd;
 }
 
+/** Builder-approved wallets with blink-web agent (full Blink activation). */
 async function getApprovedWallets() {
   const approvalRows = await db
-    .select({
-      walletAddress: BuilderApproval.walletAddress,
-    })
-    .from(BuilderApproval);
+    .select({ walletAddress: BuilderApproval.walletAddress })
+    .from(BuilderApproval)
+    .where(eq(BuilderApproval.agentName, BLINK_WEB_AGENT_NAME));
   return Array.from(
     new Set(
       approvalRows
@@ -113,6 +114,10 @@ async function getApprovedWallets() {
         .filter(Boolean),
     ),
   );
+}
+
+export async function getTradingEnabledWallets() {
+  return getApprovedWallets();
 }
 
 async function getActiveProSet() {

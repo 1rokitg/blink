@@ -54,7 +54,7 @@ export interface AdminStats {
     }>;
   };
   liveActivity: Array<{
-    eventType: "signup" | "builder_approved" | "first_trade";
+    eventType: "signup" | "builder_approved" | "trading_enabled" | "first_trade";
     createdAt: string;
     walletAddress: string;
     source: string;
@@ -119,6 +119,7 @@ export interface AdminStats {
   funnel: {
     signups: number;
     approvedBuilder: number;
+    tradingEnabled: number;
     firstTrade: number;
     proStarted: number;
   };
@@ -320,7 +321,12 @@ export async function getAdminStats(options?: {
   const funnel = {
     signups: funnelEvents.filter((e) => e.eventType === "signup").length,
     approvedBuilder: funnelEvents.filter(
-      (e) => e.eventType === "builder_approved",
+      (e) =>
+        e.eventType === "builder_approved" ||
+        e.eventType === "builder_fee_approved",
+    ).length,
+    tradingEnabled: funnelEvents.filter(
+      (e) => e.eventType === "trading_enabled",
     ).length,
     firstTrade: funnelEvents.filter((e) => e.eventType === "first_trade")
       .length,
@@ -378,7 +384,11 @@ export async function getAdminStats(options?: {
         typeof metadata.orderType === "string" ? metadata.orderType : null;
 
       let detail = String(row.source ?? "app");
-      if (row.eventType === "builder_approved" && maxFeeRate) {
+      const agentName =
+        typeof metadata.agentName === "string" ? metadata.agentName : null;
+      if (row.eventType === "trading_enabled" && agentName) {
+        detail = `Agent ${agentName} · trading live`;
+      } else if (row.eventType === "builder_approved" && maxFeeRate) {
         detail = `Approved ${maxFeeRate}`;
       } else if (row.eventType === "first_trade" && market) {
         detail = `${market}${side ? ` · ${side}` : ""}${orderType ? ` · ${orderType}` : ""}`;
@@ -390,6 +400,7 @@ export async function getAdminStats(options?: {
         eventType: row.eventType as
           | "signup"
           | "builder_approved"
+          | "trading_enabled"
           | "first_trade",
         createdAt: new Date(row.createdAt).toISOString(),
         walletAddress: row.walletAddress ?? "",
@@ -529,6 +540,7 @@ export async function getAdminStats(options?: {
       avgRevenuePerUser: "hyperliquid",
       signups: "offchain",
       builderApprovals: "offchain",
+      tradingEnabled: "offchain",
       firstTrade: "offchain",
       proStarted: "offchain",
       referrals: "offchain",

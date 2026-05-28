@@ -18,6 +18,7 @@ import {
   Twitter,
   Users,
 } from "lucide-react";
+import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 
 import { BlinkProUpsellCard } from "~/components/blink/blink-pro-upsell-card";
@@ -88,6 +89,58 @@ function CopyRow({
   );
 }
 
+// ─── Claim CTA (ROK-24) ───────────────────────────────────────────────────────
+
+function RewardsClaimButton(props: { onClaim: () => void }) {
+  const [glowAt, setGlowAt] = useState<number | null>(null);
+
+  const handleClick = () => {
+    setGlowAt(Date.now());
+    props.onClaim();
+    window.setTimeout(() => setGlowAt(null), 2_000);
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="group relative mt-4 w-full overflow-hidden rounded-[16px] border border-[#8fbaff52] bg-[linear-gradient(180deg,rgba(60,118,255,0.96),rgba(36,87,219,0.98))] px-4 py-3 text-left shadow-[0_18px_44px_rgba(37,90,224,0.28)] transition hover:scale-[1.01] hover:border-[#b5d2ff88] hover:shadow-[0_22px_56px_rgba(37,90,224,0.38)] active:scale-[0.99]"
+    >
+      <AnimatePresence>
+        {glowAt ? (
+          <motion.span
+            key={glowAt}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.28 }}
+            className="pointer-events-none absolute inset-0 rounded-[16px]"
+            style={{
+              boxShadow:
+                "inset 0 0 0 1px rgba(255,255,255,0.45), inset 0 0 52px rgba(255,255,255,0.16), 0 0 40px rgba(126,169,255,0.32)",
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
+      <span className="pointer-events-none absolute inset-x-8 -top-5 h-12 rounded-full bg-white/20 blur-2xl transition group-hover:bg-white/25" />
+      <span className="pointer-events-none absolute inset-px rounded-[15px] border border-white/10" />
+      <span className="relative flex items-center justify-between gap-3">
+        <span>
+          <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+            Early payout access
+          </span>
+          <span className="mt-1 block text-sm font-semibold text-white">
+            Request claim
+          </span>
+        </span>
+        <span className="inline-flex size-9 items-center justify-center rounded-full bg-white/12 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
+          <ArrowUpRight className="size-4 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+        </span>
+      </span>
+    </button>
+  );
+}
+
 // ─── Referred trader row ──────────────────────────────────────────────────────
 
 function ReferredRow({
@@ -128,7 +181,7 @@ export default function RewardsPage() {
   const referralMultiplier = growthMode ? getGrowthReferralMultiplier() : 1;
 
   function handleClaimRequest() {
-    toast.success("Requested claim.");
+    toast.success("Requested Claim");
   }
 
   // Fetch or create referral code for this wallet
@@ -616,27 +669,7 @@ export default function RewardsPage() {
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={handleClaimRequest}
-                    className="group relative mt-4 w-full overflow-hidden rounded-[16px] border border-[#8fbaff52] bg-[linear-gradient(180deg,rgba(60,118,255,0.96),rgba(36,87,219,0.98))] px-4 py-3 text-left shadow-[0_18px_44px_rgba(37,90,224,0.28)] transition hover:scale-[1.01] hover:border-[#b5d2ff88] hover:shadow-[0_22px_56px_rgba(37,90,224,0.38)]"
-                  >
-                    <span className="pointer-events-none absolute inset-x-8 -top-5 h-12 rounded-full bg-white/20 blur-2xl transition group-hover:bg-white/25" />
-                    <span className="pointer-events-none absolute inset-px rounded-[15px] border border-white/10" />
-                    <span className="relative flex items-center justify-between gap-3">
-                      <span>
-                        <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
-                          Early payout access
-                        </span>
-                        <span className="mt-1 block text-sm font-semibold text-white">
-                          Request claim
-                        </span>
-                      </span>
-                      <span className="inline-flex size-9 items-center justify-center rounded-full bg-white/12 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.14)]">
-                        <ArrowUpRight className="size-4 transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                      </span>
-                    </span>
-                  </button>
+                  <RewardsClaimButton onClaim={handleClaimRequest} />
                 </div>
               </div>
 

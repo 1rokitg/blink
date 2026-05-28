@@ -120,7 +120,7 @@ import {
   TerminalOrderBook,
 } from "./terminal-order-book";
 import { TradingIsland } from "./trading-island";
-import { TradingViewPanel } from "./trading-view-panel";
+import { BlinkMarketChart } from "./blink-market-chart";
 
 function truncateAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -3290,7 +3290,7 @@ export function TerminalShell(props: { market: string }) {
                 </p>
               </section>
             ) : (
-              <TradingViewPanel market={props.market} />
+              <BlinkMarketChart market={props.market} />
             )}
             {e2eConfig.enabled ? (
               <section className="glass-panel flex h-[520px] items-center justify-center">

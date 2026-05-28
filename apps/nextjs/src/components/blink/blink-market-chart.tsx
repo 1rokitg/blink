@@ -281,7 +281,18 @@ export function BlinkMarketChart(props: { market: string }) {
               <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-foreground/38">
                 Mark
               </p>
-              <p className="font-mono text-sm font-semibold tabular-nums text-white">
+              <p
+                className={`font-mono text-sm font-semibold tabular-nums text-[#9ec0ff] ${
+                  markPx > 0 ? "rounded-md px-1.5 py-0.5" : ""
+                }`}
+                style={
+                  markPx > 0
+                    ? {
+                        animation: "blink-mark-price-pulse 2.4s ease-in-out infinite",
+                      }
+                    : undefined
+                }
+              >
                 {markPx > 0 ? formatUsd(markPx) : "—"}
               </p>
             </div>
@@ -313,6 +324,19 @@ export function BlinkMarketChart(props: { market: string }) {
         </div>
 
         <div ref={chartAreaRef} className="relative min-h-0 flex-1 px-1 py-1">
+          <style>{`
+            @keyframes blink-mark-price-pulse {
+              0%,
+              100% {
+                text-shadow: 0 0 0 transparent;
+                opacity: 1;
+              }
+              50% {
+                text-shadow: 0 0 14px rgba(127, 168, 255, 0.55);
+                opacity: 0.92;
+              }
+            }
+          `}</style>
           {loading ? (
             <div className="flex h-full items-center justify-center">
               <Loader2 className="size-6 animate-spin text-foreground/35" />
@@ -380,7 +404,7 @@ export function BlinkMarketChart(props: { market: string }) {
                 );
               })}
 
-              {/* Mark reference */}
+              {/* Mark reference — live pulse */}
               {plot.markY !== null ? (
                 <g>
                   <line
@@ -389,9 +413,51 @@ export function BlinkMarketChart(props: { market: string }) {
                     y1={plot.markY}
                     y2={plot.markY}
                     stroke={BLINK_ACCENT}
-                    strokeOpacity={0.55}
+                    strokeWidth={1.25}
                     strokeDasharray="4 5"
-                  />
+                  >
+                    <animate
+                      attributeName="stroke-opacity"
+                      values="0.28;0.72;0.28"
+                      dur="2.4s"
+                      repeatCount="indefinite"
+                    />
+                  </line>
+                  <circle
+                    cx={plot.last?.x ?? width - CHART_PAD.right - 6}
+                    cy={plot.markY}
+                    r={8}
+                    fill={BLINK_ACCENT}
+                    fillOpacity={0}
+                    stroke={BLINK_ACCENT}
+                    strokeWidth={1.25}
+                  >
+                    <animate
+                      attributeName="r"
+                      values="5;11;5"
+                      dur="2.4s"
+                      repeatCount="indefinite"
+                    />
+                    <animate
+                      attributeName="stroke-opacity"
+                      values="0.55;0.12;0.55"
+                      dur="2.4s"
+                      repeatCount="indefinite"
+                    />
+                  </circle>
+                  <circle
+                    cx={plot.last?.x ?? width - CHART_PAD.right - 6}
+                    cy={plot.markY}
+                    r={3.5}
+                    fill={BLINK_ACCENT}
+                  >
+                    <animate
+                      attributeName="opacity"
+                      values="0.75;1;0.75"
+                      dur="2.4s"
+                      repeatCount="indefinite"
+                    />
+                  </circle>
                   <text
                     x={width - CHART_PAD.right + 2}
                     y={plot.markY + 3}
@@ -399,6 +465,12 @@ export function BlinkMarketChart(props: { market: string }) {
                     fontSize="9"
                   >
                     Mark
+                    <animate
+                      attributeName="opacity"
+                      values="0.55;1;0.55"
+                      dur="2.4s"
+                      repeatCount="indefinite"
+                    />
                   </text>
                 </g>
               ) : null}

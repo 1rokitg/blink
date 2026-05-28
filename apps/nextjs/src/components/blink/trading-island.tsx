@@ -20,8 +20,8 @@ import { AnimatePresence, motion } from "motion/react";
 import {
   EVENT_DURATION,
   EVENT_PRIORITY,
-  subscribeTradingEvents,
   type TradingEvent,
+  subscribeTradingEvents,
 } from "~/lib/blink/island-bus";
 
 // ─── Internal state machine ───────────────────────────────────────────────────
@@ -61,7 +61,12 @@ function reducer(state: IslandState, action: IslandAction): IslandState {
         action.event.type === "loading" ||
         (action.event.type === "warning" && !!action.event.persistent);
 
-      const item: IslandItem = { id, event: action.event, at: Date.now(), persistent };
+      const item: IslandItem = {
+        id,
+        event: action.event,
+        at: Date.now(),
+        persistent,
+      };
       const priority = EVENT_PRIORITY[action.event.type];
 
       // Loading events replace existing loading
@@ -80,7 +85,12 @@ function reducer(state: IslandState, action: IslandAction): IslandState {
       // success/error can resolve a pending loading event
       if (action.event.type === "success" || action.event.type === "error") {
         if (state.current?.event.type === "loading") {
-          return { ...state, current: item, queue: state.queue, expanded: false };
+          return {
+            ...state,
+            current: item,
+            queue: state.queue,
+            expanded: false,
+          };
         }
       }
 
@@ -95,8 +105,16 @@ function reducer(state: IslandState, action: IslandAction): IslandState {
       );
 
       // If new item has higher priority than current, swap
-      if (priority > EVENT_PRIORITY[state.current.event.type] && !state.current.persistent) {
-        return { ...state, current: item, queue: [state.current, ...queue.filter((q) => q.id !== item.id)], expanded: false };
+      if (
+        priority > EVENT_PRIORITY[state.current.event.type] &&
+        !state.current.persistent
+      ) {
+        return {
+          ...state,
+          current: item,
+          queue: [state.current, ...queue.filter((q) => q.id !== item.id)],
+          expanded: false,
+        };
       }
 
       return { ...state, queue };
@@ -127,9 +145,15 @@ function getEventConfig(event: TradingEvent) {
   switch (event.type) {
     case "fill":
       return {
-        glow: event.side === "Long" ? "rgba(59,225,186,0.35)" : "rgba(248,113,113,0.35)",
+        glow:
+          event.side === "Long"
+            ? "rgba(59,225,186,0.35)"
+            : "rgba(248,113,113,0.35)",
         accent: event.side === "Long" ? "#3be1ba" : "#f87171",
-        bg: event.side === "Long" ? "rgba(59,225,186,0.06)" : "rgba(248,113,113,0.06)",
+        bg:
+          event.side === "Long"
+            ? "rgba(59,225,186,0.06)"
+            : "rgba(248,113,113,0.06)",
       };
     case "order_placed":
       return {
@@ -169,13 +193,15 @@ function getEventConfig(event: TradingEvent) {
       };
     case "liq_warning":
       return {
-        glow: event.distancePct < 5
-          ? "rgba(239,68,68,0.55)"
-          : "rgba(251,146,60,0.40)",
+        glow:
+          event.distancePct < 5
+            ? "rgba(239,68,68,0.55)"
+            : "rgba(251,146,60,0.40)",
         accent: event.distancePct < 5 ? "#ef4444" : "#fb923c",
-        bg: event.distancePct < 5
-          ? "rgba(239,68,68,0.08)"
-          : "rgba(251,146,60,0.07)",
+        bg:
+          event.distancePct < 5
+            ? "rgba(239,68,68,0.08)"
+            : "rgba(251,146,60,0.07)",
       };
     case "price_alert":
       return {
@@ -192,7 +218,10 @@ function formatUsd(n: number) {
   const abs = Math.abs(n);
   const s =
     abs >= 1000
-      ? abs.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+      ? abs.toLocaleString("en-US", {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        })
       : abs.toFixed(2);
   return `$${s}`;
 }
@@ -222,7 +251,11 @@ function IslandContent({
           {/* Direction icon */}
           <span
             className="flex size-7 shrink-0 items-center justify-center rounded-full"
-            style={{ background: isLong ? "rgba(59,225,186,0.15)" : "rgba(248,113,113,0.15)" }}
+            style={{
+              background: isLong
+                ? "rgba(59,225,186,0.15)"
+                : "rgba(248,113,113,0.15)",
+            }}
           >
             <Icon className="size-4" style={{ color: accent }} />
           </span>
@@ -230,14 +263,17 @@ function IslandContent({
           {/* Two-line label */}
           <div className="min-w-0">
             <p className="text-sm font-semibold leading-tight text-white">
-              <span style={{ color: accent }}>{orderLabel} {sideLabel}</span>
-              {" "}{event.size} {event.coin}
+              <span style={{ color: accent }}>
+                {orderLabel} {sideLabel}
+              </span>{" "}
+              {event.size} {event.coin}
             </p>
             <p className="mt-0.5 font-mono text-[11px] text-white/45">
-              filled @{" "}
-              <span className="text-white/70">{event.price}</span>
+              filled @ <span className="text-white/70">{event.price}</span>
               {event.closedPnl !== undefined && (
-                <span className={`ml-2 ${event.closedPnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}>
+                <span
+                  className={`ml-2 ${event.closedPnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+                >
                   {event.closedPnl >= 0 ? "+" : ""}
                   {formatUsd(event.closedPnl)}
                 </span>
@@ -250,7 +286,8 @@ function IslandContent({
             <span
               className={`ml-auto shrink-0 font-mono text-sm font-semibold ${pnlPositive ? "text-emerald-300" : "text-rose-300"}`}
             >
-              {pnlPositive ? "+" : ""}{formatUsd(event.pnl)}
+              {pnlPositive ? "+" : ""}
+              {formatUsd(event.pnl)}
             </span>
           )}
 
@@ -314,9 +351,11 @@ function IslandContent({
 
     case "loading":
       return (
-        <div className="flex items-center gap-2.5">
-          <Loader2 className="size-4 shrink-0 animate-spin text-[#6fa8ff]" />
-          <span className="text-sm text-white/80">{event.message}</span>
+        <div className="flex items-center gap-3">
+          <Loader2 className="size-5 shrink-0 animate-spin text-[#6fa8ff]" />
+          <span className="text-[15px] font-medium text-white/85">
+            {event.message}
+          </span>
         </div>
       );
 
@@ -327,7 +366,9 @@ function IslandContent({
             <Check className="size-3.5 text-emerald-300" />
           </span>
           <div>
-            <span className="text-sm font-medium text-white">{event.message}</span>
+            <span className="text-sm font-medium text-white">
+              {event.message}
+            </span>
             {expanded && event.detail && (
               <p className="mt-0.5 text-xs text-white/45">{event.detail}</p>
             )}
@@ -342,7 +383,9 @@ function IslandContent({
             <X className="size-3.5 text-rose-300" />
           </span>
           <div>
-            <span className="text-sm font-medium text-white">{event.message}</span>
+            <span className="text-sm font-medium text-white">
+              {event.message}
+            </span>
             {expanded && event.detail && (
               <p className="mt-0.5 text-xs text-white/45">{event.detail}</p>
             )}
@@ -357,7 +400,9 @@ function IslandContent({
             <AlertTriangle className="size-3.5 text-amber-300" />
           </span>
           <div>
-            <span className="text-sm font-medium text-white">{event.message}</span>
+            <span className="text-sm font-medium text-white">
+              {event.message}
+            </span>
             {expanded && event.detail && (
               <p className="mt-0.5 text-xs text-white/45">{event.detail}</p>
             )}
@@ -373,7 +418,9 @@ function IslandContent({
           <span
             className="flex size-6 shrink-0 items-center justify-center rounded-full"
             style={{
-              background: critical ? "rgba(239,68,68,0.2)" : "rgba(251,146,60,0.18)",
+              background: critical
+                ? "rgba(239,68,68,0.2)"
+                : "rgba(251,146,60,0.18)",
             }}
           >
             <TriangleAlert
@@ -395,7 +442,8 @@ function IslandContent({
             </div>
             {expanded && (
               <p className="mt-0.5 text-xs text-white/45">
-                Liq. price {event.liqPrice} · {event.distancePct.toFixed(1)}% away
+                Liq. price {event.liqPrice} · {event.distancePct.toFixed(1)}%
+                away
               </p>
             )}
           </div>
@@ -434,7 +482,7 @@ function IdlePill() {
     <motion.div
       layout
       layoutId="island-pill"
-      className="flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-[#090c14f0] px-3 py-1.5 shadow-[0_4px_24px_rgba(0,0,0,0.5)]"
+      className="flex items-center gap-2 rounded-full border border-white/[0.08] bg-[#090c14f0] px-4 py-2 shadow-[0_6px_28px_rgba(0,0,0,0.55)]"
       initial={{ opacity: 0, scale: 0.85 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.85 }}
@@ -491,15 +539,15 @@ export function TradingIsland() {
   const config = current ? getEventConfig(current.event) : null;
 
   return (
-    <div className="pointer-events-none fixed left-1/2 top-3 z-[9999] -translate-x-1/2">
+    <div className="pointer-events-none fixed left-1/2 top-4 z-[9999] -translate-x-1/2">
       <AnimatePresence mode="wait">
         {current && (
           <motion.div
             key={current.id}
-            className="pointer-events-auto relative cursor-pointer overflow-hidden rounded-[20px] border border-white/[0.09] shadow-[0_8px_40px_rgba(0,0,0,0.6)]"
+            className="pointer-events-auto relative cursor-pointer overflow-hidden rounded-[24px] border border-white/[0.1] shadow-[0_12px_48px_rgba(0,0,0,0.65)]"
             style={{
               background: `linear-gradient(135deg, #090c14f5 60%, ${config!.bg})`,
-              boxShadow: `0 0 0 1px rgba(255,255,255,0.06), 0 8px 40px rgba(0,0,0,0.55), 0 0 32px 0 ${config!.glow}`,
+              boxShadow: `0 0 0 1px rgba(255,255,255,0.08), 0 12px 48px rgba(0,0,0,0.6), 0 0 48px 0 ${config!.glow}`,
               backdropFilter: "blur(24px)",
               WebkitBackdropFilter: "blur(24px)",
             }}
@@ -519,7 +567,7 @@ export function TradingIsland() {
 
             {/* Content */}
             <div
-              className={`min-w-[260px] px-5 transition-all duration-200 ${expanded ? "py-4" : "py-3"}`}
+              className={`min-w-[320px] max-w-[min(92vw,420px)] px-6 transition-all duration-200 ${expanded ? "py-5" : "py-3.5"}`}
             >
               <AnimatePresence mode="wait">
                 <motion.div

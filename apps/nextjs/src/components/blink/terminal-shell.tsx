@@ -178,6 +178,21 @@ function getHyperliquidPerpPriceDecimals(price: number, szDecimals: number) {
   return Math.max(0, Math.min(sigDecimals, bySizeDecimals));
 }
 
+function formatUsdcHeader(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  if (value >= 10_000) {
+    return value.toLocaleString("en-US", { maximumFractionDigits: 0 });
+  }
+  if (value >= 100) {
+    return value.toLocaleString("en-US", { maximumFractionDigits: 1 });
+  }
+  return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
+
+function formatHeaderPnl24h(value: number) {
+  return value >= 0 ? `+${formatUsd(value)}` : formatUsd(value);
+}
+
 function roundWithMode(
   value: number,
   decimals: number,
@@ -338,11 +353,11 @@ function SidePanelMarketRow(props: {
           ? "border-[#3be1ba9e] bg-[#2dc9ff2b]"
           : isZeroFee
             ? "border-[#7ea9ff4a] bg-[linear-gradient(120deg,rgba(126,169,255,0.08),rgba(30,60,120,0.06))] hover:border-[#9dc0ff73] hover:bg-[linear-gradient(120deg,rgba(126,169,255,0.13),rgba(30,60,120,0.1))]"
-          : props.item.isHip3
-            ? "border-white/[0.06] bg-white/[0.02] hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
-            : compact
-              ? "border-white/0 hover:bg-white/[0.04]"
-              : "border-white/0 bg-transparent hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
+            : props.item.isHip3
+              ? "border-white/[0.06] bg-white/[0.02] hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
+              : compact
+                ? "border-white/0 hover:bg-white/[0.04]"
+                : "border-white/0 bg-transparent hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
       }`}
     >
       {isZeroFee ? (
@@ -364,8 +379,7 @@ function SidePanelMarketRow(props: {
               className="inline-flex items-center gap-1 rounded-full border border-[#8fbaff4d] bg-[#8fbaff1a] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#bdd2ff]"
               title="Zero builder fee market"
             >
-              <TicketPercent className="size-2.5" />
-              0 fee
+              <TicketPercent className="size-2.5" />0 fee
             </span>
           ) : null}
         </p>
@@ -597,8 +611,7 @@ function LeftRail(props: {
   const otherHip3Rows = hip3Rows.filter(
     (market) => !CURATED_HIP3_MARKET_SET.has(market.coin),
   );
-  const isWatchlistEmpty =
-    activeTab === "watchlist" && marketRows.length === 0;
+  const isWatchlistEmpty = activeTab === "watchlist" && marketRows.length === 0;
 
   return (
     <aside
@@ -974,7 +987,9 @@ function OrderSubmitButton({
             className={`absolute inset-y-0 left-0 z-0 transition-all duration-150 ${
               isBuy ? "bg-emerald-400/28" : "bg-rose-400/28"
             }`}
-            style={{ width: `${Math.min(100, Math.max(0, cooldownRatio * 100))}%` }}
+            style={{
+              width: `${Math.min(100, Math.max(0, cooldownRatio * 100))}%`,
+            }}
           />
         ) : null}
         <span
@@ -1183,19 +1198,30 @@ function OrderEntryPanel(props: {
   const isIsolatedOnlyMarket = Boolean(marketUniverseEntry?.onlyIsolated);
   const currentMarketPosition = useMemo(() => {
     const positions = accountQuery.data?.assetPositions ?? [];
-    return positions.find((entry) => entry.position.coin === props.market)?.position;
+    return positions.find((entry) => entry.position.coin === props.market)
+      ?.position;
   }, [accountQuery.data?.assetPositions, props.market]);
   const positionMarginMode = useMemo<MarginMode | null>(() => {
     const rawType = currentMarketPosition?.leverage?.type;
     if (typeof rawType !== "string") return null;
     const normalized = rawType.toLowerCase();
-    return normalized === "cross" ? "cross" : normalized === "isolated" ? "isolated" : null;
+    return normalized === "cross"
+      ? "cross"
+      : normalized === "isolated"
+        ? "isolated"
+        : null;
   }, [currentMarketPosition?.leverage?.type]);
   const leverageOptions = useMemo(() => {
-    const options = LEVERAGE_PRESETS.filter((value) => value <= marketMaxLeverage);
+    const options = LEVERAGE_PRESETS.filter(
+      (value) => value <= marketMaxLeverage,
+    );
     if (options.length === 0) return [marketMaxLeverage];
-    if (!options.includes(marketMaxLeverage as (typeof LEVERAGE_PRESETS)[number])) {
-      return [...options, marketMaxLeverage].sort((left, right) => left - right);
+    if (
+      !options.includes(marketMaxLeverage as (typeof LEVERAGE_PRESETS)[number])
+    ) {
+      return [...options, marketMaxLeverage].sort(
+        (left, right) => left - right,
+      );
     }
     return options;
   }, [marketMaxLeverage]);
@@ -1288,7 +1314,10 @@ function OrderEntryPanel(props: {
 
   const handleLeverageChange = useCallback(
     async (newLeverage: number) => {
-      const nextLeverage = Math.max(1, Math.min(newLeverage, marketMaxLeverage));
+      const nextLeverage = Math.max(
+        1,
+        Math.min(newLeverage, marketMaxLeverage),
+      );
       setLeverage(nextLeverage);
       if (!props.walletAddress) return;
       setUpdatingLeverage(true);
@@ -1336,7 +1365,13 @@ function OrderEntryPanel(props: {
         setUpdatingLeverage(false);
       }
     },
-    [isIsolatedOnlyMarket, leverage, marketMaxLeverage, props.market, props.walletAddress],
+    [
+      isIsolatedOnlyMarket,
+      leverage,
+      marketMaxLeverage,
+      props.market,
+      props.walletAddress,
+    ],
   );
 
   useEffect(() => {
@@ -1396,7 +1431,11 @@ function OrderEntryPanel(props: {
     }
 
     if (orderType === "market") {
-      if (availableMargin > 0 && marginRequired !== null && marginRequired > availableMargin) {
+      if (
+        availableMargin > 0 &&
+        marginRequired !== null &&
+        marginRequired > availableMargin
+      ) {
         toast.error("Insufficient available balance for this market order");
         emitTradingEvent({
           type: "warning",
@@ -1406,7 +1445,10 @@ function OrderEntryPanel(props: {
         return;
       }
       const queuedId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      setMarketOrderQueue((prev) => [...prev, { id: queuedId, side, size: sizeNum }]);
+      setMarketOrderQueue((prev) => [
+        ...prev,
+        { id: queuedId, side, size: sizeNum },
+      ]);
       toast.success("Market order queued", {
         description: `${side === "buy" ? "Buy" : "Sell"} ${formatCompactNumber(sizeNum)} ${props.market}`,
       });
@@ -2207,7 +2249,9 @@ function OrderEntryPanel(props: {
       {coinSize > 0 && (
         <div className="mt-2 divide-y divide-white/[0.05] overflow-hidden rounded-[14px] border border-white/6 bg-white/[0.02]">
           <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-xs text-foreground/40">Order cost (est.)</span>
+            <span className="text-xs text-foreground/40">
+              Order cost (est.)
+            </span>
             <span className="font-mono text-xs text-foreground/72">
               {maskNumberish(orderCost, formatUsd, props.hideBalances)}
             </span>
@@ -2239,9 +2283,15 @@ function OrderEntryPanel(props: {
             </div>
           )}
           <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-xs text-foreground/40">Builder fee (est.)</span>
+            <span className="text-xs text-foreground/40">
+              Builder fee (est.)
+            </span>
             <span className="font-mono text-xs text-foreground/72">
-              {maskNumberish(estimatedBuilderFee, formatUsd, props.hideBalances)}
+              {maskNumberish(
+                estimatedBuilderFee,
+                formatUsd,
+                props.hideBalances,
+              )}
             </span>
           </div>
           {isProRouting && savingsUsd > 0 && (
@@ -2375,7 +2425,8 @@ function AccountPanel(props: {
     accountQuery.data?.state?.marginSummary?.accountValue ?? 0,
   );
   const hasOpenPositions = openPositions.length > 0;
-  const showPositionsSkeleton = accountQuery.isFetching && openPositions.length === 0;
+  const showPositionsSkeleton =
+    accountQuery.isFetching && openPositions.length === 0;
   const marketCtxQuery = useQuery({
     queryKey: ["blink", "position-market-ctx"],
     queryFn: fetchCoinMarketCtxMap,
@@ -2912,67 +2963,68 @@ function AccountPanel(props: {
                           </button>
                         </div>
 
-                      {/* Edit exit inline panel */}
-                      <AnimatePresence>
-                        {editingCoin === position.coin && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{
-                              duration: 0.18,
-                              ease: [0.4, 0, 0.2, 1],
-                            }}
-                            className="overflow-hidden"
-                          >
-                            <div className="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2 border-t border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
-                              <Input
-                                value={editExitPrice}
-                                onChange={(e) =>
-                                  setEditExitPrice(e.target.value)
-                                }
-                                placeholder="Exit price"
-                                className="h-8 rounded-lg border-white/10 bg-white/[0.04] text-xs"
-                              />
-                              <Input
-                                value={editExitSize}
-                                onChange={(e) =>
-                                  setEditExitSize(e.target.value)
-                                }
-                                placeholder="Size"
-                                className="h-8 rounded-lg border-white/10 bg-white/[0.04] text-xs"
-                              />
-                              <button
-                                type="button"
-                                className="h-8 rounded-lg bg-[#2c6bff] px-3 text-[11px] font-medium text-white transition hover:bg-[#1f5df2]"
-                                onClick={() =>
-                                  void runPositionOrder({
-                                    coin: position.coin,
-                                    isBuy: !isLong,
-                                    size: Number.parseFloat(editExitSize) || 0,
-                                    limitPrice:
-                                      Number.parseFloat(editExitPrice) || 0,
-                                    reduceOnly: true,
-                                    tif: "Gtc",
-                                  })
-                                }
-                              >
-                                Place exit
-                              </button>
-                              <button
-                                type="button"
-                                className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-3 text-[11px] text-foreground/55 transition hover:text-white"
-                                onClick={() => setEditingCoin(null)}
-                              >
-                                Dismiss
-                              </button>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  );
-                })}
+                        {/* Edit exit inline panel */}
+                        <AnimatePresence>
+                          {editingCoin === position.coin && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{
+                                duration: 0.18,
+                                ease: [0.4, 0, 0.2, 1],
+                              }}
+                              className="overflow-hidden"
+                            >
+                              <div className="grid grid-cols-[1fr_1fr_auto_auto] items-center gap-2 border-t border-white/[0.06] bg-white/[0.02] px-3 py-2.5">
+                                <Input
+                                  value={editExitPrice}
+                                  onChange={(e) =>
+                                    setEditExitPrice(e.target.value)
+                                  }
+                                  placeholder="Exit price"
+                                  className="h-8 rounded-lg border-white/10 bg-white/[0.04] text-xs"
+                                />
+                                <Input
+                                  value={editExitSize}
+                                  onChange={(e) =>
+                                    setEditExitSize(e.target.value)
+                                  }
+                                  placeholder="Size"
+                                  className="h-8 rounded-lg border-white/10 bg-white/[0.04] text-xs"
+                                />
+                                <button
+                                  type="button"
+                                  className="h-8 rounded-lg bg-[#2c6bff] px-3 text-[11px] font-medium text-white transition hover:bg-[#1f5df2]"
+                                  onClick={() =>
+                                    void runPositionOrder({
+                                      coin: position.coin,
+                                      isBuy: !isLong,
+                                      size:
+                                        Number.parseFloat(editExitSize) || 0,
+                                      limitPrice:
+                                        Number.parseFloat(editExitPrice) || 0,
+                                      reduceOnly: true,
+                                      tif: "Gtc",
+                                    })
+                                  }
+                                >
+                                  Place exit
+                                </button>
+                                <button
+                                  type="button"
+                                  className="h-8 rounded-lg border border-white/10 bg-white/[0.03] px-3 text-[11px] text-foreground/55 transition hover:text-white"
+                                  onClick={() => setEditingCoin(null)}
+                                >
+                                  Dismiss
+                                </button>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -3405,6 +3457,55 @@ export function TerminalShell(props: { market: string }) {
   const accountAvatar = `https://avatar.vercel.sh/${effectiveWalletAddress || "blink-user"}.png?size=56`;
   const isProMember = builderFeeQuery.data?.isPro === true;
 
+  const headerAccountQuery = useQuery({
+    queryKey: ["blink", "account", effectiveWalletAddress],
+    queryFn: async () => {
+      const [state, openOrders, fills] = await Promise.all([
+        infoClient.clearinghouseState({
+          user: asHexAddress(effectiveWalletAddress),
+        }),
+        infoClient.openOrders({
+          user: asHexAddress(effectiveWalletAddress),
+        }),
+        infoClient.userFills({
+          user: asHexAddress(effectiveWalletAddress),
+        }),
+      ]);
+      return { state, openOrders, fills: fills.slice(0, 20) };
+    },
+    enabled: Boolean(effectiveWalletAddress) && tradeEnabled,
+    staleTime: 2_000,
+    refetchInterval: 5_000,
+    refetchOnWindowFocus: true,
+  });
+  const pnl24hQuery = useQuery({
+    queryKey: ["blink", "account-pnl-24h", effectiveWalletAddress],
+    queryFn: async () => {
+      const fills = await infoClient.userFillsByTime({
+        user: asHexAddress(effectiveWalletAddress),
+        startTime: Date.now() - 24 * 60 * 60 * 1000,
+      });
+      return (fills ?? []).reduce(
+        (sum, fill) => sum + Number(fill.closedPnl ?? 0),
+        0,
+      );
+    },
+    enabled: Boolean(effectiveWalletAddress) && tradeEnabled,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+  const headerWithdrawable = Number(
+    headerAccountQuery.data?.state?.withdrawable ?? 0,
+  );
+  const headerAccountValue = Number(
+    headerAccountQuery.data?.state?.marginSummary?.accountValue ?? 0,
+  );
+  const headerPnl24h = pnl24hQuery.data ?? 0;
+  const headerAccountLoading =
+    headerAccountQuery.isLoading && !headerAccountQuery.data;
+  const headerPnlLoading =
+    pnl24hQuery.isLoading && pnl24hQuery.data === undefined;
+
   useEffect(() => {
     if (accountModalOpen || referralsModalOpen || builderModalOpen) {
       setProfileMenuOpen(false);
@@ -3630,19 +3731,45 @@ export function TerminalShell(props: { market: string }) {
                             className="flex h-full flex-col justify-center border-r border-white/10 px-3.5 py-1.5 text-left leading-tight"
                           >
                             <span className="text-[14px] font-medium text-foreground/70">
-                              100 USDC
+                              {headerAccountLoading
+                                ? "—"
+                                : maskNumberish(
+                                    headerWithdrawable,
+                                    (v) => `${formatUsdcHeader(v)} USDC`,
+                                    blurBalances,
+                                  )}
                             </span>
                             <span className="text-[14px] font-semibold text-[#7fa8ff]">
-                              Deposit more
+                              {headerWithdrawable < 20
+                                ? "Deposit more"
+                                : "Deposit"}
                             </span>
                           </Link>
                           <span className="flex h-full items-center gap-2.5 px-3 py-1.5">
                             <span className="flex flex-col text-left leading-tight">
                               <span className="text-[15px] font-semibold text-white">
-                                $1.61
+                                {headerAccountLoading
+                                  ? "—"
+                                  : maskNumberish(
+                                      headerAccountValue,
+                                      formatUsd,
+                                      blurBalances,
+                                    )}
                               </span>
-                              <span className="text-[13px] font-medium text-rose-300">
-                                -$0.67 24h
+                              <span
+                                className={`text-[13px] font-medium ${
+                                  headerPnl24h >= 0
+                                    ? "text-emerald-300"
+                                    : "text-rose-300"
+                                }`}
+                              >
+                                {headerPnlLoading
+                                  ? "— 24h"
+                                  : `${maskNumberish(
+                                      headerPnl24h,
+                                      formatHeaderPnl24h,
+                                      blurBalances,
+                                    )} 24h`}
                               </span>
                             </span>
                             <img

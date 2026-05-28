@@ -6,14 +6,15 @@ import { Toaster as Sonner } from "sonner";
 export { toast } from "sonner";
 
 /**
- * Dynamic Island–style toaster.
- * Sits top-right, uses a dark glass pill with a soft glow — feels native.
+ * Standard Sonner toasts — bottom-right so they never overlap the
+ * Trading Island (top-center flagship).
  */
 export function Toaster({ ...props }: ToasterProps) {
   return (
     <Sonner
       theme="dark"
       className="toaster group"
+      offset={20}
       toastOptions={{
         classNames: {
           toast: [
@@ -29,8 +30,10 @@ export function Toaster({ ...props }: ToasterProps) {
             "!px-4 !py-3",
           ].join(" "),
           description: "!text-white/45 !text-xs !mt-0.5",
-          actionButton: "!bg-white/10 !text-white hover:!bg-white/20 !rounded-lg !text-xs",
-          cancelButton: "!bg-white/5 !text-white/50 hover:!bg-white/10 !rounded-lg !text-xs",
+          actionButton:
+            "!bg-white/10 !text-white hover:!bg-white/20 !rounded-lg !text-xs",
+          cancelButton:
+            "!bg-white/5 !text-white/50 hover:!bg-white/10 !rounded-lg !text-xs",
           success: "![border-left:2px_solid_#3be1ba] !pl-3.5",
           error: "![border-left:2px_solid_#f87171] !pl-3.5",
           loading: "![border-left:2px_solid_#6fb3ff] !pl-3.5",

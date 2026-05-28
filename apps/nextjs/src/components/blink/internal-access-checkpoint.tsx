@@ -10,7 +10,7 @@ export function InternalAccessCheckpoint({
   label = "Security Checkpoint",
 }: InternalAccessCheckpointProps) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-black px-6 text-white">
+    <main className="flex min-h-screen items-center justify-center bg-[#09090b] px-6 text-white">
       <div className="w-full max-w-md">
         <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/45">
           {label}

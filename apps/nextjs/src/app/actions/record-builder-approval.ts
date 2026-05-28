@@ -1,5 +1,7 @@
 "use server";
 
+import { eq } from "drizzle-orm";
+
 import { db } from "@acme/db/client";
 import { BuilderApproval } from "@acme/db/schema";
 
@@ -14,13 +16,33 @@ export async function recordBuilderApproval(
   builderAddress: string,
   maxFeeRate: string,
 ) {
+  const wallet = walletAddress.toLowerCase();
+  const builder = builderAddress.toLowerCase();
+
   try {
-    await db.insert(BuilderApproval).values({
-      walletAddress: walletAddress.toLowerCase(),
-      builderAddress: builderAddress.toLowerCase(),
-      maxFeeRate,
-      status: "approved",
-    });
+    const existing = await db
+      .select({ id: BuilderApproval.id })
+      .from(BuilderApproval)
+      .where(eq(BuilderApproval.walletAddress, wallet))
+      .limit(1);
+
+    if (existing[0]) {
+      await db
+        .update(BuilderApproval)
+        .set({
+          builderAddress: builder,
+          maxFeeRate,
+          status: "approved",
+        })
+        .where(eq(BuilderApproval.id, existing[0].id));
+    } else {
+      await db.insert(BuilderApproval).values({
+        walletAddress: wallet,
+        builderAddress: builder,
+        maxFeeRate,
+        status: "approved",
+      });
+    }
     await trackMetricEvent({
       eventType: "builder_approved",
       walletAddress,

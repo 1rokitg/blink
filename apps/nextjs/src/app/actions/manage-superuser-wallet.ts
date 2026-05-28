@@ -753,12 +753,20 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
       visitorId: row.visitorId,
     };
   });
-  const builderApprovals = approvalHistoryRows.map((row) => ({
-    approvedAt: toIsoTimestamp(row.approvedAt) ?? new Date().toISOString(),
-    builderAddress: row.builderAddress,
-    maxFeeRate: row.maxFeeRate,
-    status: row.status,
-  }));
+  const seenApprovalKeys = new Set<string>();
+  const builderApprovals = approvalHistoryRows
+    .map((row) => ({
+      approvedAt: toIsoTimestamp(row.approvedAt) ?? new Date().toISOString(),
+      builderAddress: row.builderAddress,
+      maxFeeRate: row.maxFeeRate,
+      status: row.status,
+    }))
+    .filter((row) => {
+      const key = `${row.approvedAt}|${row.maxFeeRate}|${row.status}|${row.builderAddress}`;
+      if (seenApprovalKeys.has(key)) return false;
+      seenApprovalKeys.add(key);
+      return true;
+    });
   const appFingerprint = {
     eventCount: totalEventCountRows[0]?.count ?? 0,
     issueCount: issueEventCountRows[0]?.count ?? 0,
@@ -1111,12 +1119,30 @@ export async function recordSuperuserBuilderApprovalAction(input: unknown) {
   const actingWalletAddress = normalizeWallet(parsed.data.actingWalletAddress);
   await assertSuperuser(actingWalletAddress);
 
-  await db.insert(BuilderApproval).values({
-    builderAddress: BUILDER_ADDRESS.toLowerCase(),
-    maxFeeRate: parsed.data.maxFeeRate,
-    status: "manual-superuser",
-    walletAddress: normalizeWallet(parsed.data.targetWalletAddress),
-  });
+  const targetWallet = normalizeWallet(parsed.data.targetWalletAddress);
+  const existing = await db
+    .select({ id: BuilderApproval.id })
+    .from(BuilderApproval)
+    .where(eq(BuilderApproval.walletAddress, targetWallet))
+    .limit(1);
+
+  if (existing[0]) {
+    await db
+      .update(BuilderApproval)
+      .set({
+        builderAddress: BUILDER_ADDRESS.toLowerCase(),
+        maxFeeRate: parsed.data.maxFeeRate,
+        status: "manual-superuser",
+      })
+      .where(eq(BuilderApproval.id, existing[0].id));
+  } else {
+    await db.insert(BuilderApproval).values({
+      builderAddress: BUILDER_ADDRESS.toLowerCase(),
+      maxFeeRate: parsed.data.maxFeeRate,
+      status: "manual-superuser",
+      walletAddress: targetWallet,
+    });
+  }
 
   return { ok: true };
 }

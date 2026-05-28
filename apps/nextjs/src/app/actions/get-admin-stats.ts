@@ -1,6 +1,6 @@
 "use server";
 
-import { count, desc, eq } from "drizzle-orm";
+import { count, desc, eq, sql } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
 import {
@@ -11,10 +11,11 @@ import {
 } from "@acme/db/schema";
 
 import { LIVE_ACTIVITY_EVENT_TYPES } from "~/lib/blink/activity-alerts.server";
+import { dedupeBuilderApprovalsByWallet } from "~/lib/blink/builder-approval-rows";
 import { getFeatureFlags } from "~/lib/blink/feature-flags.server";
 import {
-  getGrowthMetrics,
   type GrowthMetrics,
+  getGrowthMetrics,
 } from "~/lib/blink/growth-metrics.server";
 import {
   getBuilderAttributionSnapshot,
@@ -54,7 +55,11 @@ export interface AdminStats {
     }>;
   };
   liveActivity: Array<{
-    eventType: "signup" | "builder_approved" | "trading_enabled" | "first_trade";
+    eventType:
+      | "signup"
+      | "builder_approved"
+      | "trading_enabled"
+      | "first_trade";
     createdAt: string;
     walletAddress: string;
     source: string;
@@ -259,7 +264,11 @@ export async function getAdminStats(options?: {
     featureFlags,
     growth,
   ] = await Promise.all([
-    db.select({ c: count() }).from(BuilderApproval),
+    db
+      .select({
+        c: sql<number>`cast(count(distinct lower(${BuilderApproval.walletAddress})) as int)`,
+      })
+      .from(BuilderApproval),
     db
       .select({
         walletAddress: BuilderApproval.walletAddress,
@@ -314,11 +323,13 @@ export async function getAdminStats(options?: {
   const totalReferrals = Number(referralRows[0]?.c ?? 0);
   const activeProMembers = Number(activeProRows[0]?.c ?? 0);
 
-  const approvalsSince24h = allApprovals.filter(
+  const uniqueApprovals = dedupeBuilderApprovalsByWallet(allApprovals);
+
+  const approvalsSince24h = uniqueApprovals.filter(
     (a) => new Date(a.approvedAt).getTime() > now - ms24h,
   ).length;
 
-  const approvalsSince7d = allApprovals.filter(
+  const approvalsSince7d = uniqueApprovals.filter(
     (a) => new Date(a.approvedAt).getTime() > now - ms7d,
   ).length;
 
@@ -671,7 +682,7 @@ export async function getAdminStats(options?: {
             : liveFeed.fills,
       },
     },
-    recentApprovals: allApprovals.slice(0, 10).map((a) => ({
+    recentApprovals: uniqueApprovals.slice(0, 10).map((a) => ({
       walletAddress: a.walletAddress,
       maxFeeRate: a.maxFeeRate,
       approvedAt: new Date(a.approvedAt).toISOString(),

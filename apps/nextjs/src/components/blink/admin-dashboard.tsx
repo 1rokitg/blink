@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -42,10 +42,33 @@ import {
 } from "~/app/actions/get-admin-access";
 import { type AdminStats, getAdminStats } from "~/app/actions/get-admin-stats";
 import { setFeatureFlagAction } from "~/app/actions/set-feature-flag";
+import { DEFAULT_ADMIN_OVERVIEW_RANGE } from "~/lib/blink/admin-dashboard-defaults";
 import { BUILDER_ADDRESS } from "~/lib/blink/builder";
+import { getInternalUserPath } from "~/lib/blink/wallet-address";
+import type { AdminRange } from "./admin-dashboard-types";
 import { InternalAccessCheckpoint } from "./internal-access-checkpoint";
+import {
+  ChartSkeleton,
+  DashboardOverviewSkeleton,
+  InternalDashboardShell,
+  type InternalNavItem,
+  InternalSection,
+  InternalStatCard,
+  StatGridSkeleton,
+  TableRowsSkeleton,
+  internalLabelClass,
+  internalPanelClass,
+  internalPanelInsetClass,
+} from "./internal-dashboard-primitives";
 import { InternalLiveActivityFeed } from "./internal-live-activity-feed";
 import { SuperuserPanel } from "./superuser-panel";
+
+const TODAY_KPI_LABELS = new Set([
+  "Builder revenue",
+  "Routed volume",
+  "Fills",
+  "Active traders",
+]);
 
 function truncateAddress(address: string) {
   if (!address) return "—";
@@ -132,8 +155,6 @@ type NavItem = {
   soon?: boolean;
   icon?: typeof Wrench;
 };
-type AdminRange = "5m" | "15m" | "1h" | "1d" | "7d" | "30d" | "90d";
-
 const ADMIN_RANGE_OPTIONS: Array<{
   value: AdminRange;
   label: string;
@@ -171,6 +192,8 @@ function getRangeConfig(range: AdminRange) {
 export function AdminDashboard(props?: {
   section?: "overview" | "users" | "feed";
   initialUserAddress?: string;
+  /** SSR overview payload from InternalDashboardOverviewPage. */
+  initialOverviewStats?: AdminStats;
 }) {
   const pathname = usePathname();
   const { user } = usePrivy();
@@ -229,11 +252,22 @@ export function AdminDashboard(props?: {
   const isAllowed = adminAccess.allowed;
   const role = adminAccess.role;
 
-  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [stats, setStats] = useState<AdminStats | null>(
+    props?.initialOverviewStats ?? null,
+  );
   const [loading, setLoading] = useState(false);
-  const [lastFetched, setLastFetched] = useState<Date | null>(null);
+  const [lastFetched, setLastFetched] = useState<Date | null>(() =>
+    props?.initialOverviewStats?.syncedAt
+      ? new Date(props.initialOverviewStats.syncedAt)
+      : null,
+  );
   const [flagSaving, setFlagSaving] = useState<string | null>(null);
-  const [selectedRange, setSelectedRange] = useState<AdminRange>("1d");
+  const [selectedRange, setSelectedRange] = useState<AdminRange>(
+    DEFAULT_ADMIN_OVERVIEW_RANGE,
+  );
+  const skipInitialOverviewFetchRef = useRef(
+    Boolean(props?.initialOverviewStats),
+  );
   const currentSection = props?.section ?? "overview";
   const flowscanUrl = useMemo(
     () =>
@@ -251,8 +285,9 @@ export function AdminDashboard(props?: {
               ? currentSection === "users" &&
                 pathname.startsWith("/internal/users")
               : item.href === "/internal/feed"
-                ? currentSection === "feed" || pathname.startsWith("/internal/feed")
-              : item.href !== "#" && pathname === item.href,
+                ? currentSection === "feed" ||
+                  pathname.startsWith("/internal/feed")
+                : item.href !== "#" && pathname === item.href,
       })),
     [currentSection, pathname],
   );
@@ -295,6 +330,10 @@ export function AdminDashboard(props?: {
 
   useEffect(() => {
     if (!isAllowed || currentSection !== "overview") return;
+    if (skipInitialOverviewFetchRef.current) {
+      skipInitialOverviewFetchRef.current = false;
+      return;
+    }
     void fetchStats({ syncHyperliquid: true, includeAttribution: true });
   }, [currentSection, fetchStats, isAllowed]);
 
@@ -334,7 +373,7 @@ export function AdminDashboard(props?: {
 
   const statsCards = useMemo(() => {
     if (!stats) return [];
-    return [
+    const all = [
       {
         label: "Builder revenue",
         value: formatMoney(stats.finance.hyperliquid.totalRevenueUsd),
@@ -386,18 +425,26 @@ export function AdminDashboard(props?: {
         source: stats.kpiSource.proStarted,
       },
     ] as const;
+    return all.filter((card) => !TODAY_KPI_LABELS.has(card.label));
   }, [stats]);
 
-  if (checkingAccess) {
+  const initialLoading = !stats && loading && !props?.initialOverviewStats;
+  const isRefreshing = Boolean(stats && loading);
+
+  const showAccessCheckpoint = checkingAccess && !props?.initialOverviewStats;
+
+  if (showAccessCheckpoint) {
     return <InternalAccessCheckpoint label="Internal Security" />;
   }
 
-  if (!isAllowed) {
+  const shellNavItems: InternalNavItem[] = navItems;
+
+  if (!checkingAccess && !isAllowed) {
     return (
-      <main className="min-h-screen bg-[#06070b] px-6 py-8 text-foreground">
+      <main className="min-h-screen bg-[#09090b] px-6 py-8 text-foreground">
         <div className="mx-auto max-w-3xl">
-          <section className="rounded-2xl border border-white/10 bg-[#0f121a] p-8">
-            <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
+          <section className={`${internalPanelClass} p-8`}>
+            <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium text-white/55">
               Admin
             </Badge>
             <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">
@@ -437,325 +484,218 @@ export function AdminDashboard(props?: {
 
   if (currentSection === "users") {
     return (
-      <main className="min-h-screen bg-[#06070b] px-4 py-5 text-foreground md:px-6">
-        <div className="mx-auto flex max-w-[1500px] gap-4">
-          <aside className="hidden w-[248px] shrink-0 rounded-2xl border border-white/10 bg-[#0b0d13] p-3 lg:block">
-            <p className="px-2 py-1 text-xs uppercase tracking-[0.18em] text-foreground/45">
-              Internal
-            </p>
-            <div className="mt-2 space-y-1">
-              {navItems.map(({ label, active, href, soon, icon: Icon }) => (
-                <Link
-                  key={label}
-                  href={href}
-                  className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${
-                    active
-                      ? "bg-white/12 text-white"
-                      : "text-foreground/60 hover:bg-white/[0.06] hover:text-white/85"
-                  }`}
-                >
-                  {Icon ? (
-                    <Icon className="size-4 shrink-0 text-foreground/55" />
-                  ) : null}
-                  <span className="flex-1">{label}</span>
-                  {!active && soon ? (
-                    <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">
-                      Soon
-                    </span>
-                  ) : null}
-                </Link>
-              ))}
-            </div>
-          </aside>
-
-          <div className="min-w-0 flex-1">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#0b0d13] px-4 py-3">
-              <div className="flex items-center gap-2">
-                <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
-                  Internal users
+      <InternalDashboardShell
+        navItems={shellNavItems}
+        header={
+          <>
+            <div className="flex items-center gap-2">
+              <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs font-medium text-white/55">
+                Users
+              </Badge>
+              {role === "superuser" ? (
+                <Badge className="rounded-full border border-amber-400/35 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-200">
+                  Superuser
                 </Badge>
-                {role === "superuser" ? (
-                  <Badge className="rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-amber-300">
-                    Superuser
-                  </Badge>
-                ) : null}
-              </div>
-
-              <a
-                href={flowscanUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#8fbaff80] bg-[linear-gradient(180deg,#3c76ff,#2457db)] px-3 text-sm font-medium text-white shadow-[0_16px_40px_rgba(37,90,224,0.28)] transition hover:brightness-110"
-              >
-                Flowscan
-                <ArrowUpRight className="size-3.5" />
-              </a>
+              ) : null}
             </div>
+            <a
+              href={flowscanUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-9 items-center gap-2 rounded-xl bg-[#3b6ff5] px-3 text-sm font-medium text-white transition hover:bg-[#4a7aff]"
+            >
+              Flowscan
+              <ArrowUpRight className="size-3.5" />
+            </a>
+          </>
+        }
+      >
+        <section className={`${internalPanelClass} p-5`}>
+          <h1 className="text-2xl font-semibold tracking-tight text-white">
+            User control center
+          </h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-white/50">
+            Search wallets or referral codes, then inspect builder approvals,
+            sessions, social identity, and superuser controls.
+          </p>
+        </section>
 
-            <section className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
-              <h1 className="text-[34px] font-semibold tracking-[-0.03em] text-white">
-                User control center
-              </h1>
-              <p className="mt-2 max-w-4xl text-sm leading-6 text-foreground/58">
-                Search any wallet or referral code, then inspect the full Blink
-                fingerprint for that user: builder approval history, app logs,
-                visitor and session IDs, recent IP addresses, social identity,
-                and direct superuser controls.
+        <div className="mt-5">
+          {role === "superuser" && walletAddress ? (
+            <SuperuserPanel
+              actingWalletAddress={walletAddress}
+              initialWalletAddress={props?.initialUserAddress}
+            />
+          ) : (
+            <section className={`${internalPanelClass} p-5`}>
+              <p className="text-sm leading-6 text-white/50">
+                Superuser access is required for fingerprint data and override
+                controls.
               </p>
             </section>
-
-            <div className="mt-4">
-              {role === "superuser" && walletAddress ? (
-                <SuperuserPanel
-                  actingWalletAddress={walletAddress}
-                  initialWalletAddress={props?.initialUserAddress}
-                />
-              ) : (
-                <section className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
-                  <p className="text-sm leading-6 text-foreground/58">
-                    This tab is restricted to superusers because it exposes user
-                    fingerprint data, raw app logs, and direct override
-                    controls.
-                  </p>
-                </section>
-              )}
-            </div>
-          </div>
+          )}
         </div>
-      </main>
+      </InternalDashboardShell>
     );
   }
 
   if (currentSection === "feed") {
     return (
-      <main className="min-h-screen bg-[#06070b] px-4 py-5 text-foreground md:px-6">
-        <div className="mx-auto flex max-w-[1500px] gap-4">
-          <aside className="hidden w-[248px] shrink-0 rounded-2xl border border-white/10 bg-[#0b0d13] p-3 lg:block">
-            <p className="px-2 py-1 text-xs uppercase tracking-[0.18em] text-foreground/45">
-              Internal
-            </p>
-            <div className="mt-2 space-y-1">
-              {navItems.map(({ label, active, href, soon, icon: Icon }) => (
-                <Link
-                  key={label}
-                  href={href}
-                  className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${
-                    active
-                      ? "bg-white/12 text-white"
-                      : "text-foreground/60 hover:bg-white/[0.06] hover:text-white/85"
-                  }`}
-                >
-                  {Icon ? (
-                    <Icon className="size-4 shrink-0 text-foreground/55" />
-                  ) : null}
-                  <span className="flex-1">{label}</span>
-                  {!active && soon ? (
-                    <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">
-                      Soon
-                    </span>
-                  ) : null}
-                </Link>
-              ))}
-            </div>
-          </aside>
-
-          <div className="min-w-0 flex-1">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#0b0d13] px-4 py-3">
-              <div className="flex items-center gap-2">
-                <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
-                  Internal feed
-                </Badge>
-                {role === "superuser" ? (
-                  <Badge className="rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-amber-300">
-                    Superuser
-                  </Badge>
-                ) : null}
-              </div>
-              <div className="flex items-center gap-2 text-xs text-foreground/45">
-                Signed in as{" "}
-                <span className="font-mono text-white/70">
-                  {truncateAddress(walletAddress)}
-                </span>
-              </div>
-            </div>
-
-            <InternalLiveActivityFeed
-              actingWalletAddress={walletAddress}
-              canGift={role === "superuser"}
-            />
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  return (
-    <main className="min-h-screen bg-[#06070b] px-4 py-5 text-foreground md:px-6">
-      <div className="mx-auto flex max-w-[1500px] gap-4">
-        <aside className="hidden w-[248px] shrink-0 rounded-2xl border border-white/10 bg-[#0b0d13] p-3 lg:block">
-          <p className="px-2 py-1 text-xs uppercase tracking-[0.18em] text-foreground/45">
-            Internal
-          </p>
-          <div className="mt-2 space-y-1">
-            {navItems.map(({ label, active, href, soon, icon: Icon }) => (
-              <Link
-                key={label}
-                href={href}
-                className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${
-                  active
-                    ? "bg-white/12 text-white"
-                    : "text-foreground/60 hover:bg-white/[0.06] hover:text-white/85"
-                }`}
-              >
-                {Icon ? (
-                  <Icon className="size-4 shrink-0 text-foreground/55" />
-                ) : null}
-                <span className="flex-1">{label}</span>
-                {!active && soon ? (
-                  <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">
-                    Soon
-                  </span>
-                ) : null}
-              </Link>
-            ))}
-          </div>
-        </aside>
-
-        <div className="min-w-0 flex-1">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#0b0d13] px-4 py-3">
+      <InternalDashboardShell
+        navItems={shellNavItems}
+        header={
+          <>
             <div className="flex items-center gap-2">
-              <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
-                Internal dashboard
+              <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs font-medium text-white/55">
+                Live feed
               </Badge>
               {role === "superuser" ? (
-                <Badge className="rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-amber-300">
+                <Badge className="rounded-full border border-amber-400/35 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-200">
                   Superuser
                 </Badge>
               ) : null}
             </div>
+            <p className="text-xs text-white/45">
+              {truncateAddress(walletAddress)}
+            </p>
+          </>
+        }
+      >
+        <InternalLiveActivityFeed
+          actingWalletAddress={walletAddress}
+          canGift={role === "superuser"}
+        />
+      </InternalDashboardShell>
+    );
+  }
 
-            <div className="relative min-w-[240px] flex-1 md:max-w-[420px]">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/35" />
-              <input
-                placeholder="Search users, wallets, sources..."
-                className="h-10 w-full rounded-xl border border-white/10 bg-[#111624] pl-9 pr-3 text-sm text-white outline-none placeholder:text-white/35"
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <a
-                href={flowscanUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#8fbaff80] bg-[linear-gradient(180deg,#3c76ff,#2457db)] px-3 text-sm font-medium text-white shadow-[0_16px_40px_rgba(37,90,224,0.28)] transition hover:brightness-110"
-              >
-                Flowscan
-                <ArrowUpRight className="size-3.5" />
-              </a>
-              <select
-                value={selectedRange}
-                onChange={(event) =>
-                  setSelectedRange(event.target.value as AdminRange)
-                }
-                className="h-10 rounded-xl border border-white/10 bg-[#111624] px-3 text-sm text-white outline-none"
-              >
-                {ADMIN_RANGE_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={() =>
-                  void fetchStats({
-                    syncHyperliquid: true,
-                    includeAttribution: true,
-                  })
-                }
-                disabled={loading}
-                className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-[#141925] px-3 text-sm text-foreground/70 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
-              >
-                {loading ? (
-                  <Loader2 className="size-3.5 animate-spin" />
-                ) : (
-                  <RefreshCw className="size-3.5" />
-                )}
-                Refresh
-              </button>
-            </div>
+  return (
+    <InternalDashboardShell
+      navItems={shellNavItems}
+      header={
+        <>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs font-medium text-white/55">
+              Dashboard
+            </Badge>
+            {role === "superuser" ? (
+              <Badge className="rounded-full border border-amber-400/35 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-200">
+                Superuser
+              </Badge>
+            ) : null}
           </div>
 
-          <section className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
+          <div className="relative hidden min-w-[200px] flex-1 md:block md:max-w-[360px]">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/30" />
+            <input
+              placeholder="Search users, wallets…"
+              className="h-9 w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-9 pr-3 text-sm text-white outline-none placeholder:text-white/30"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href={flowscanUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-9 items-center gap-2 rounded-xl bg-[#3b6ff5] px-3 text-sm font-medium text-white transition hover:bg-[#4a7aff]"
+            >
+              Flowscan
+              <ArrowUpRight className="size-3.5" />
+            </a>
+            <select
+              value={selectedRange}
+              onChange={(event) =>
+                setSelectedRange(event.target.value as AdminRange)
+              }
+              className="h-9 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-sm text-white outline-none"
+            >
+              {ADMIN_RANGE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() =>
+                void fetchStats({
+                  syncHyperliquid: true,
+                  includeAttribution: true,
+                })
+              }
+              disabled={loading}
+              className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 text-sm text-white/70 transition hover:bg-white/[0.07] hover:text-white disabled:opacity-50"
+            >
+              {loading ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="size-3.5" />
+              )}
+              Refresh
+            </button>
+          </div>
+        </>
+      }
+    >
+      {initialLoading ? (
+        <DashboardOverviewSkeleton />
+      ) : (
+        <div
+          className={`space-y-0 transition-opacity ${isRefreshing ? "opacity-60" : ""}`}
+        >
+          <section className={`${internalPanelClass} p-5`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h1 className="text-[40px] font-semibold tracking-[-0.03em] text-white">
+              <h1 className="text-2xl font-semibold tracking-tight text-white">
                 Today
               </h1>
-              <p className="text-xs text-foreground/40">
-                Hyperliquid sync:{" "}
-                {stats?.hyperliquidSync.freshness ?? "unknown"} ·{" "}
+              <p className={`${internalLabelClass} text-white/38`}>
+                HL sync {stats?.hyperliquidSync.freshness ?? "unknown"} ·{" "}
                 {stats ? timeAgo(stats.hyperliquidSync.lastSyncedAt) : "—"}
               </p>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
-              <div className="rounded-xl border border-white/10 bg-[#121726] p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
-                  Builder revenue
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-white">
-                  {stats ? formatMoney(stats.today.revenueUsd) : "—"}
-                </p>
-                <p className="mt-1 text-xs text-foreground/45">
-                  Yesterday{" "}
-                  {stats ? formatMoney(stats.today.yesterdayRevenueUsd) : "—"}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-[#121726] p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
-                  Routed volume
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-white">
-                  {stats ? formatCompact(stats.today.volumeUsd) : "—"}
-                </p>
-                <p className="mt-1 text-xs text-foreground/45">
-                  Yesterday{" "}
-                  {stats ? formatCompact(stats.today.yesterdayVolumeUsd) : "—"}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-[#121726] p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
-                  Active routed users
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-white">
-                  {stats?.today.activeUsers ?? 0}
-                </p>
-                <p className="mt-1 text-xs text-foreground/45">today window</p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-[#121726] p-4">
-                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
-                  Fills (live)
-                </p>
-                <p className="mt-2 text-3xl font-semibold text-white">
-                  {stats?.today.fillsCount ?? 0}
-                </p>
-                <p className="mt-1 text-xs text-foreground/45">
-                  {stats?.builder.live.windowMinutes ?? 30}m
-                </p>
-              </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+              <InternalStatCard
+                label="Builder revenue"
+                value={stats ? formatMoney(stats.today.revenueUsd) : "—"}
+                hint={
+                  stats
+                    ? `Yesterday ${formatMoney(stats.today.yesterdayRevenueUsd)}`
+                    : undefined
+                }
+              />
+              <InternalStatCard
+                label="Routed volume"
+                value={stats ? formatCompact(stats.today.volumeUsd) : "—"}
+                hint={
+                  stats
+                    ? `Yesterday ${formatCompact(stats.today.yesterdayVolumeUsd)}`
+                    : undefined
+                }
+              />
+              <InternalStatCard
+                label="Active routed users"
+                value={stats?.today.activeUsers ?? 0}
+                hint="Today"
+              />
+              <InternalStatCard
+                label="Fills (live window)"
+                value={stats?.today.fillsCount ?? 0}
+                hint={`${stats?.builder.live.windowMinutes ?? 30}m window`}
+              />
             </div>
           </section>
 
-          <section className="mt-4 rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
+          <section className={`mt-5 ${internalPanelClass} p-5`}>
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h2 className="text-2xl font-semibold text-white">
+                <h2 className="text-lg font-semibold tracking-tight text-white">
                   Growth & subscriptions
                 </h2>
-                <p className="mt-1 max-w-2xl text-xs text-foreground/45">
-                  BD-ready snapshot — MRR uses paying Pro list price (excludes
-                  gifts). DAU = unique routed traders per day from Hyperliquid
-                  sync.
+                <p className={`mt-1 max-w-2xl ${internalLabelClass}`}>
+                  MRR from paying Pro (excludes gifts). DAU = unique routed
+                  traders per day.
                 </p>
               </div>
             </div>
@@ -846,9 +786,7 @@ export function AdminDashboard(props?: {
                         tickLine={false}
                         axisLine={false}
                         tickMargin={8}
-                        tickFormatter={(value: string) =>
-                          value.slice(5)
-                        }
+                        tickFormatter={(value: string) => value.slice(5)}
                       />
                       <ChartTooltip
                         cursor={false}
@@ -893,9 +831,7 @@ export function AdminDashboard(props?: {
                         tickLine={false}
                         axisLine={false}
                         tickMargin={8}
-                        tickFormatter={(value: string) =>
-                          value.slice(5)
-                        }
+                        tickFormatter={(value: string) => value.slice(5)}
                       />
                       <ChartTooltip
                         cursor={false}
@@ -928,8 +864,14 @@ export function AdminDashboard(props?: {
             </div>
           </section>
 
-          <section className="mt-4 rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
-            <h2 className="text-2xl font-semibold text-white">Stats</h2>
+          <section className={`mt-5 ${internalPanelClass} p-5`}>
+            <h2 className="text-lg font-semibold tracking-tight text-white">
+              Funnel & window metrics
+            </h2>
+            <p className={`mt-1 ${internalLabelClass}`}>
+              Window totals for {selectedRange} — today&apos;s headline KPIs are
+              above.
+            </p>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               {statsCards.map((card) => (
                 <div
@@ -1463,179 +1405,142 @@ export function AdminDashboard(props?: {
             </div>
           </section>
 
-          <section className="mt-4 rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-white">
-                Live builder fill revenue
-              </h2>
-              <span className="text-xs text-foreground/45">
-                Polling every 8s · last{" "}
-                {stats?.builder.live.windowMinutes ?? 30}m
-              </span>
-            </div>
-            <div className="mb-4 grid gap-3 md:grid-cols-3">
-              <div className="rounded-xl border border-white/10 bg-[#121726] px-3 py-2">
-                <p className="text-[11px] uppercase tracking-[0.12em] text-foreground/45">
-                  Revenue (window)
-                </p>
-                <p className="mt-1 text-xl font-semibold text-emerald-300">
-                  {formatMoney(stats?.builder.live.totals.revenueUsd ?? 0)}
-                </p>
+          <InternalSection
+            title="Live builder fills"
+            description={`Refreshes every 8s · ${stats?.builder.live.windowMinutes ?? 30}m window`}
+          >
+            {isRefreshing ? (
+              <StatGridSkeleton count={3} columns="md:grid-cols-3" />
+            ) : (
+              <div className="grid gap-3 md:grid-cols-3">
+                <InternalStatCard
+                  label="Revenue (window)"
+                  value={formatMoney(
+                    stats?.builder.live.totals.revenueUsd ?? 0,
+                  )}
+                  tone="positive"
+                />
+                <InternalStatCard
+                  label="Notional (window)"
+                  value={formatCompact(
+                    stats?.builder.live.totals.notionalUsd ?? 0,
+                  )}
+                />
+                <InternalStatCard
+                  label="Fills (window)"
+                  value={stats?.builder.live.totals.fillsCount ?? 0}
+                />
               </div>
-              <div className="rounded-xl border border-white/10 bg-[#121726] px-3 py-2">
-                <p className="text-[11px] uppercase tracking-[0.12em] text-foreground/45">
-                  Notional (window)
-                </p>
-                <p className="mt-1 text-xl font-semibold text-white">
-                  {formatCompact(stats?.builder.live.totals.notionalUsd ?? 0)}
-                </p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-[#121726] px-3 py-2">
-                <p className="text-[11px] uppercase tracking-[0.12em] text-foreground/45">
-                  Fills (window)
-                </p>
-                <p className="mt-1 text-xl font-semibold text-white">
-                  {stats?.builder.live.totals.fillsCount ?? 0}
-                </p>
-              </div>
-            </div>
-            <div className="max-h-[320px] overflow-auto rounded-xl border border-white/10">
-              <table className="w-full min-w-[980px] text-sm">
-                <thead className="sticky top-0 bg-[#0c111b] text-left text-xs uppercase tracking-[0.12em] text-foreground/45">
-                  <tr>
-                    <th className="px-3 py-2">Time</th>
-                    <th className="px-3 py-2">Wallet</th>
-                    <th className="px-3 py-2">Market</th>
-                    <th className="px-3 py-2">Side</th>
-                    <th className="px-3 py-2 text-right">Price</th>
-                    <th className="px-3 py-2 text-right">Size</th>
-                    <th className="px-3 py-2 text-right">Notional</th>
-                    <th className="px-3 py-2 text-right">Fee units</th>
-                    <th className="px-3 py-2 text-right">Builder rev</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/5">
-                  {(stats?.builder.live.fills ?? []).map((fill) => (
-                    <tr key={`${fill.tid}-${fill.walletAddress}`}>
-                      <td className="px-3 py-2 text-foreground/65">
-                        {new Date(fill.time).toLocaleTimeString()}
-                      </td>
-                      <td className="px-3 py-2 font-mono text-xs text-foreground/78">
-                        {truncateAddress(fill.walletAddress)}
-                      </td>
-                      <td className="px-3 py-2 text-white">{fill.coin}</td>
-                      <td
-                        className={`px-3 py-2 ${fill.side === "buy" ? "text-emerald-300" : "text-rose-300"}`}
-                      >
-                        {fill.side.toUpperCase()}
-                      </td>
-                      <td className="px-3 py-2 text-right text-white/85">
-                        {fill.px.toFixed(4)}
-                      </td>
-                      <td className="px-3 py-2 text-right text-white/85">
-                        {fill.sz.toFixed(6)}
-                      </td>
-                      <td className="px-3 py-2 text-right text-white/85">
-                        {formatMoney(fill.notionalUsd)}
-                      </td>
-                      <td className="px-3 py-2 text-right text-white/70">
-                        {fill.feeUnits}
-                      </td>
-                      <td className="px-3 py-2 text-right font-semibold text-emerald-300">
-                        {formatMoney(fill.builderFeeUsd)}
-                      </td>
+            )}
+            <div
+              className={`mt-4 max-h-[300px] overflow-auto ${internalPanelInsetClass}`}
+            >
+              {isRefreshing ? (
+                <TableRowsSkeleton rows={4} />
+              ) : (
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead className="sticky top-0 bg-[#16171c] text-left text-xs font-medium text-white/40">
+                    <tr>
+                      <th className="px-3 py-2.5 font-medium">Time</th>
+                      <th className="px-3 py-2.5 font-medium">Wallet</th>
+                      <th className="px-3 py-2.5 font-medium">Market</th>
+                      <th className="px-3 py-2.5 font-medium">Side</th>
+                      <th className="px-3 py-2.5 text-right font-medium">
+                        Rev
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-white/[0.04]">
+                    {(stats?.builder.live.fills ?? []).map((fill) => (
+                      <tr key={fill.tid}>
+                        <td className="px-3 py-2.5 text-white/55">
+                          {new Date(fill.time).toLocaleTimeString()}
+                        </td>
+                        <td className="px-3 py-2.5 font-mono text-xs text-white/70">
+                          {truncateAddress(fill.walletAddress)}
+                        </td>
+                        <td className="px-3 py-2.5 text-white">{fill.coin}</td>
+                        <td
+                          className={`px-3 py-2.5 capitalize ${fill.side === "buy" ? "text-emerald-400" : "text-rose-400"}`}
+                        >
+                          {fill.side}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-medium text-emerald-400">
+                          {formatMoney(fill.builderFeeUsd)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
-          </section>
+          </InternalSection>
 
-          <section className="mt-4 rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-base font-semibold text-white">
-                  Live activity feed moved
-                </h2>
-                <p className="mt-1 text-xs text-foreground/45">
-                  Open the dedicated feed page for pagination, event mix, and user action quicklinks.
-                </p>
-              </div>
+          <InternalSection
+            title="Recent builder approvals"
+            description="Latest unique wallets — one row per wallet."
+            action={
               <Link
                 href="/internal/feed"
-                className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/80 transition hover:bg-white/[0.08]"
+                className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-sm text-white/75 transition hover:bg-white/[0.06]"
               >
-                Open feed →
+                Live feed →
               </Link>
-            </div>
-          </section>
-
-          <section className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-[#0b0d13] p-0">
-            <div className="border-b border-white/8 px-5 py-4">
-              <h2 className="text-base font-semibold text-white">
-                Recent builder approvals
-              </h2>
-              <p className="mt-1 text-xs text-foreground/45">
-                Synced from Neon on refresh (includes on-chain backfill for
-                recent wallets).
-              </p>
-            </div>
-
-            {loading && !stats ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="size-6 animate-spin text-foreground/35" />
-              </div>
+            }
+          >
+            {isRefreshing ? (
+              <TableRowsSkeleton rows={5} />
             ) : stats?.recentApprovals.length === 0 ? (
-              <div className="px-5 py-12 text-center text-sm text-foreground/40">
+              <p
+                className={`${internalPanelInsetClass} px-4 py-8 text-center text-sm text-white/40`}
+              >
                 No approvals recorded yet.
-              </div>
+              </p>
             ) : (
-              <div className="divide-y divide-white/[0.06]">
-                <div className="grid grid-cols-[1fr_100px_100px] gap-4 px-5 py-2 text-[11px] uppercase tracking-[0.14em] text-foreground/35">
+              <div className={`${internalPanelInsetClass} overflow-hidden`}>
+                <div className="grid grid-cols-[1fr_88px_88px] gap-3 border-b border-white/[0.05] px-4 py-2.5 text-xs font-medium text-white/40">
                   <span>Wallet</span>
                   <span className="text-right">Max fee</span>
                   <span className="text-right">When</span>
                 </div>
-                {(stats?.recentApprovals ?? []).map((approval) => (
-                  <div
-                    key={`${approval.walletAddress}-${approval.approvedAt}`}
-                    className="grid grid-cols-[1fr_100px_100px] gap-4 px-5 py-3 text-sm"
-                  >
-                    <span className="font-mono text-foreground/72">
-                      {truncateAddress(approval.walletAddress)}
-                    </span>
-                    <span className="text-right font-mono text-foreground/55">
-                      {approval.maxFeeRate}
-                    </span>
-                    <span className="text-right text-foreground/40">
-                      {timeAgo(approval.approvedAt)}
-                    </span>
-                  </div>
-                ))}
+                <div className="divide-y divide-white/[0.04]">
+                  {(stats?.recentApprovals ?? []).map((approval) => (
+                    <div
+                      key={approval.walletAddress}
+                      className="grid grid-cols-[1fr_88px_88px] gap-3 px-4 py-3 text-sm"
+                    >
+                      <Link
+                        href={getInternalUserPath(approval.walletAddress)}
+                        className="font-mono text-[#6fa8ff] hover:underline"
+                      >
+                        {truncateAddress(approval.walletAddress)}
+                      </Link>
+                      <span className="text-right text-white/55">
+                        {approval.maxFeeRate}
+                      </span>
+                      <span className="text-right text-white/40">
+                        {timeAgo(approval.approvedAt)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
-          </section>
-
-          <div className="mt-4 flex items-center justify-between text-xs text-foreground/35">
-            <span>
-              Signed in as{" "}
-              <span className="font-mono">
-                {truncateAddress(walletAddress)}
-              </span>{" "}
-              · role <span className="uppercase">{role}</span>
-            </span>
-            {lastFetched ? (
-              <span>Updated {lastFetched.toLocaleTimeString()}</span>
-            ) : null}
-            <Link
-              href="/trade/BTC"
-              className="transition hover:text-foreground/70"
-            >
-              ← Back to terminal
-            </Link>
-          </div>
+          </InternalSection>
         </div>
+      )}
+
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-white/35">
+        <span>
+          {truncateAddress(walletAddress)} · {role}
+        </span>
+        {lastFetched ? (
+          <span>Updated {lastFetched.toLocaleTimeString()}</span>
+        ) : null}
+        <Link href="/trade/BTC" className="transition hover:text-white/60">
+          ← Terminal
+        </Link>
       </div>
-    </main>
+    </InternalDashboardShell>
   );
 }

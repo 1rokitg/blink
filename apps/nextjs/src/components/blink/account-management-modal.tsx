@@ -369,9 +369,9 @@ export function AccountManagementModal(props: {
 
   return (
     <Dialog open={props.open} onOpenChange={(open) => !open && props.onClose()}>
-      <DialogContent className="max-h-[86vh] overflow-hidden border-[#8fc4ff54] bg-[#0c1119f2] p-0 sm:max-w-[980px]">
-        <div className="grid h-full grid-cols-[220px_1fr]">
-          <aside className="border-r border-white/10 p-4">
+      <DialogContent className="h-[86vh] overflow-hidden rounded-[20px] border-[#8fc4ff54] bg-[#0c1119f2] p-0 sm:max-w-[980px]">
+        <div className="grid h-full min-h-0 grid-cols-[220px_1fr] overflow-hidden rounded-[20px]">
+          <aside className="overflow-y-auto border-r border-white/10 bg-[#0a0f17] p-4">
             <p className="mb-4 text-lg font-semibold text-white">Account</p>
             <div className="space-y-1 text-sm">
               {tabs.map((item) => (
@@ -391,7 +391,7 @@ export function AccountManagementModal(props: {
             </div>
           </aside>
 
-          <section className="overflow-y-auto p-6">
+          <section className="min-h-0 overflow-y-auto p-6">
             {activeTab === "Connections" ? (
               <ConnectionsTab />
             ) : activeTab === "Preferences" ? (

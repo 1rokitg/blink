@@ -25,6 +25,7 @@ import {
   LineChart,
   XAxis,
 } from "recharts";
+import { toast } from "sonner";
 
 import { Badge } from "@acme/ui/badge";
 import {
@@ -497,7 +498,7 @@ export function AdminDashboard(props?: {
               {role === "superuser" && walletAddress ? (
                 <SuperuserPanel
                   actingWalletAddress={walletAddress}
-                  initialWalletAddress={props.initialUserAddress}
+                  initialWalletAddress={props?.initialUserAddress}
                 />
               ) : (
                 <section className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">

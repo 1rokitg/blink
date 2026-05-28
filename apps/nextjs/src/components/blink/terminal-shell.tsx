@@ -863,7 +863,7 @@ const ZERO_FEE_MARKETS = new Set(
   isGrowthModeEnabled() ? GROWTH_ZERO_FEE_MARKETS : [],
 );
 
-const LEVERAGE_PRESETS = [1, 2, 5, 10, 20] as const;
+const LEVERAGE_PRESETS = [1, 2, 3, 5, 10, 20] as const;
 
 const LEVERAGE_RISK: Record<
   (typeof LEVERAGE_PRESETS)[number],
@@ -878,6 +878,11 @@ const LEVERAGE_RISK: Record<
     activeCls:
       "border-emerald-400/50 bg-emerald-400/10 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.15)]",
     disclaimer: "✓ Low leverage — safest for most traders.",
+  },
+  3: {
+    activeCls:
+      "border-emerald-400/50 bg-emerald-400/10 text-emerald-300 shadow-[0_0_8px_rgba(52,211,153,0.15)]",
+    disclaimer: "✓ Low leverage — safer than high-beta presets.",
   },
   5: {
     activeCls:
@@ -979,6 +984,7 @@ function OrderEntryPanel(props: {
   hideBalances: boolean;
   onRequireBuilderSetup: () => void;
 }) {
+  type MarginMode = "cross" | "isolated";
   const queryClient = useQueryClient();
   const { persistSize } = usePersistSizePreference();
 
@@ -989,22 +995,24 @@ function OrderEntryPanel(props: {
     if (typeof window === "undefined" || !readPersistSizePreference()) {
       return "";
     }
-    return readPersistedOrderSizeDraft().size;
+    return readPersistedOrderSizeDraft(props.market).size;
   });
   // "coin" = raw coin units; "usd" = notional USD (divided by mark on submit)
   const [sizeMode, setSizeMode] = useState<OrderEntrySizeMode>(() => {
     if (typeof window === "undefined" || !readPersistSizePreference()) {
-      return "coin";
+      return "usd";
     }
-    return readPersistedOrderSizeDraft().sizeMode;
+    return readPersistedOrderSizeDraft(props.market).sizeMode;
   });
   const [leverage, setLeverage] = useState(10);
+  const [marginMode, setMarginMode] = useState<MarginMode>("cross");
   const [updatingLeverage, setUpdatingLeverage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [requestListingOpen, setRequestListingOpen] = useState(false);
   const [orderResult, setOrderResult] = useState<"idle" | "success" | "error">(
     "idle",
   );
+  const [marketFillGlowAt, setMarketFillGlowAt] = useState<number | null>(null);
   const orderResultTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
@@ -1029,6 +1037,12 @@ function OrderEntryPanel(props: {
     };
   }, []);
 
+  useEffect(() => {
+    if (!marketFillGlowAt) return;
+    const timeout = setTimeout(() => setMarketFillGlowAt(null), 1250);
+    return () => clearTimeout(timeout);
+  }, [marketFillGlowAt]);
+
   const marketQuery = useQuery({
     queryKey: ["blink", "market", props.market],
     queryFn: () => resolvePerpMarket(props.market),
@@ -1050,10 +1064,14 @@ function OrderEntryPanel(props: {
     enabled: !!props.walletAddress,
   });
 
-  const szDecimals = useMemo(() => {
-    const asset = marketQuery.data?.meta.universe[marketQuery.data.localIndex];
-    return (asset as { szDecimals?: number } | undefined)?.szDecimals ?? 4;
-  }, [marketQuery.data]);
+  const marketUniverseEntry = useMemo(
+    () =>
+      marketQuery.data?.meta.universe[marketQuery.data.localIndex] as
+        | { szDecimals?: number; maxLeverage?: number; onlyIsolated?: boolean }
+        | undefined,
+    [marketQuery.data],
+  );
+  const szDecimals = marketUniverseEntry?.szDecimals ?? 4;
 
   const minSize = useMemo(() => 10 ** -szDecimals, [szDecimals]);
   const markPrice = marketQuery.data?.midPrice ?? 0;
@@ -1121,12 +1139,38 @@ function OrderEntryPanel(props: {
         : entryPrice * (1 + 1 / leverage - MM_RATE)
       : null;
   const marginRequired = coinSize > 0 ? notional / leverage : null;
+  const marketMaxLeverage = useMemo(() => {
+    const rawMax = Number(marketUniverseEntry?.maxLeverage ?? 20);
+    if (!Number.isFinite(rawMax) || rawMax <= 0) return 20;
+    return Math.max(1, Math.floor(rawMax));
+  }, [marketUniverseEntry?.maxLeverage]);
+  const isIsolatedOnlyMarket = Boolean(marketUniverseEntry?.onlyIsolated);
+  const currentMarketPosition = useMemo(() => {
+    const positions = accountQuery.data?.assetPositions ?? [];
+    return positions.find((entry) => entry.position.coin === props.market)?.position;
+  }, [accountQuery.data?.assetPositions, props.market]);
+  const positionMarginMode = useMemo<MarginMode | null>(() => {
+    const rawType = currentMarketPosition?.leverage?.type;
+    if (typeof rawType !== "string") return null;
+    const normalized = rawType.toLowerCase();
+    return normalized === "cross" ? "cross" : normalized === "isolated" ? "isolated" : null;
+  }, [currentMarketPosition?.leverage?.type]);
+  const leverageOptions = useMemo(() => {
+    const options = LEVERAGE_PRESETS.filter((value) => value <= marketMaxLeverage);
+    if (options.length === 0) return [marketMaxLeverage];
+    if (!options.includes(marketMaxLeverage as (typeof LEVERAGE_PRESETS)[number])) {
+      return [...options, marketMaxLeverage].sort((left, right) => left - right);
+    }
+    return options;
+  }, [marketMaxLeverage]);
+  const orderCost = marginRequired ?? 0;
+  const estimatedBuilderFee = notional * (props.builderFeeUnits * 1e-6);
 
   // ── % size shortcuts ───────────────────────────────────────────────────
   const fillSizePct = useCallback(
     (pct: number) => {
       if (!availableMargin || !entryPrice) return;
-      const notionalTarget = availableMargin * leverage * pct;
+      const notionalTarget = availableMargin * Math.max(1, leverage) * pct;
       if (sizeMode === "usd") {
         setSize(notionalTarget.toFixed(2));
       } else {
@@ -1141,23 +1185,39 @@ function OrderEntryPanel(props: {
       persistSizeHydratedRef.current = false;
       return;
     }
+    const draft = readPersistedOrderSizeDraft(props.market);
+    setSize(draft.size);
+    setSizeMode(draft.sizeMode);
+    persistSizeHydratedRef.current = true;
+  }, [persistSize, props.market]);
+
+  useEffect(() => {
+    if (!persistSize) {
+      persistSizeHydratedRef.current = false;
+      return;
+    }
 
     if (!persistSizeHydratedRef.current) {
       persistSizeHydratedRef.current = true;
 
-      if (size || sizeMode !== "coin") {
-        writePersistedOrderSizeDraft({ size, sizeMode });
+      if (size || sizeMode !== "usd") {
+        writePersistedOrderSizeDraft({ market: props.market, size, sizeMode });
         return;
       }
 
-      const draft = readPersistedOrderSizeDraft();
+      const draft = readPersistedOrderSizeDraft(props.market);
       setSize(draft.size);
       setSizeMode(draft.sizeMode);
       return;
     }
 
-    writePersistedOrderSizeDraft({ size, sizeMode });
-  }, [persistSize, size, sizeMode]);
+    writePersistedOrderSizeDraft({ market: props.market, size, sizeMode });
+  }, [persistSize, props.market, size, sizeMode]);
+
+  useEffect(() => {
+    if (persistSize) return;
+    setSize("");
+  }, [persistSize]);
 
   useEffect(() => {
     if (!props.bookSelection) return;
@@ -1184,7 +1244,8 @@ function OrderEntryPanel(props: {
 
   const handleLeverageChange = useCallback(
     async (newLeverage: number) => {
-      setLeverage(newLeverage);
+      const nextLeverage = Math.max(1, Math.min(newLeverage, marketMaxLeverage));
+      setLeverage(nextLeverage);
       if (!props.walletAddress) return;
       setUpdatingLeverage(true);
       try {
@@ -1196,8 +1257,8 @@ function OrderEntryPanel(props: {
         ]);
         await exchClient.updateLeverage({
           asset: market.assetId,
-          isCross: true,
-          leverage: newLeverage,
+          isCross: marginMode === "cross",
+          leverage: nextLeverage,
         });
       } catch {
         // Non-critical — leverage update failed silently, UI still shows selection
@@ -1205,8 +1266,50 @@ function OrderEntryPanel(props: {
         setUpdatingLeverage(false);
       }
     },
-    [props.market, props.walletAddress],
+    [marginMode, marketMaxLeverage, props.market, props.walletAddress],
   );
+  const handleMarginModeChange = useCallback(
+    async (nextMode: MarginMode) => {
+      if (nextMode === "cross" && isIsolatedOnlyMarket) return;
+      setMarginMode(nextMode);
+      if (!props.walletAddress) return;
+      setUpdatingLeverage(true);
+      try {
+        const [exchClient, market] = await Promise.all([
+          Promise.resolve(
+            createAgentExchangeClient(props.walletAddress as `0x${string}`),
+          ),
+          resolvePerpMarket(props.market),
+        ]);
+        await exchClient.updateLeverage({
+          asset: market.assetId,
+          isCross: nextMode === "cross",
+          leverage: Math.max(1, Math.min(leverage, marketMaxLeverage)),
+        });
+      } catch {
+        // Non-critical — margin mode update failed silently, UI remains optimistic
+      } finally {
+        setUpdatingLeverage(false);
+      }
+    },
+    [isIsolatedOnlyMarket, leverage, marketMaxLeverage, props.market, props.walletAddress],
+  );
+
+  useEffect(() => {
+    if (leverage <= marketMaxLeverage) return;
+    setLeverage(marketMaxLeverage);
+  }, [leverage, marketMaxLeverage]);
+  useEffect(() => {
+    if (isIsolatedOnlyMarket) {
+      setMarginMode("isolated");
+      return;
+    }
+    if (positionMarginMode) {
+      setMarginMode(positionMarginMode);
+    } else {
+      setMarginMode("cross");
+    }
+  }, [isIsolatedOnlyMarket, positionMarginMode]);
 
   const handleCopyListingRequest = useCallback(async () => {
     if (!requestListingTemplate || !hip3Deployer) return;
@@ -1228,14 +1331,18 @@ function OrderEntryPanel(props: {
       return;
     }
 
-    const sz = Number.parseFloat(size);
+    const inputSize = Number.parseFloat(size);
     const px = orderType === "limit" ? Number.parseFloat(price) : 0;
 
-    if (!sz || sz <= 0) {
+    if (!inputSize || inputSize <= 0) {
       toast.error("Enter a valid size");
       return;
     }
-    if (sz < minSize) {
+    if (!sizeNum || sizeNum <= 0) {
+      toast.error("Enter a valid size");
+      return;
+    }
+    if (sizeNum < minSize) {
       toast.error(`Min order size is ${minSize} ${props.market}`);
       return;
     }
@@ -1248,7 +1355,7 @@ function OrderEntryPanel(props: {
     if (orderType === "limit") {
       emitTradingEvent({
         type: "loading",
-        message: `Limit ${side === "buy" ? "long" : "short"} ${props.market} ${sz}`,
+        message: `Limit ${side === "buy" ? "long" : "short"} ${props.market} ${sizeNum}`,
         id: "order",
       });
     }
@@ -1266,7 +1373,7 @@ function OrderEntryPanel(props: {
         market.midPrice,
         sizeDecimals,
       );
-      const sizeStr = roundWithMode(sz, sizeDecimals, "down");
+      const sizeStr = roundWithMode(sizeNum, sizeDecimals, "down");
       const limitPxStr = roundWithMode(px, priceDecimals, "nearest");
       const optimisticMarketPrice = markPrice || market.midPrice;
 
@@ -1322,7 +1429,7 @@ function OrderEntryPanel(props: {
               market: props.market,
               side,
               type: orderType,
-              size: sz,
+              size: sizeNum,
             });
             await placeOrder();
           } else {
@@ -1338,7 +1445,6 @@ function OrderEntryPanel(props: {
           orderType: "limit",
         });
       } else {
-        pulseOrderResult("success");
         emitTradingEvent({
           type: "order_placed",
           coin: props.market,
@@ -1351,6 +1457,8 @@ function OrderEntryPanel(props: {
         });
         try {
           await placeOrder();
+          pulseOrderResult("success");
+          setMarketFillGlowAt(Date.now());
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           if (msg.toLowerCase().includes("duplicate nonce")) {
@@ -1358,7 +1466,7 @@ function OrderEntryPanel(props: {
               market: props.market,
               side,
               type: orderType,
-              size: sz,
+              size: sizeNum,
             });
             await placeOrder();
           } else {
@@ -1444,12 +1552,29 @@ function OrderEntryPanel(props: {
     props.onRequireBuilderSetup,
     props.walletAddress,
     persistSize,
+    sizeNum,
     pulseOrderResult,
     queryClient,
   ]);
 
   return (
-    <section className="glass-panel flex h-full flex-col p-5">
+    <section className="glass-panel relative flex h-full flex-col overflow-hidden p-5">
+      <AnimatePresence>
+        {marketFillGlowAt ? (
+          <motion.div
+            key={marketFillGlowAt}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.28 }}
+            className="pointer-events-none absolute inset-0 z-0 rounded-[18px]"
+            style={{
+              boxShadow:
+                "inset 0 0 0 1px rgba(126,169,255,0.35), inset 0 0 52px rgba(126,169,255,0.18), 0 0 38px rgba(126,169,255,0.22)",
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
       <div className="flex items-center justify-between">
         <div>
           <p className="terminal-label">Order entry</p>
@@ -1647,7 +1772,7 @@ function OrderEntryPanel(props: {
                 }}
                 className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-foreground/50 transition hover:bg-white/[0.08] hover:text-white"
               >
-                {sizeMode === "coin" ? "→ USD" : "→ COIN"}
+                {sizeMode === "coin" ? "Use USD" : `Use ${props.market}`}
               </button>
             </div>
             <div className="relative">
@@ -1716,7 +1841,7 @@ function OrderEntryPanel(props: {
                 }}
                 className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-medium text-foreground/50 transition hover:bg-white/[0.08] hover:text-white"
               >
-                {sizeMode === "coin" ? "→ USD" : "→ COIN"}
+                {sizeMode === "coin" ? "Use USD" : `Use ${props.market}`}
               </button>
             </div>
             <div className="relative">
@@ -1776,6 +1901,40 @@ function OrderEntryPanel(props: {
 
       {/* Leverage */}
       <div className="mt-3 space-y-2">
+        <div className="space-y-1.5">
+          <p className="terminal-label">Margin mode</p>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={() => void handleMarginModeChange("cross")}
+              disabled={isIsolatedOnlyMarket}
+              className={`rounded-full border py-1.5 text-[11px] font-medium transition ${
+                marginMode === "cross"
+                  ? "border-white/30 bg-white/10 text-foreground"
+                  : "border-white/8 bg-white/[0.02] text-foreground/50 hover:border-white/16 hover:text-foreground/75"
+              } disabled:cursor-not-allowed disabled:opacity-40`}
+            >
+              Cross
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleMarginModeChange("isolated")}
+              className={`rounded-full border py-1.5 text-[11px] font-medium transition ${
+                marginMode === "isolated"
+                  ? "border-white/30 bg-white/10 text-foreground"
+                  : "border-white/8 bg-white/[0.02] text-foreground/50 hover:border-white/16 hover:text-foreground/75"
+              }`}
+            >
+              Isolated
+            </button>
+          </div>
+          {isIsolatedOnlyMarket ? (
+            <p className="text-[10px] text-amber-300/70">
+              This market supports isolated margin only.
+            </p>
+          ) : null}
+        </div>
+
         <div className="flex items-center justify-between">
           <p className="terminal-label">Leverage</p>
           <div className="flex items-center gap-2">
@@ -1785,13 +1944,18 @@ function OrderEntryPanel(props: {
             <span className="font-mono text-xs font-medium text-white">
               {leverage}×
             </span>
+            <span className="text-[10px] text-foreground/45">
+              max {marketMaxLeverage}×
+            </span>
           </div>
         </div>
 
         {/* Risk-coloured presets */}
         <div className="flex gap-1.5">
-          {LEVERAGE_PRESETS.map((lv) => {
-            const risk = LEVERAGE_RISK[lv];
+          {leverageOptions.map((lv) => {
+            const risk =
+              LEVERAGE_RISK[lv as keyof typeof LEVERAGE_RISK] ??
+              LEVERAGE_RISK[10];
             const isActive = leverage === lv;
             return (
               <button
@@ -1812,7 +1976,7 @@ function OrderEntryPanel(props: {
 
         {/* Risk indicator bar */}
         <div className="flex gap-0.5 overflow-hidden rounded-full">
-          {LEVERAGE_PRESETS.map((lv) => (
+          {leverageOptions.map((lv) => (
             <div
               key={lv}
               className={`h-[3px] flex-1 rounded-full transition-all ${
@@ -1851,6 +2015,12 @@ function OrderEntryPanel(props: {
       {coinSize > 0 && (
         <div className="mt-2 divide-y divide-white/[0.05] overflow-hidden rounded-[14px] border border-white/6 bg-white/[0.02]">
           <div className="flex items-center justify-between px-3 py-2">
+            <span className="text-xs text-foreground/40">Order cost (est.)</span>
+            <span className="font-mono text-xs text-foreground/72">
+              {maskNumberish(orderCost, formatUsd, props.hideBalances)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between px-3 py-2">
             <span className="text-xs text-foreground/40">Notional</span>
             <span className="font-mono text-xs text-foreground/72">
               {maskNumberish(notional, formatUsd, props.hideBalances)}
@@ -1876,6 +2046,12 @@ function OrderEntryPanel(props: {
               </span>
             </div>
           )}
+          <div className="flex items-center justify-between px-3 py-2">
+            <span className="text-xs text-foreground/40">Builder fee (est.)</span>
+            <span className="font-mono text-xs text-foreground/72">
+              {maskNumberish(estimatedBuilderFee, formatUsd, props.hideBalances)}
+            </span>
+          </div>
           {isProRouting && savingsUsd > 0 && (
             <div className="flex items-center justify-between bg-amber-300/8 px-3 py-2">
               <span className="text-xs text-amber-100/90">You are saving</span>
@@ -1995,14 +2171,17 @@ function AccountPanel(props: {
   );
 
   const positions = accountQuery.data?.state?.assetPositions ?? [];
+  const openPositions = useMemo(
+    () => positions.filter((entry) => Number(entry.position.szi) !== 0),
+    [positions],
+  );
   const openOrders = accountQuery.data?.openOrders ?? [];
   const recentFills = accountQuery.data?.fills ?? [];
   const accountValue = Number(
     accountQuery.data?.state?.marginSummary?.accountValue ?? 0,
   );
-  const hasOpenPositions = positions.some(
-    (entry) => Number(entry.position.szi) !== 0,
-  );
+  const hasOpenPositions = openPositions.length > 0;
+  const showPositionsSkeleton = accountQuery.isFetching && openPositions.length === 0;
   const marketCtxQuery = useQuery({
     queryKey: ["blink", "position-market-ctx"],
     queryFn: fetchCoinMarketCtxMap,
@@ -2206,8 +2385,7 @@ function AccountPanel(props: {
                 {
                   value: "positions",
                   label: "Positions",
-                  count: positions.filter((p) => Number(p.position.szi) !== 0)
-                    .length,
+                  count: openPositions.length,
                 },
                 {
                   value: "orders",
@@ -2239,7 +2417,7 @@ function AccountPanel(props: {
 
         {/* ── Positions ─────────────────────────────────────────────────── */}
         <TabsContent value="positions" className="mt-0 p-3">
-          {positions.length > 0 ? (
+          {showPositionsSkeleton ? (
             <div className="overflow-x-auto">
               <div className="min-w-[820px]">
                 <div className="mb-1.5 grid grid-cols-[minmax(108px,1fr)_52px_64px_72px_72px_80px_68px_68px_96px] items-center gap-x-2 px-3 py-1 text-[10px] uppercase tracking-[0.13em] text-foreground/32">
@@ -2254,9 +2432,45 @@ function AccountPanel(props: {
                   <span className="text-right">PnL · ROE</span>
                 </div>
                 <div className="space-y-1.5">
-                  {positions.map(({ position }) => {
+                  {[1, 2].map((slot) => (
+                    <div
+                      key={`positions-skeleton-${slot}`}
+                      className="overflow-hidden rounded-[14px] border border-white/[0.07] bg-white/[0.025] px-3 py-3"
+                    >
+                      <div className="grid grid-cols-[minmax(108px,1fr)_52px_64px_72px_72px_80px_68px_68px_96px] items-center gap-x-2">
+                        <div className="h-5 w-24 animate-pulse rounded-md bg-white/10" />
+                        <div className="mx-auto h-5 w-12 animate-pulse rounded-full bg-white/10" />
+                        <div className="ml-auto h-4 w-12 animate-pulse rounded bg-white/10" />
+                        <div className="ml-auto h-4 w-14 animate-pulse rounded bg-white/10" />
+                        <div className="ml-auto h-4 w-14 animate-pulse rounded bg-white/10" />
+                        <div className="ml-auto h-4 w-14 animate-pulse rounded bg-white/10" />
+                        <div className="ml-auto h-4 w-12 animate-pulse rounded bg-white/10" />
+                        <div className="ml-auto h-4 w-12 animate-pulse rounded bg-white/10" />
+                        <div className="ml-auto h-5 w-16 animate-pulse rounded bg-white/10" />
+                      </div>
+                      <div className="mt-3 h-8 animate-pulse rounded-lg bg-white/8" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : openPositions.length > 0 ? (
+            <div className="overflow-x-auto">
+              <div className="min-w-[820px]">
+                <div className="mb-1.5 grid grid-cols-[minmax(108px,1fr)_52px_64px_72px_72px_80px_68px_68px_96px] items-center gap-x-2 px-3 py-1 text-[10px] uppercase tracking-[0.13em] text-foreground/32">
+                  <span>Market</span>
+                  <span className="text-center">Side</span>
+                  <span className="text-right">Size</span>
+                  <span className="text-right">Entry</span>
+                  <span className="text-right">Mark</span>
+                  <span className="text-right">Liq. price</span>
+                  <span className="text-right">Funding</span>
+                  <span className="text-right">Margin</span>
+                  <span className="text-right">PnL · ROE</span>
+                </div>
+                <div className="space-y-1.5">
+                  {openPositions.map(({ position }) => {
                     const sz = Number(position.szi);
-                    if (sz === 0) return null;
                     const isLong = sz > 0;
                     const absSz = Math.abs(sz);
                     const entry = Number(position.entryPx);

@@ -42,6 +42,7 @@ import {
 import { type AdminStats, getAdminStats } from "~/app/actions/get-admin-stats";
 import { setFeatureFlagAction } from "~/app/actions/set-feature-flag";
 import { BUILDER_ADDRESS } from "~/lib/blink/builder";
+import { InternalAccessCheckpoint } from "./internal-access-checkpoint";
 import { InternalLiveActivityFeed } from "./internal-live-activity-feed";
 import { SuperuserPanel } from "./superuser-panel";
 
@@ -377,24 +378,7 @@ export function AdminDashboard(props?: {
   }, [stats]);
 
   if (checkingAccess) {
-    return (
-      <main className="min-h-screen bg-[#06070b] px-6 py-8 text-foreground">
-        <div className="mx-auto max-w-3xl">
-          <section className="rounded-2xl border border-white/10 bg-[#0f121a] p-8">
-            <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
-              Admin
-            </Badge>
-            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">
-              Verifying access…
-            </h1>
-            <div className="mt-4 inline-flex items-center gap-2 text-sm text-foreground/60">
-              <Loader2 className="size-4 animate-spin" />
-              Checking Neon RBAC roles for connected wallet(s).
-            </div>
-          </section>
-        </div>
-      </main>
-    );
+    return <InternalAccessCheckpoint label="Internal Security" />;
   }
 
   if (!isAllowed) {

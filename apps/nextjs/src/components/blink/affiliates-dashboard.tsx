@@ -16,6 +16,7 @@ import {
   getAdminAccess,
 } from "~/app/actions/get-admin-access";
 import { AFFILIATE_SEEDS } from "~/lib/blink/affiliate-seeds";
+import { InternalAccessCheckpoint } from "./internal-access-checkpoint";
 
 export function AffiliatesDashboard() {
   const pathname = usePathname();
@@ -74,20 +75,7 @@ export function AffiliatesDashboard() {
   }, [primaryAffiliate]);
 
   if (checkingAccess) {
-    return (
-      <main className="min-h-screen bg-[#06070b] px-6 py-8 text-foreground">
-        <div className="mx-auto max-w-3xl">
-          <section className="rounded-2xl border border-white/10 bg-[#0f121a] p-8">
-            <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
-              Admin
-            </Badge>
-            <h1 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-white">
-              Verifying access…
-            </h1>
-          </section>
-        </div>
-      </main>
-    );
+    return <InternalAccessCheckpoint label="Internal Security" />;
   }
 
   if (!isAllowed) {

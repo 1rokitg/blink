@@ -9,6 +9,15 @@ const PERSISTED_SIZE_KEY = "blink:order-entry:size";
 const PERSISTED_SIZE_MODE_KEY = "blink:order-entry:size-mode";
 const SETTINGS_CHANGED_EVENT = "blink:order-entry-settings";
 
+function normalizeMarketScope(market?: string) {
+  return market?.trim().toUpperCase() ?? "";
+}
+
+function scopedStorageKey(baseKey: string, market?: string) {
+  const scope = normalizeMarketScope(market);
+  return scope ? `${baseKey}:${scope}` : baseKey;
+}
+
 function emitSettingsChanged() {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new Event(SETTINGS_CHANGED_EVENT));
@@ -30,37 +39,46 @@ export function setPersistSizePreference(nextValue: boolean) {
   emitSettingsChanged();
 }
 
-export function readPersistedOrderSizeDraft(): {
+export function readPersistedOrderSizeDraft(market?: string): {
   size: string;
   sizeMode: OrderEntrySizeMode;
 } {
   if (typeof window === "undefined") {
     return {
       size: "",
-      sizeMode: "coin",
+      sizeMode: "usd",
     };
   }
 
-  const size = window.localStorage.getItem(PERSISTED_SIZE_KEY) ?? "";
-  const rawSizeMode = window.localStorage.getItem(PERSISTED_SIZE_MODE_KEY);
-  const sizeMode: OrderEntrySizeMode = rawSizeMode === "usd" ? "usd" : "coin";
+  const scopedSizeKey = scopedStorageKey(PERSISTED_SIZE_KEY, market);
+  const scopedSizeModeKey = scopedStorageKey(PERSISTED_SIZE_MODE_KEY, market);
+
+  const size = window.localStorage.getItem(scopedSizeKey) ?? "";
+  const rawSizeMode = window.localStorage.getItem(scopedSizeModeKey);
+  const sizeMode: OrderEntrySizeMode = rawSizeMode === "coin" ? "coin" : "usd";
 
   return { size, sizeMode };
 }
 
 export function writePersistedOrderSizeDraft(params: {
+  market?: string;
   size: string;
   sizeMode: OrderEntrySizeMode;
 }) {
   if (typeof window === "undefined") return;
+  const scopedSizeKey = scopedStorageKey(PERSISTED_SIZE_KEY, params.market);
+  const scopedSizeModeKey = scopedStorageKey(
+    PERSISTED_SIZE_MODE_KEY,
+    params.market,
+  );
 
   if (params.size) {
-    window.localStorage.setItem(PERSISTED_SIZE_KEY, params.size);
+    window.localStorage.setItem(scopedSizeKey, params.size);
   } else {
-    window.localStorage.removeItem(PERSISTED_SIZE_KEY);
+    window.localStorage.removeItem(scopedSizeKey);
   }
 
-  window.localStorage.setItem(PERSISTED_SIZE_MODE_KEY, params.sizeMode);
+  window.localStorage.setItem(scopedSizeModeKey, params.sizeMode);
   emitSettingsChanged();
 }
 

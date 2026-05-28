@@ -30,8 +30,8 @@ const INTERVAL_OPTIONS: Array<{ id: ChartInterval; label: string }> = [
   { id: "1h", label: "1h" },
 ];
 
-const CHART_HEIGHT = 340;
-const CHART_PAD = { top: 18, right: 72, bottom: 28, left: 88 };
+const CHART_PAD = { top: 14, right: 68, bottom: 24, left: 84 };
+const DEFAULT_CHART_HEIGHT = 320;
 
 function formatClock(ms: number) {
   return new Intl.DateTimeFormat("en-US", {
@@ -82,7 +82,9 @@ function buildAreaPath(
 export function BlinkMarketChart(props: { market: string }) {
   const [interval, setChartInterval] = useState<ChartInterval>("5m");
   const containerRef = useRef<HTMLDivElement>(null);
+  const chartAreaRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
+  const [chartHeight, setChartHeight] = useState(DEFAULT_CHART_HEIGHT);
 
   const { points, trades, loading, error, dailyUp, dayOpen, reload } =
     useMarketChart(props.market, interval);
@@ -118,9 +120,22 @@ export function BlinkMarketChart(props: { market: string }) {
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const node = chartAreaRef.current;
+    if (!node) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (!entry) return;
+      setChartHeight(Math.max(180, Math.floor(entry.contentRect.height)));
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
   const plot = useMemo(() => {
     const innerW = width - CHART_PAD.left - CHART_PAD.right;
-    const innerH = CHART_HEIGHT - CHART_PAD.top - CHART_PAD.bottom;
+    const innerH = chartHeight - CHART_PAD.top - CHART_PAD.bottom;
 
     if (points.length < 2) {
       return {
@@ -209,7 +224,7 @@ export function BlinkMarketChart(props: { market: string }) {
       timeRange,
       priceToY,
     };
-  }, [dayOpen, markPx, oraclePx, points, width]);
+  }, [chartHeight, dayOpen, markPx, oraclePx, points, width]);
 
   const tradeMarkers = useMemo(() => {
     if (!plot.last || points.length < 2) return [];
@@ -235,71 +250,67 @@ export function BlinkMarketChart(props: { market: string }) {
   const markOracleSpread = markPx > 0 && oraclePx > 0 ? markPx - oraclePx : 0;
 
   return (
-    <section className="glass-panel flex min-h-[640px] flex-col overflow-hidden p-2">
+    <section className="glass-panel flex h-[520px] min-h-0 flex-col overflow-hidden p-2">
       <div
         ref={containerRef}
-        className="flex min-h-[620px] flex-1 flex-col overflow-hidden rounded-[12px] border border-[#88b3ff2e] bg-[#060510]"
+        className="flex h-full min-h-0 flex-col overflow-hidden rounded-[12px] border border-[#88b3ff2e] bg-[#060510]"
       >
-        {/* Header — Hyperliquid perp metrics */}
-        <div className="border-b border-white/[0.06] px-4 py-3">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
-                <AssetIcon asset={props.market} size={28} />
-              </div>
-              <div>
-                <p className="text-lg font-semibold text-white">
-                  {props.market} perp chart
-                </p>
-                <p className="text-xs text-foreground/45">
-                  Hyperliquid · {interval} · line colored by daily candle
-                </p>
-              </div>
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/[0.06] px-3 py-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <AssetIcon asset={props.market} size={22} />
+            <div className="min-w-0 leading-tight">
+              <p className="truncate text-sm font-semibold text-white">
+                {props.market}
+              </p>
+              <p className="text-[10px] text-foreground/40">
+                Hyperliquid · {interval}
+              </p>
             </div>
+          </div>
 
-            <div className="flex flex-wrap items-end gap-5 md:gap-7">
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/42">
-                  Mark
-                </p>
-                <p className="mt-0.5 font-mono text-xl font-semibold tabular-nums text-white">
-                  {markPx > 0 ? formatUsd(markPx) : "—"}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/42">
-                  Oracle
-                </p>
-                <p className="mt-0.5 font-mono text-xl font-semibold tabular-nums text-foreground/72">
-                  {oraclePx > 0 ? formatUsd(oraclePx) : "—"}
-                </p>
+          <div className="flex shrink-0 items-center gap-3 overflow-x-auto sm:gap-4">
+            <div className="text-right">
+              <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-foreground/38">
+                Mark
+              </p>
+              <p className="font-mono text-sm font-semibold tabular-nums text-white">
+                {markPx > 0 ? formatUsd(markPx) : "—"}
+              </p>
+            </div>
+            <div className="h-7 w-px shrink-0 bg-white/[0.08]" />
+            <div className="text-right">
+              <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-foreground/38">
+                Oracle
+              </p>
+              <p className="font-mono text-sm font-semibold tabular-nums text-foreground/72">
+                {oraclePx > 0 ? formatUsd(oraclePx) : "—"}
                 {markPx > 0 && oraclePx > 0 ? (
-                  <p className="mt-0.5 text-[10px] tabular-nums text-foreground/38">
-                    Δ {markOracleSpread >= 0 ? "+" : ""}
-                    {formatUsd(markOracleSpread)}
-                  </p>
+                  <span className="ml-1 text-[10px] font-normal text-foreground/38">
+                    ({markOracleSpread >= 0 ? "+" : ""}
+                    {formatUsd(markOracleSpread)})
+                  </span>
                 ) : null}
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#7fa8ff]/80">
-                  Daily close · NY
-                </p>
-                <p className="mt-0.5 font-mono text-sm font-medium tabular-nums text-[#9ec0ff]">
-                  {nyCloseCountdown}
-                </p>
-              </div>
+              </p>
+            </div>
+            <div className="h-7 w-px shrink-0 bg-white/[0.08]" />
+            <div className="text-right">
+              <p className="text-[9px] font-medium uppercase tracking-[0.14em] text-[#7fa8ff]/75">
+                NY close
+              </p>
+              <p className="font-mono text-sm font-medium tabular-nums text-[#9ec0ff]">
+                {nyCloseCountdown}
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Chart canvas */}
-        <div className="relative flex-1 px-1 py-2">
+        <div ref={chartAreaRef} className="relative min-h-0 flex-1 px-1 py-1">
           {loading ? (
-            <div className="flex h-[360px] items-center justify-center">
+            <div className="flex h-full items-center justify-center">
               <Loader2 className="size-6 animate-spin text-foreground/35" />
             </div>
           ) : error ? (
-            <div className="flex h-[360px] flex-col items-center justify-center gap-3 px-6 text-center">
+            <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
               <p className="text-sm text-rose-300/90">{error}</p>
               <button
                 type="button"
@@ -312,7 +323,7 @@ export function BlinkMarketChart(props: { market: string }) {
           ) : (
             <svg
               width={width}
-              height={CHART_HEIGHT}
+              height={chartHeight}
               className="overflow-visible"
               role="img"
               aria-label={`${props.market} price chart`}
@@ -456,7 +467,7 @@ export function BlinkMarketChart(props: { market: string }) {
                 <text
                   key={tick.label}
                   x={tick.x}
-                  y={CHART_HEIGHT - 8}
+                  y={chartHeight - 8}
                   fill="#ffffff45"
                   fontSize="10"
                   textAnchor="middle"
@@ -493,15 +504,14 @@ export function BlinkMarketChart(props: { market: string }) {
           ) : null}
         </div>
 
-        {/* Footer controls */}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] px-4 py-3">
-          <div className="flex flex-wrap gap-1.5">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-white/[0.06] px-3 py-1.5">
+          <div className="flex gap-1">
             {INTERVAL_OPTIONS.map((option) => (
               <button
                 key={option.id}
                 type="button"
                 onClick={() => setChartInterval(option.id)}
-                className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                className={`rounded-full px-2.5 py-1 text-[11px] font-medium transition ${
                   interval === option.id
                     ? "bg-white text-[#060510]"
                     : "bg-white/[0.04] text-foreground/55 hover:text-white"
@@ -512,22 +522,22 @@ export function BlinkMarketChart(props: { market: string }) {
             ))}
           </div>
 
-          <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
+          <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-0.5">
             <span
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium"
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium"
               style={{
                 backgroundColor: dailyUp ? `${CHART_UP}22` : `${CHART_DOWN}22`,
                 color: dailyUp ? "#9ef0d2" : "#fecdd3",
               }}
             >
-              <LineChart className="size-3.5" />
-              Line · {dailyUp ? "day up" : "day down"}
+              <LineChart className="size-3" />
+              {dailyUp ? "Day up" : "Day down"}
             </span>
             <span
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-foreground/35"
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-foreground/35"
               title="Candles coming soon"
             >
-              <BarChart3 className="size-3.5" />
+              <BarChart3 className="size-3" />
               Candles
             </span>
           </div>

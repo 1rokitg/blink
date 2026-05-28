@@ -13,6 +13,10 @@ import {
 import { LIVE_ACTIVITY_EVENT_TYPES } from "~/lib/blink/activity-alerts.server";
 import { getFeatureFlags } from "~/lib/blink/feature-flags.server";
 import {
+  getGrowthMetrics,
+  type GrowthMetrics,
+} from "~/lib/blink/growth-metrics.server";
+import {
   getBuilderAttributionSnapshot,
   getBuilderMetricsSnapshot,
   getLiveBuilderFillFeed,
@@ -196,6 +200,7 @@ export interface AdminStats {
     updatedBy: string | null;
     updatedAt: Date | null;
   }>;
+  growth: GrowthMetrics;
 }
 
 export async function getAdminStats(options?: {
@@ -244,6 +249,7 @@ export async function getAdminStats(options?: {
     liveFeed,
     hyperliquidLiveFeed,
     featureFlags,
+    growth,
   ] = await Promise.all([
     db.select({ c: count() }).from(BuilderApproval),
     db
@@ -292,6 +298,7 @@ export async function getAdminStats(options?: {
       limit: liveLimit,
     }),
     getFeatureFlags(),
+    getGrowthMetrics(windowDays),
   ]);
 
   const total = totalRows[0]?.c ?? 0;
@@ -650,5 +657,6 @@ export async function getAdminStats(options?: {
       approvedAt: new Date(a.approvedAt).toISOString(),
     })),
     featureFlags,
+    growth,
   };
 }

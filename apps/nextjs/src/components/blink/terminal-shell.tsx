@@ -109,6 +109,7 @@ import { runWalletConnect } from "~/lib/blink/wallet-connect";
 import { AccountManagementModal } from "./account-management-modal";
 import { AssetIcon } from "./asset-icon";
 import { BlinkProUpsellCard } from "./blink-pro-upsell-card";
+import { BlinkLeaderboardPanel } from "./blink-leaderboard";
 import { BuilderSetupModal } from "./builder-setup-modal";
 import { MarketInfoBar } from "./market-info-bar";
 import { type PnlPositionData, PnlShareModal } from "./pnl-share-modal";
@@ -293,112 +294,11 @@ function CoinIcon({ coin, size = 24 }: { coin: string; size?: number }) {
   return <AssetIcon asset={coin} size={size} className="shrink-0" />;
 }
 
-// ── Leaderboard mock data ──────────────────────────────────────────────────
-const LEADERBOARD_MOCK = [
-  {
-    rank: 1,
-    name: "rokitg",
-    handle: "rokitg.eth",
-    pnl: 284_197.43,
-    avatar: "https://avatar.vercel.sh/rokitg.eth.png?size=48",
-    href: "/profile/rokitg",
-  },
-] as const;
-
-const RANK_MEDAL: Record<number, { emoji: string; color: string }> = {
-  1: { emoji: "🥇", color: "#FFD700" },
-  2: { emoji: "🥈", color: "#C0C0C0" },
-  3: { emoji: "🥉", color: "#CD7F32" },
+const DISCOVER_RANK_MEDAL: Record<number, string> = {
+  1: "🥇",
+  2: "🥈",
+  3: "🥉",
 };
-
-function LeaderboardPanel() {
-  const [period, setPeriod] = useState<"24H" | "7D" | "30D" | "ALL">("24H");
-  const periods = ["24H", "7D", "30D", "ALL"] as const;
-  return (
-    <div className="flex flex-col">
-      {/* period filter */}
-      <div className="flex items-center gap-1 px-2.5 pb-2 pt-1">
-        {periods.map((p) => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => setPeriod(p)}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
-              period === p
-                ? "bg-white/10 text-white"
-                : "text-foreground/45 hover:text-white"
-            }`}
-          >
-            {p}
-          </button>
-        ))}
-      </div>
-
-      {/* rows */}
-      <div className="divide-y divide-white/[0.05]">
-        {LEADERBOARD_MOCK.map((trader) => {
-          const medal = RANK_MEDAL[trader.rank];
-          const isTop = trader.rank <= 3;
-          return (
-            <Link
-              key={trader.rank}
-              href={trader.href}
-              className="flex items-center gap-3 px-3 py-2.5 transition hover:bg-white/[0.04]"
-            >
-              {/* rank */}
-              <div className="w-6 shrink-0 text-center">
-                {medal ? (
-                  <span className="text-base leading-none">{medal.emoji}</span>
-                ) : (
-                  <span className="text-xs text-foreground/35">
-                    {trader.rank}
-                  </span>
-                )}
-              </div>
-
-              {/* avatar */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={trader.avatar}
-                alt={trader.name}
-                width={32}
-                height={32}
-                className="size-8 shrink-0 rounded-full object-cover ring-1 ring-white/10"
-              />
-
-              {/* name + handle */}
-              <div className="flex-1 min-w-0">
-                <p
-                  className={`truncate text-sm font-semibold leading-none ${isTop ? "text-white" : "text-white/85"}`}
-                >
-                  {trader.name}
-                  {trader.rank === 1 && (
-                    <span className="ml-1.5 inline-flex items-center rounded-full border border-[#ffd70040] bg-[#ffd70018] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#ffe566]">
-                      #1
-                    </span>
-                  )}
-                </p>
-                <p className="mt-0.5 truncate text-[11px] text-foreground/40">
-                  {trader.handle}
-                </p>
-              </div>
-
-              {/* pnl */}
-              <span className="shrink-0 text-sm font-semibold tabular-nums text-emerald-300">
-                +{formatUsd(trader.pnl)}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* footer note */}
-      <p className="px-3 py-2.5 text-center text-[10px] text-foreground/25">
-        Mock data
-      </p>
-    </div>
-  );
-}
 
 // ─── Discover Panel ──────────────────────────────────────────────────────────
 
@@ -615,7 +515,7 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
               className="flex items-center gap-2 rounded-[8px] px-2 py-1.5"
             >
               <span className="w-5 text-center text-sm leading-none">
-                {RANK_MEDAL[t.rank]?.emoji ?? `${t.rank}`}
+                {DISCOVER_RANK_MEDAL[t.rank] ?? `${t.rank}`}
               </span>
               <img
                 src={`https://avatar.vercel.sh/${encodeURIComponent(t.handle)}.png?size=48`}
@@ -766,43 +666,54 @@ function LeftRail(props: {
       <section className="glass-panel flex min-h-[392px] flex-col overflow-hidden p-0">
         <div className="border-b border-white/10 px-2.5 pb-1.5 pt-1.5">
           <div className="mb-1.5 flex items-center gap-1 text-sm">
-            <button
-              type="button"
-              onClick={() => setActiveTab("watchlist")}
-              className={`rounded-md px-2 py-1 text-xs transition ${
-                activeTab === "watchlist"
-                  ? "border border-[#41ddb670] bg-[#41ddb626] text-white"
-                  : "text-foreground/50 hover:text-white"
-              }`}
-            >
-              Watchlist
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("leaderboard")}
-              className={`rounded-md px-2 py-1 text-xs transition ${
-                activeTab === "leaderboard"
-                  ? "border border-[#ffd70050] bg-[#ffd70018] text-white"
-                  : "text-foreground/50 hover:text-white"
-              }`}
-            >
-              Leaderboard
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab("discover")}
-              className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition ${
-                activeTab === "discover"
-                  ? "border border-[#c084fc50] bg-[#c084fc18] text-white"
-                  : "text-foreground/50 hover:text-white"
-              }`}
-            >
-              <Compass className="size-3" />
-              Discover
-              <span className="rounded-full border border-[#c084fc50] bg-[#c084fc20] px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-[#d8b4fe]">
-                new
-              </span>
-            </button>
+            <div className="flex min-w-0 flex-1 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setActiveTab("watchlist")}
+                className={`rounded-md px-2 py-1 text-xs transition ${
+                  activeTab === "watchlist"
+                    ? "border border-[#41ddb670] bg-[#41ddb626] text-white"
+                    : "text-foreground/50 hover:text-white"
+                }`}
+              >
+                Watchlist
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("leaderboard")}
+                className={`rounded-md px-2 py-1 text-xs transition ${
+                  activeTab === "leaderboard"
+                    ? "border border-[#ffd70050] bg-[#ffd70018] text-white"
+                    : "text-foreground/50 hover:text-white"
+                }`}
+              >
+                Leaderboard
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("discover")}
+                className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs transition ${
+                  activeTab === "discover"
+                    ? "border border-[#c084fc50] bg-[#c084fc18] text-white"
+                    : "text-foreground/50 hover:text-white"
+                }`}
+              >
+                <Compass className="size-3" />
+                Discover
+                <span className="rounded-full border border-[#c084fc50] bg-[#c084fc20] px-1.5 py-px text-[9px] font-bold uppercase tracking-wide text-[#d8b4fe]">
+                  new
+                </span>
+              </button>
+            </div>
+            {activeTab === "leaderboard" ? (
+              <Link
+                href="/leaderboard"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[#ffd70040] bg-[#ffd70012] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#ffe566] transition hover:bg-[#ffd70022]"
+              >
+                Full board
+                <ArrowUpRight className="size-3" />
+              </Link>
+            ) : null}
           </div>
 
           {/* Search — only show on watchlist */}
@@ -834,8 +745,8 @@ function LeftRail(props: {
             <DiscoverPanel markets={allRows} />
           </div>
         ) : activeTab === "leaderboard" ? (
-          <div className="flex-1 overflow-y-auto">
-            <LeaderboardPanel />
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <BlinkLeaderboardPanel compact />
           </div>
         ) : (
           <div className="flex-1 space-y-0.5 overflow-y-auto p-1.5">

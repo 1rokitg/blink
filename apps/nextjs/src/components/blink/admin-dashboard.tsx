@@ -14,7 +14,16 @@ import {
   Search,
   Wrench,
 } from "lucide-react";
-import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Line,
+  LineChart,
+  XAxis,
+} from "recharts";
 
 import { Badge } from "@acme/ui/badge";
 import {
@@ -297,6 +306,13 @@ export function AdminDashboard(props?: {
       label: "Active users",
       color: "#67e8f9",
     },
+  } satisfies ChartConfig;
+
+  const growthChartConfig = {
+    dau: { label: "DAU (routed)", color: "#67e8f9" },
+    signups: { label: "Signups", color: "#a78bfa" },
+    firstTrade: { label: "First trade", color: "#fbbf24" },
+    builderApproved: { label: "Builder approved", color: "#60a5fa" },
   } satisfies ChartConfig;
 
   const statsCards = useMemo(() => {
@@ -658,6 +674,183 @@ export function AdminDashboard(props?: {
                 <p className="mt-1 text-xs text-foreground/45">
                   {stats?.builder.live.windowMinutes ?? 30}m
                 </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-4 rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2 className="text-2xl font-semibold text-white">
+                  Growth & subscriptions
+                </h2>
+                <p className="mt-1 max-w-2xl text-xs text-foreground/45">
+                  BD-ready snapshot — MRR uses paying Pro list price (excludes
+                  gifts). DAU = unique routed traders per day from Hyperliquid
+                  sync.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+              <div className="rounded-xl border border-white/10 bg-[#121726] p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  MRR
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {stats ? formatMoney(stats.growth.subscription.mrrUsd) : "—"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-[#121726] p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  ARR
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {stats ? formatMoney(stats.growth.subscription.arrUsd) : "—"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-[#121726] p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  DRR
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {stats ? formatMoney(stats.growth.subscription.drrUsd) : "—"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-[#121726] p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  Churn (30d)
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-amber-300">
+                  {stats
+                    ? `${stats.growth.subscription.churnRate30d.toFixed(1)}%`
+                    : "—"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-[#121726] p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  Paying Pro
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-emerald-300">
+                  {stats?.growth.subscription.payingPro ?? 0}
+                </p>
+                <p className="mt-1 text-[11px] text-foreground/40">
+                  {stats?.growth.subscription.giftedPro ?? 0} gifted
+                </p>
+              </div>
+              <div className="rounded-xl border border-white/10 bg-[#121726] p-4">
+                <p className="text-xs uppercase tracking-[0.12em] text-foreground/45">
+                  New Pro (30d)
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-white">
+                  {stats?.growth.subscription.newPro30d ?? 0}
+                </p>
+                <p className="mt-1 text-[11px] text-foreground/40">
+                  {stats?.growth.subscription.churnedPro30d ?? 0} churned
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div className="rounded-xl border border-white/10 bg-[#101523] p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white">
+                    Daily active routed traders
+                  </h3>
+                  <span className="text-xs text-foreground/45">DAU</span>
+                </div>
+                <div className="h-[220px]">
+                  <ChartContainer
+                    config={growthChartConfig}
+                    className="h-full w-full"
+                  >
+                    <AreaChart
+                      data={stats?.growth.dailySeries ?? []}
+                      margin={{ left: 2, right: 2 }}
+                    >
+                      <CartesianGrid
+                        vertical={false}
+                        stroke="#1a2437"
+                        strokeDasharray="2 8"
+                      />
+                      <XAxis
+                        dataKey="day"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        tickFormatter={(value: string) =>
+                          value.slice(5)
+                        }
+                      />
+                      <ChartTooltip
+                        cursor={false}
+                        content={<ChartTooltipContent indicator="line" />}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="dau"
+                        stroke="var(--color-dau)"
+                        fill="var(--color-dau)"
+                        fillOpacity={0.18}
+                        strokeWidth={2}
+                      />
+                    </AreaChart>
+                  </ChartContainer>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-[#101523] p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-white">
+                    Signups & activation
+                  </h3>
+                  <span className="text-xs text-foreground/45">daily</span>
+                </div>
+                <div className="h-[220px]">
+                  <ChartContainer
+                    config={growthChartConfig}
+                    className="h-full w-full"
+                  >
+                    <BarChart
+                      data={stats?.growth.dailySeries ?? []}
+                      margin={{ left: 2, right: 2 }}
+                    >
+                      <CartesianGrid
+                        vertical={false}
+                        stroke="#1a2437"
+                        strokeDasharray="2 8"
+                      />
+                      <XAxis
+                        dataKey="day"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        tickFormatter={(value: string) =>
+                          value.slice(5)
+                        }
+                      />
+                      <ChartTooltip
+                        cursor={false}
+                        content={<ChartTooltipContent indicator="line" />}
+                      />
+                      <Bar
+                        dataKey="signups"
+                        fill="var(--color-signups)"
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="builderApproved"
+                        fill="var(--color-builderApproved)"
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="firstTrade"
+                        fill="var(--color-firstTrade)"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ChartContainer>
+                </div>
               </div>
             </div>
           </section>

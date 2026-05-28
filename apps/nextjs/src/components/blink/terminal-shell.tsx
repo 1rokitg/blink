@@ -158,6 +158,7 @@ function asHexAddress(address: string) {
 }
 
 const BLINK_DISCORD_INVITE_URL = "https://discord.gg/Myu962DMMA";
+const WHOP_COMMUNITY_URL = "https://whop.com/the-circle-vip";
 const LATEST_LISTINGS = [
   {
     coin: "xyz:DRAM",
@@ -4092,35 +4093,42 @@ export function TerminalShell(props: { market: string }) {
               <ArrowUpRight className="size-3" />
             </Link>
           </div>
-          <div className="flex items-center gap-3 text-foreground/55">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3 text-foreground/55">
             <a
-              href="https://whop.com/the-circle-vip"
+              href={WHOP_COMMUNITY_URL}
               target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full border border-[#8fbaff80] bg-[linear-gradient(180deg,#3c76ff,#2457db)] px-3 py-1 text-[11px] font-semibold text-white shadow-[0_10px_30px_rgba(37,90,224,0.35)] transition hover:brightness-110"
+              rel="noopener noreferrer"
+              className="whop-blue-btn shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold"
             >
+              <Users className="size-3.5" />
               Community
-              <ArrowUpRight className="size-3" />
+              <ArrowUpRight className="size-3 opacity-80" />
             </a>
-            <Link href="/privacy" className="transition hover:text-white">
+            <Link
+              href="/privacy"
+              className="hidden transition hover:text-white sm:inline"
+            >
               Privacy
             </Link>
-            <Link href="/tos" className="transition hover:text-white">
+            <Link
+              href="/tos"
+              className="hidden transition hover:text-white sm:inline"
+            >
               Terms
             </Link>
             <a
-              href="https://discord.gg/Myu962DMMA"
+              href={BLINK_DISCORD_INVITE_URL}
               target="_blank"
-              rel="noreferrer"
-              className="transition hover:text-white"
+              rel="noopener noreferrer"
+              className="hidden transition hover:text-white sm:inline"
             >
               Discord
             </a>
             <a
               href="https://t.me/rokitgg"
               target="_blank"
-              rel="noreferrer"
-              className="transition hover:text-white"
+              rel="noopener noreferrer"
+              className="hidden transition hover:text-white md:inline"
             >
               Telegram
             </a>

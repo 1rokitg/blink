@@ -11,12 +11,14 @@ import { ConnectTwitterButton } from "./connect-twitter-button";
 
 import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
 
-import { recordBuilderApproval } from "~/app/actions/record-builder-approval";
+import { recordBuilderFeeApproved } from "~/app/actions/record-builder-fee-approved";
+import { recordTradingEnabled } from "~/app/actions/record-trading-enabled";
 import { getOrCreateAgentKey } from "~/lib/blink/agent-wallet";
+import { BLINK_WEB_AGENT_NAME } from "~/lib/blink/blink-agent";
 import {
   BUILDER_ADDRESS,
   builderMaxFeeRate,
-  isBuilderApproved,
+  isBlinkTradingEnabled,
 } from "~/lib/blink/builder";
 import { createExchangeClient, infoClient } from "~/lib/blink/hyperliquid";
 
@@ -137,7 +139,7 @@ export function BuilderSetupModal(props: {
         "Builder fee approval was not accepted by Hyperliquid",
       );
       console.info("[setup] step 1 — builder fee approved ✓");
-      void recordBuilderApproval(
+      void recordBuilderFeeApproved(
         props.walletAddress,
         BUILDER_ADDRESS,
         builderMaxFeeRate(),
@@ -177,25 +179,26 @@ export function BuilderSetupModal(props: {
       console.info("[setup] step 2 — approving trading agent:", agentAddress);
       const approveAgentResult = await exchClient.approveAgent({
         agentAddress,
-        agentName: "blink-web",
+        agentName: BLINK_WEB_AGENT_NAME,
       });
       ensureExchangeActionOk(
         approveAgentResult,
         "Agent approval was not accepted by Hyperliquid",
       );
-      const builderApproved = await isBuilderApproved(
+      const tradingEnabled = await isBlinkTradingEnabled(
         asHexAddress(props.walletAddress),
         props.requiredFeeUnits,
       );
-      if (!builderApproved) {
+      if (!tradingEnabled) {
         throw new Error(
-          `Builder fee has not been approved yet (${props.requiredFeeUnits} units required).`,
+          `Trading setup incomplete — confirm builder fee and ${BLINK_WEB_AGENT_NAME} agent on Hyperliquid.`,
         );
       }
-      void recordBuilderApproval(
+      void recordTradingEnabled(
         props.walletAddress,
         BUILDER_ADDRESS,
         builderMaxFeeRate(),
+        agentAddress,
       );
       console.info("[setup] step 2 — trading agent approved ✓");
       setStep("done");
@@ -214,15 +217,19 @@ export function BuilderSetupModal(props: {
     setError(null);
     try {
       await ensureMinFunding();
-      const approved = await isBuilderApproved(
+      const enabled = await isBlinkTradingEnabled(
         asHexAddress(props.walletAddress),
         props.requiredFeeUnits,
       );
-      if (approved) {
-        void recordBuilderApproval(
+      if (enabled) {
+        const { address: agentAddress } = getOrCreateAgentKey(
+          props.walletAddress,
+        );
+        void recordTradingEnabled(
           props.walletAddress,
           BUILDER_ADDRESS,
           builderMaxFeeRate(),
+          agentAddress,
         );
         setSuccessState(true);
         props.onApprovedAction();

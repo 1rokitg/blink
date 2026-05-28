@@ -69,7 +69,7 @@ import { createAgentExchangeClient } from "~/lib/blink/agent-wallet";
 import {
   BUILDER_ADDRESS,
   BUILDER_FEE_UNITS,
-  isBuilderApproved,
+  isBlinkTradingEnabled,
 } from "~/lib/blink/builder";
 import {
   GROWTH_ZERO_FEE_MARKETS,
@@ -2921,7 +2921,7 @@ export function TerminalShell(props: { market: string }) {
       resolvedBuilderFeeUnits,
     ],
     queryFn: () =>
-      isBuilderApproved(
+      isBlinkTradingEnabled(
         asHexAddress(effectiveWalletAddress),
         resolvedBuilderFeeUnits,
       ),

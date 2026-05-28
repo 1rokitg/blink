@@ -312,7 +312,8 @@ export function AdminDashboard(props?: {
     dau: { label: "DAU (routed)", color: "#67e8f9" },
     signups: { label: "Signups", color: "#a78bfa" },
     firstTrade: { label: "First trade", color: "#fbbf24" },
-    builderApproved: { label: "Builder approved", color: "#60a5fa" },
+    builderApproved: { label: "Builder fee", color: "#60a5fa" },
+    tradingEnabled: { label: "Trading enabled", color: "#9ec0ff" },
   } satisfies ChartConfig;
 
   const statsCards = useMemo(() => {
@@ -349,9 +350,14 @@ export function AdminDashboard(props?: {
         source: stats.kpiSource.signups,
       },
       {
-        label: "Builder approved",
+        label: "Builder fee",
         value: String(stats.funnel.approvedBuilder),
         source: stats.kpiSource.builderApprovals,
+      },
+      {
+        label: "Trading enabled",
+        value: String(stats.funnel.tradingEnabled),
+        source: stats.kpiSource.tradingEnabled,
       },
       {
         label: "First trade",
@@ -841,6 +847,11 @@ export function AdminDashboard(props?: {
                       <Bar
                         dataKey="builderApproved"
                         fill="var(--color-builderApproved)"
+                        radius={[4, 4, 0, 0]}
+                      />
+                      <Bar
+                        dataKey="tradingEnabled"
+                        fill="var(--color-tradingEnabled)"
                         radius={[4, 4, 0, 0]}
                       />
                       <Bar

@@ -10,6 +10,7 @@ import { getInternalUserPath } from "./wallet-address";
 export const LIVE_ACTIVITY_EVENT_TYPES = [
   "signup",
   "builder_approved",
+  "trading_enabled",
   "first_trade",
 ] as const;
 
@@ -21,6 +22,11 @@ const ACTIVITY_LABELS: Record<
 > = {
   signup: { label: "Signup", emoji: "🟢", color: 0x3be1ba },
   builder_approved: { label: "Builder approved", emoji: "🔵", color: 0x7fa8ff },
+  trading_enabled: {
+    label: "Trading enabled",
+    emoji: "⚡",
+    color: 0x9ec0ff,
+  },
   first_trade: { label: "First routed tx", emoji: "🟡", color: 0xffd166 },
 };
 
@@ -59,6 +65,11 @@ function buildDetailLine(input: {
     side && orderType ? `${side} ${orderType}` : side,
     maxFeeRate ? `fee ${maxFeeRate}` : null,
   ].filter(Boolean);
+
+  const agentName = metadataString(meta, "agentName");
+  if (input.eventType === "trading_enabled" && agentName) {
+    return `Agent ${agentName} approved · one-click trading live`;
+  }
 
   if (input.eventType === "builder_approved" && maxFeeRate) {
     return `Builder fee approved · ${maxFeeRate}`;

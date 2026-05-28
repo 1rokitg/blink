@@ -82,6 +82,17 @@ export async function fetchPerpAllMids(dex?: string | null) {
   );
 }
 
+export type HyperliquidExtraAgent = {
+  address: string;
+  name: string;
+  validUntil: number;
+};
+
+/** Agents authorized via approveAgent (e.g. Blink web trading key). */
+export async function fetchExtraAgents(user: `0x${string}`) {
+  return postInfo<HyperliquidExtraAgent[]>({ type: "extraAgents", user });
+}
+
 export async function resolvePerpMarket(coin: string) {
   const dex = getPerpDexName(coin);
 

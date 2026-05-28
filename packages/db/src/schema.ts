@@ -111,6 +111,10 @@ export const BuilderApproval = pgTable("builder_approval", (t) => ({
   maxFeeRate: t.varchar({ length: 16 }).notNull(),
   /** Hyperliquid response status from the approval tx. */
   status: t.varchar({ length: 32 }).notNull().default("approved"),
+  /** approveAgent name on HL (Blink uses "blink-web"). */
+  agentName: t.varchar({ length: 32 }),
+  /** Agent wallet address approved for one-click trading. */
+  agentAddress: t.varchar({ length: 42 }),
   approvedAt: t.timestamp().defaultNow().notNull(),
 }));
 

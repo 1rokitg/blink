@@ -22,7 +22,10 @@ export type ChartTradeTick = {
   price: number;
   notionalUsd: number;
   side: "buy" | "sell";
+  expiresAt: number;
 };
+
+const FILL_STREAM_TTL_MS = 2_800;
 
 const INTERVAL_MS: Record<ChartInterval, number> = {
   "1m": 60_000,
@@ -145,6 +148,7 @@ export function useMarketChart(market: string, interval: ChartInterval) {
 
       tradesSub = await client.trades({ coin: market }, (data) => {
         if (!active) return;
+        const now = Date.now();
         const incoming: ChartTradeTick[] = data.map((trade) => {
           const price = Number(trade.px);
           const size = Number(trade.sz);
@@ -154,6 +158,7 @@ export function useMarketChart(market: string, interval: ChartInterval) {
             price,
             notionalUsd: price * size,
             side: trade.side === "A" ? "sell" : "buy",
+            expiresAt: now + FILL_STREAM_TTL_MS,
           };
         });
         setTrades((prev) => {
@@ -164,7 +169,7 @@ export function useMarketChart(market: string, interval: ChartInterval) {
               seen.add(trade.id);
               return true;
             })
-            .slice(0, 24);
+            .slice(0, 16);
         });
       });
     }
@@ -178,6 +183,17 @@ export function useMarketChart(market: string, interval: ChartInterval) {
       tradesSub?.unsubscribe();
     };
   }, [interval, market]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const now = Date.now();
+      setTrades((prev) => {
+        const next = prev.filter((trade) => trade.expiresAt > now);
+        return next.length === prev.length ? prev : next;
+      });
+    }, 180);
+    return () => window.clearInterval(id);
+  }, []);
 
   const lastPrice = useMemo(() => points.at(-1)?.close ?? 0, [points]);
 

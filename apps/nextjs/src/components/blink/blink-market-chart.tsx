@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { BarChart3, LineChart, Loader2 } from "lucide-react";
 
 import { AssetIcon } from "~/components/blink/asset-icon";
+import { ChartFillStream } from "~/components/blink/chart-fill-stream";
 import {
   formatNyDailyCloseCountdown,
   getMillisecondsUntilNyMidnight,
@@ -13,7 +14,6 @@ import {
 import {
   type ChartInterval,
   formatChartPrice,
-  formatTradeNotional,
   useMarketChart,
 } from "~/lib/blink/chart/use-market-chart";
 import { resolvePerpMarket } from "~/lib/blink/hyperliquid";
@@ -237,13 +237,19 @@ export function BlinkMarketChart(props: { market: string }) {
 
     return trades
       .filter((trade) => trade.time >= minTime && trade.time <= maxTime + 5_000)
-      .slice(0, 8)
-      .map((trade, index) => {
+      .slice(0, 10)
+      .map((trade) => {
         const x =
           CHART_PAD.left + ((trade.time - minTime) / timeRange) * plot.innerW;
         const y =
           CHART_PAD.top + ((plot.max - trade.price) / range) * plot.innerH;
-        return { ...trade, x, y, offset: index * 18 };
+        return {
+          id: trade.id,
+          side: trade.side,
+          notionalUsd: trade.notionalUsd,
+          x,
+          y,
+        };
       });
   }, [plot, points, trades]);
 
@@ -481,29 +487,8 @@ export function BlinkMarketChart(props: { market: string }) {
             </svg>
           )}
 
-          {/* Live perp fill stream */}
           {!loading && !error ? (
-            <div className="pointer-events-none absolute inset-y-8 left-3 flex w-[84px] flex-col justify-center gap-2">
-              {tradeMarkers.map((trade) => (
-                <div
-                  key={trade.id}
-                  className="opacity-90 transition-opacity"
-                  style={{
-                    transform: `translateY(${trade.offset - 36}px)`,
-                  }}
-                >
-                  <span
-                    className={`inline-flex rounded-md px-2 py-1 text-[11px] font-bold tabular-nums shadow-lg ${
-                      trade.side === "buy"
-                        ? "bg-[#3be1ba22] text-[#7ef0d2] ring-1 ring-[#3be1ba40]"
-                        : "bg-[#fb718522] text-[#fecdd3] ring-1 ring-[#fb718540]"
-                    }`}
-                  >
-                    + {formatTradeNotional(trade.notionalUsd)}
-                  </span>
-                </div>
-              ))}
-            </div>
+            <ChartFillStream trades={tradeMarkers} />
           ) : null}
         </div>
 

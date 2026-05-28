@@ -75,6 +75,16 @@ function truncateMiddle(value: string, max = 42) {
   return `${value.slice(0, edge)}…${value.slice(-edge)}`;
 }
 
+function countryWithFlag(value: string | null | undefined) {
+  if (!value) return "—";
+  const code = value.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) return value;
+  const flag = String.fromCodePoint(
+    ...code.split("").map((char) => 127397 + char.charCodeAt(0)),
+  );
+  return `${flag} ${code}`;
+}
+
 export function SuperuserPanel(props: {
   actingWalletAddress: string;
   initialWalletAddress?: string;
@@ -240,15 +250,15 @@ export function SuperuserPanel(props: {
   }
 
   return (
-    <section className="mt-4 rounded-2xl border border-amber-400/18 bg-[linear-gradient(180deg,rgba(24,18,9,0.92),rgba(11,11,16,0.98))] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.35)]">
+    <section className="mt-4 rounded-2xl border border-white/10 bg-[#0b0d13] p-5 shadow-[0_24px_90px_rgba(0,0,0,0.35)]">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-300">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[#8fbaff4a] bg-[#8fbaff1a] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#c4d6ff]">
             <Shield className="size-3.5" />
             Superuser tools
           </div>
           <h2 className="mt-3 text-2xl font-semibold text-white">
-            God mode wallet inspector
+            Superuser control center
           </h2>
           <p className="mt-1 max-w-3xl text-sm text-white/50">
             Search by wallet or referral code, inspect the full Blink state, and
@@ -264,7 +274,7 @@ export function SuperuserPanel(props: {
         </div>
       </div>
 
-      <div className="mt-5 rounded-2xl border border-white/10 bg-[#10131d] p-4">
+      <div className="mt-5 rounded-2xl border border-white/10 bg-[#0b0d13] p-4">
         <div className="flex flex-col gap-3 lg:flex-row">
           <div className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/35" />
@@ -278,7 +288,7 @@ export function SuperuserPanel(props: {
                 }
               }}
               placeholder="Search by wallet or referral code"
-              className="h-11 w-full rounded-xl border border-white/10 bg-[#0d1119] pl-9 pr-3 text-sm text-white outline-none placeholder:text-white/35"
+              className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.03] pl-9 pr-3 text-sm text-white outline-none placeholder:text-white/35"
             />
           </div>
           <button
@@ -347,7 +357,7 @@ export function SuperuserPanel(props: {
                   <button
                     type="button"
                     onClick={() => void copyShareLink()}
-                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 text-sm text-amber-100 transition hover:bg-amber-400/15"
+                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#8fbaff4a] bg-[#8fbaff14] px-3 text-sm text-[#c4d6ff] transition hover:bg-[#8fbaff26]"
                   >
                     <Link2 className="size-3.5" />
                     Copy internal link
@@ -978,7 +988,9 @@ export function SuperuserPanel(props: {
                               key={value}
                               className="rounded-full border border-white/10 bg-[#121726] px-2.5 py-1 text-xs text-white/68"
                             >
-                              {truncateMiddle(value, 36)}
+                              {label === "Countries"
+                                ? countryWithFlag(value)
+                                : truncateMiddle(value, 36)}
                             </span>
                           ))
                         ) : (
@@ -1057,7 +1069,7 @@ export function SuperuserPanel(props: {
                             ) : null}
                             {log.country || log.city ? (
                               <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-                                {[log.city, log.region, log.country]
+                                {[log.city, log.region, countryWithFlag(log.country)]
                                   .filter(Boolean)
                                   .join(", ")}
                               </span>

@@ -85,6 +85,16 @@ function formatLabel(input: string) {
     .replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
+function countryWithFlag(value: string | null | undefined) {
+  if (!value) return "—";
+  const code = value.trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) return value;
+  const flag = String.fromCodePoint(
+    ...code.split("").map((char) => 127397 + char.charCodeAt(0)),
+  );
+  return `${flag} ${code}`;
+}
+
 function sourceBadge(source: "hyperliquid" | "offchain") {
   if (source === "hyperliquid") {
     return (
@@ -1068,7 +1078,7 @@ export function AdminDashboard(props?: {
                         className="flex items-center justify-between text-sm"
                       >
                         <span className="text-foreground/75">
-                          {row.country}
+                          {countryWithFlag(row.country)}
                         </span>
                         <span className="text-white/85">
                           {row.events} ev · {row.uniqueVisitors} uv
@@ -1169,7 +1179,7 @@ export function AdminDashboard(props?: {
                           ) : null}
                           {issue.country ? (
                             <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-                              {issue.country}
+                              {countryWithFlag(issue.country)}
                             </span>
                           ) : null}
                         </div>
@@ -1374,7 +1384,9 @@ export function AdminDashboard(props?: {
                       className="flex items-center justify-between rounded-xl border border-white/8 bg-[#121726] px-3 py-2"
                     >
                       <div>
-                        <p className="text-sm text-white/85">{row.country}</p>
+                        <p className="text-sm text-white/85">
+                          {countryWithFlag(row.country)}
+                        </p>
                         <p className="text-xs text-foreground/45">
                           {row.users} users · {row.fillsCount} fills
                         </p>
@@ -1433,7 +1445,8 @@ export function AdminDashboard(props?: {
                           {truncateAddress(row.walletAddress)}
                         </p>
                         <p className="text-xs text-foreground/45">
-                          {formatLabel(row.source)} · {row.country}
+                          {formatLabel(row.source)} ·{" "}
+                          {countryWithFlag(row.country)}
                         </p>
                       </div>
                       <div className="text-right">

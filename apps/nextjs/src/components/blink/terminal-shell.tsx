@@ -2752,145 +2752,158 @@ function AccountPanel(props: {
                     const positionsGridClass =
                       "grid grid-cols-[minmax(108px,1fr)_52px_64px_72px_72px_80px_68px_68px_96px] items-center gap-x-2";
 
+                    const positionTradeHref = `/trade/${marketToSlug(position.coin)}`;
+                    const positionCell =
+                      "text-right text-xs tabular-nums tracking-normal text-foreground/62";
+
                     return (
                       <div
                         key={`${position.coin}-${position.entryPx}`}
                         className="group overflow-hidden rounded-[14px] border border-white/[0.07] bg-white/[0.025] transition hover:border-white/[0.12] hover:bg-white/[0.04]"
                         style={{ borderLeft: `2px solid ${accentColor}55` }}
                       >
-                        <div className={`${positionsGridClass} px-3 py-3`}>
-                          <div className="flex items-center gap-2.5">
-                            <CoinIcon coin={position.coin} size={24} />
-                            <div>
-                              <p className="text-sm font-semibold leading-none text-white">
-                                {position.coin}
-                              </p>
-                              <p className="mt-0.5 text-[10px] text-foreground/38">
-                                {leverage.toFixed(0)}× ·{" "}
-                                {maskNumberish(
-                                  posValue,
-                                  formatUsd,
-                                  props.hideBalances,
-                                )}
-                              </p>
+                        <Link
+                          href={positionTradeHref}
+                          className="block px-3 py-3 transition hover:bg-white/[0.03]"
+                        >
+                          <div className={positionsGridClass}>
+                            <div className="flex items-center gap-2.5">
+                              <CoinIcon coin={position.coin} size={24} />
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium leading-tight text-white transition group-hover:text-[#9ec0ff]">
+                                  {position.coin}
+                                </p>
+                                <p className="mt-0.5 text-[11px] font-normal text-foreground/42">
+                                  {leverage.toFixed(0)}× ·{" "}
+                                  {maskNumberish(
+                                    posValue,
+                                    formatUsd,
+                                    props.hideBalances,
+                                  )}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex justify-center">
-                            <span
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                                isLong
-                                  ? "bg-emerald-400/15 text-emerald-300"
-                                  : "bg-rose-400/15 text-rose-300"
-                              }`}
-                            >
-                              {isLong ? "Long" : "Short"}
+                            <div className="flex justify-center">
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                                  isLong
+                                    ? "bg-emerald-400/15 text-emerald-300"
+                                    : "bg-rose-400/15 text-rose-300"
+                                }`}
+                              >
+                                {isLong ? "Long" : "Short"}
+                              </span>
+                            </div>
+                            <span className={positionCell}>
+                              {maskValue(
+                                formatCompactNumber(absSz),
+                                props.hideBalances,
+                              )}
                             </span>
-                          </div>
-                          <span className="text-right font-mono text-xs text-foreground/70">
-                            {maskValue(
-                              formatCompactNumber(absSz),
-                              props.hideBalances,
-                            )}
-                          </span>
-                          <span className="text-right font-mono text-xs text-foreground/65">
-                            {maskNumberish(
-                              entry,
-                              formatUsd,
-                              props.hideBalances,
-                            )}
-                          </span>
-                          <span className="text-right font-mono text-xs text-foreground/75">
-                            {markPx > 0
-                              ? maskNumberish(
-                                  markPx,
-                                  formatUsd,
-                                  props.hideBalances,
-                                )
-                              : "—"}
-                          </span>
-                          <div className="flex flex-col items-end">
-                            <span className="font-mono text-xs font-medium text-rose-400">
-                              {liqPx
+                            <span className={positionCell}>
+                              {maskNumberish(
+                                entry,
+                                formatUsd,
+                                props.hideBalances,
+                              )}
+                            </span>
+                            <span
+                              className={`${positionCell} text-foreground/72`}
+                            >
+                              {markPx > 0
                                 ? maskNumberish(
-                                    liqPx,
+                                    markPx,
                                     formatUsd,
                                     props.hideBalances,
                                   )
                                 : "—"}
                             </span>
-                            {liqDistance !== null ? (
-                              <span className="mt-0.5 text-[10px] text-rose-400/65">
+                            <div className="flex flex-col items-end">
+                              <span
+                                className={`${positionCell} text-rose-400/90`}
+                              >
+                                {liqPx
+                                  ? maskNumberish(
+                                      liqPx,
+                                      formatUsd,
+                                      props.hideBalances,
+                                    )
+                                  : "—"}
+                              </span>
+                              {liqDistance !== null ? (
+                                <span className="mt-0.5 text-[10px] font-normal text-rose-400/55">
+                                  {maskValue(
+                                    `${liqDistance.toFixed(2)}% to go`,
+                                    props.hideBalances,
+                                  )}
+                                </span>
+                              ) : null}
+                            </div>
+                            <div
+                              className="flex flex-col items-end"
+                              title={
+                                fundingHourly !== 0
+                                  ? formatFundingApr(fundingHourly)
+                                  : undefined
+                              }
+                            >
+                              <span
+                                className={`text-right text-[11px] tabular-nums ${
+                                  fundingHourly >= 0
+                                    ? "text-emerald-300/75"
+                                    : "text-rose-300/75"
+                                }`}
+                              >
                                 {maskValue(
-                                  `${liqDistance.toFixed(2)}% to go`,
+                                  formatHourlyFunding(fundingHourly),
                                   props.hideBalances,
                                 )}
                               </span>
-                            ) : null}
-                          </div>
-                          <div
-                            className="flex flex-col items-end"
-                            title={
-                              fundingHourly !== 0
-                                ? formatFundingApr(fundingHourly)
-                                : undefined
-                            }
-                          >
-                            <span
-                              className={`font-mono text-[11px] ${
-                                fundingHourly >= 0
-                                  ? "text-emerald-300/75"
-                                  : "text-rose-300/75"
-                              }`}
-                            >
-                              {maskValue(
-                                formatHourlyFunding(fundingHourly),
-                                props.hideBalances,
-                              )}
-                            </span>
-                            <span
-                              className={`mt-0.5 font-mono text-[10px] ${
-                                fundingSinceOpen >= 0
-                                  ? "text-emerald-400/55"
-                                  : "text-rose-400/55"
-                              }`}
-                            >
-                              {fundingSinceOpen >= 0 ? "+" : ""}
+                              <span
+                                className={`mt-0.5 text-right text-[10px] tabular-nums ${
+                                  fundingSinceOpen >= 0
+                                    ? "text-emerald-400/55"
+                                    : "text-rose-400/55"
+                                }`}
+                              >
+                                {fundingSinceOpen >= 0 ? "+" : ""}
+                                {maskNumberish(
+                                  fundingSinceOpen,
+                                  formatUsd,
+                                  props.hideBalances,
+                                )}
+                              </span>
+                            </div>
+                            <span className={positionCell}>
                               {maskNumberish(
-                                fundingSinceOpen,
+                                marginUsed,
                                 formatUsd,
                                 props.hideBalances,
                               )}
                             </span>
+                            <div className="flex flex-col items-end">
+                              <span
+                                className={`text-right text-sm font-medium tabular-nums leading-none ${pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+                              >
+                                {pnl >= 0 ? "+" : ""}
+                                {maskNumberish(
+                                  pnl,
+                                  formatUsd,
+                                  props.hideBalances,
+                                )}
+                              </span>
+                              <span
+                                className={`mt-0.5 text-right text-[10px] font-normal tabular-nums ${roePct >= 0 ? "text-emerald-400/55" : "text-rose-400/55"}`}
+                              >
+                                {roePct >= 0 ? "+" : ""}
+                                {maskValue(
+                                  `${roePct.toFixed(2)}% ROE`,
+                                  props.hideBalances,
+                                )}
+                              </span>
+                            </div>
                           </div>
-                          <span className="text-right font-mono text-xs text-foreground/65">
-                            {maskNumberish(
-                              marginUsed,
-                              formatUsd,
-                              props.hideBalances,
-                            )}
-                          </span>
-                          <div className="flex flex-col items-end">
-                            <span
-                              className={`font-mono text-sm font-semibold leading-none ${pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
-                            >
-                              {pnl >= 0 ? "+" : ""}
-                              {maskNumberish(
-                                pnl,
-                                formatUsd,
-                                props.hideBalances,
-                              )}
-                            </span>
-                            <span
-                              className={`mt-0.5 text-[10px] ${roePct >= 0 ? "text-emerald-400/60" : "text-rose-400/60"}`}
-                            >
-                              {roePct >= 0 ? "+" : ""}
-                              {maskValue(
-                                `${roePct.toFixed(2)}% ROE`,
-                                props.hideBalances,
-                              )}
-                            </span>
-                          </div>
-                        </div>
+                        </Link>
                         <div className="flex items-center justify-end gap-1 border-t border-white/[0.05] px-3 py-2">
                           <button
                             type="button"

@@ -25,6 +25,7 @@ const STATUS_EVENT_TYPES = [
   "system_status_degraded",
   "system_status_outage",
 ] as const;
+const STATUS_EVENT_TYPE_LIST: string[] = [...STATUS_EVENT_TYPES];
 type StatusState = "ok" | "degraded" | "outage" | "unknown";
 
 export function getDeploymentSha() {
@@ -178,7 +179,7 @@ async function getUptimeSummary(windowDays = UPTIME_WINDOW_DAYS) {
       .from(MetricEvent)
       .where(
         and(
-          inArray(MetricEvent.eventType, STATUS_EVENT_TYPES),
+          inArray(MetricEvent.eventType, STATUS_EVENT_TYPE_LIST),
           lt(MetricEvent.createdAt, startDate),
         ),
       )
@@ -192,7 +193,7 @@ async function getUptimeSummary(windowDays = UPTIME_WINDOW_DAYS) {
       .from(MetricEvent)
       .where(
         and(
-          inArray(MetricEvent.eventType, STATUS_EVENT_TYPES),
+          inArray(MetricEvent.eventType, STATUS_EVENT_TYPE_LIST),
           gte(MetricEvent.createdAt, startDate),
           lte(MetricEvent.createdAt, nowDate),
         ),

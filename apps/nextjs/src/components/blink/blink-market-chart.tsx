@@ -2,22 +2,26 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import {
-  BarChart3,
-  LineChart,
-  Loader2,
-  TrendingDown,
-  TrendingUp,
-} from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { BarChart3, LineChart, Loader2 } from "lucide-react";
 
 import { AssetIcon } from "~/components/blink/asset-icon";
+import {
+  formatNyDailyCloseCountdown,
+  getMillisecondsUntilNyMidnight,
+} from "~/lib/blink/chart/ny-daily-close";
 import {
   type ChartInterval,
   formatChartPrice,
   formatTradeNotional,
   useMarketChart,
 } from "~/lib/blink/chart/use-market-chart";
+import { resolvePerpMarket } from "~/lib/blink/hyperliquid";
 import { formatUsd } from "~/lib/blink/markets";
+
+const CHART_UP = "#34d399";
+const CHART_DOWN = "#fb7185";
+const BLINK_ACCENT = "#7fa8ff";
 
 const INTERVAL_OPTIONS: Array<{ id: ChartInterval; label: string }> = [
   { id: "1m", label: "1m" },
@@ -37,31 +41,19 @@ function formatClock(ms: number) {
   }).format(new Date(ms));
 }
 
-function formatWindowLabel(interval: ChartInterval) {
-  const labels: Record<ChartInterval, string> = {
-    "1m": "1 minute",
-    "5m": "5 minutes",
-    "15m": "15 minutes",
-    "1h": "1 hour",
-  };
-  return labels[interval];
-}
-
-function useCountdown(targetMs: number | null) {
-  const [now, setNow] = useState(Date.now());
+function useNyDailyCloseCountdown() {
+  const [remainingMs, setRemainingMs] = useState(() =>
+    getMillisecondsUntilNyMidnight(),
+  );
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 250);
+    const id = setInterval(() => {
+      setRemainingMs(getMillisecondsUntilNyMidnight());
+    }, 1000);
     return () => clearInterval(id);
   }, []);
 
-  if (!targetMs) return { minutes: 0, seconds: 0, done: true };
-  const remaining = Math.max(0, targetMs - now);
-  return {
-    minutes: Math.floor(remaining / 60_000),
-    seconds: Math.floor((remaining % 60_000) / 1000),
-    done: remaining <= 0,
-  };
+  return formatNyDailyCloseCountdown(remainingMs);
 }
 
 function buildAreaPath(
@@ -92,9 +84,27 @@ export function BlinkMarketChart(props: { market: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(720);
 
-  const { points, trades, loading, error, stats, candleEndTime, reload } =
+  const { points, trades, loading, error, dailyUp, dayOpen, reload } =
     useMarketChart(props.market, interval);
-  const countdown = useCountdown(candleEndTime);
+  const nyCloseCountdown = useNyDailyCloseCountdown();
+
+  const marketCtxQuery = useQuery({
+    queryKey: ["blink", "chart-ctx", props.market],
+    queryFn: async () => {
+      const market = await resolvePerpMarket(props.market);
+      const ctx = market.assetCtx;
+      if (!ctx) return null;
+      return {
+        markPx: Number(ctx.markPx ?? 0),
+        oraclePx: Number(ctx.oraclePx ?? 0),
+      };
+    },
+    staleTime: 2_000,
+    refetchInterval: 3_000,
+  });
+
+  const markPx = marketCtxQuery.data?.markPx ?? 0;
+  const oraclePx = marketCtxQuery.data?.oraclePx ?? 0;
 
   useEffect(() => {
     const node = containerRef.current;
@@ -124,7 +134,8 @@ export function BlinkMarketChart(props: { market: string }) {
         }>,
         yTicks: [] as number[],
         xTicks: [] as Array<{ x: number; label: string }>,
-        targetY: innerH / 2,
+        markY: null as number | null,
+        oracleY: null as number | null,
         last: null as { x: number; y: number; close: number } | null,
         areaPath: "",
         linePath: "",
@@ -134,8 +145,11 @@ export function BlinkMarketChart(props: { market: string }) {
     }
 
     const closes = points.map((point) => point.close);
-    const min = Math.min(...closes, stats.priceToBeat);
-    const max = Math.max(...closes, stats.priceToBeat);
+    const referencePrices = [dayOpen, markPx, oraclePx].filter(
+      (value) => value > 0,
+    );
+    const min = Math.min(...closes, ...referencePrices);
+    const max = Math.max(...closes, ...referencePrices);
     const range = Math.max(max - min, max * 0.0005);
 
     const minTime = points[0]?.time ?? 0;
@@ -148,8 +162,11 @@ export function BlinkMarketChart(props: { market: string }) {
       return { x, y, time: point.time, close: point.close };
     });
 
-    const targetY =
-      CHART_PAD.top + ((max - stats.priceToBeat) / range) * innerH;
+    const priceToY = (price: number) =>
+      CHART_PAD.top + ((max - price) / range) * innerH;
+
+    const markY = markPx > 0 ? priceToY(markPx) : null;
+    const oracleY = oraclePx > 0 ? priceToY(oraclePx) : null;
     const last = coords.at(-1) ?? null;
 
     const yTicks = Array.from({ length: 5 }, (_, index) => {
@@ -180,7 +197,8 @@ export function BlinkMarketChart(props: { market: string }) {
       coords,
       yTicks,
       xTicks,
-      targetY,
+      markY,
+      oracleY,
       last,
       areaPath,
       linePath,
@@ -189,8 +207,9 @@ export function BlinkMarketChart(props: { market: string }) {
       minTime,
       maxTime,
       timeRange,
+      priceToY,
     };
-  }, [points, stats.priceToBeat, width]);
+  }, [dayOpen, markPx, oraclePx, points, width]);
 
   const tradeMarkers = useMemo(() => {
     if (!plot.last || points.length < 2) return [];
@@ -211,9 +230,9 @@ export function BlinkMarketChart(props: { market: string }) {
       });
   }, [plot, points, trades]);
 
-  const positive = stats.changeUsd >= 0;
-  const lineColor = positive ? "#3be1ba" : "#fb7185";
-  const lineGlow = positive ? "#3be1ba88" : "#fb718588";
+  const lineColor = dailyUp ? CHART_UP : CHART_DOWN;
+  const lineGlow = dailyUp ? `${CHART_UP}88` : `${CHART_DOWN}88`;
+  const markOracleSpread = markPx > 0 && oraclePx > 0 ? markPx - oraclePx : 0;
 
   return (
     <section className="glass-panel flex min-h-[640px] flex-col overflow-hidden p-2">
@@ -221,7 +240,7 @@ export function BlinkMarketChart(props: { market: string }) {
         ref={containerRef}
         className="flex min-h-[620px] flex-1 flex-col overflow-hidden rounded-[12px] border border-[#88b3ff2e] bg-[#060510]"
       >
-        {/* Header — Polymarket-style metric row */}
+        {/* Header — Hyperliquid perp metrics */}
         <div className="border-b border-white/[0.06] px-4 py-3">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -230,60 +249,43 @@ export function BlinkMarketChart(props: { market: string }) {
               </div>
               <div>
                 <p className="text-lg font-semibold text-white">
-                  {props.market} · Blink chart
+                  {props.market} perp chart
                 </p>
                 <p className="text-xs text-foreground/45">
-                  Hyperliquid · {formatWindowLabel(interval)} window
+                  Hyperliquid · {interval} · line colored by daily candle
                 </p>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-end gap-6">
+            <div className="flex flex-wrap items-end gap-5 md:gap-7">
               <div>
-                <p className="text-[11px] uppercase tracking-[0.14em] text-foreground/42">
-                  Price to beat
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/42">
+                  Mark
                 </p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums text-white">
-                  ${formatChartPrice(stats.priceToBeat)}
+                <p className="mt-0.5 font-mono text-xl font-semibold tabular-nums text-white">
+                  {markPx > 0 ? formatUsd(markPx) : "—"}
                 </p>
               </div>
               <div>
-                <p className="text-[11px] uppercase tracking-[0.14em] text-[#3be1ba]/70">
-                  Current price
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-foreground/42">
+                  Oracle
                 </p>
-                <div className="mt-1 flex items-center gap-2">
-                  <p
-                    className="text-2xl font-semibold tabular-nums"
-                    style={{ color: lineColor }}
-                  >
-                    ${formatChartPrice(stats.currentPrice)}
+                <p className="mt-0.5 font-mono text-xl font-semibold tabular-nums text-foreground/72">
+                  {oraclePx > 0 ? formatUsd(oraclePx) : "—"}
+                </p>
+                {markPx > 0 && oraclePx > 0 ? (
+                  <p className="mt-0.5 text-[10px] tabular-nums text-foreground/38">
+                    Δ {markOracleSpread >= 0 ? "+" : ""}
+                    {formatUsd(markOracleSpread)}
                   </p>
-                  <span
-                    className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      positive
-                        ? "bg-emerald-400/10 text-emerald-300"
-                        : "bg-rose-400/10 text-rose-300"
-                    }`}
-                  >
-                    {positive ? (
-                      <TrendingUp className="size-3" />
-                    ) : (
-                      <TrendingDown className="size-3" />
-                    )}
-                    {positive ? "+" : ""}
-                    {formatUsd(stats.changeUsd)}
-                  </span>
-                </div>
+                ) : null}
               </div>
               <div className="text-right">
-                <p className="text-[11px] uppercase tracking-[0.14em] text-foreground/42">
-                  Candle closes
+                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-[#7fa8ff]/80">
+                  Daily close · NY
                 </p>
-                <p className="mt-1 font-mono text-2xl font-semibold tabular-nums text-rose-300">
-                  {String(countdown.minutes).padStart(2, "0")}
-                  <span className="mx-1 text-sm text-foreground/35">mins</span>
-                  {String(countdown.seconds).padStart(2, "0")}
-                  <span className="ml-1 text-sm text-foreground/35">secs</span>
+                <p className="mt-0.5 font-mono text-sm font-medium tabular-nums text-[#9ec0ff]">
+                  {nyCloseCountdown}
                 </p>
               </div>
             </div>
@@ -358,32 +360,50 @@ export function BlinkMarketChart(props: { market: string }) {
                 );
               })}
 
-              {/* Target line */}
-              <line
-                x1={CHART_PAD.left}
-                x2={width - CHART_PAD.right}
-                y1={plot.targetY}
-                y2={plot.targetY}
-                stroke="#ffffff30"
-                strokeDasharray="5 5"
-              />
-              <rect
-                x={width - CHART_PAD.right - 52}
-                y={plot.targetY - 10}
-                width={48}
-                height={18}
-                rx={9}
-                fill="#ffffff12"
-              />
-              <text
-                x={width - CHART_PAD.right - 28}
-                y={plot.targetY + 4}
-                fill="#ffffff70"
-                fontSize="10"
-                textAnchor="middle"
-              >
-                Target
-              </text>
+              {/* Mark reference */}
+              {plot.markY !== null ? (
+                <g>
+                  <line
+                    x1={CHART_PAD.left}
+                    x2={width - CHART_PAD.right}
+                    y1={plot.markY}
+                    y2={plot.markY}
+                    stroke={BLINK_ACCENT}
+                    strokeOpacity={0.55}
+                    strokeDasharray="4 5"
+                  />
+                  <text
+                    x={width - CHART_PAD.right + 2}
+                    y={plot.markY + 3}
+                    fill={BLINK_ACCENT}
+                    fontSize="9"
+                  >
+                    Mark
+                  </text>
+                </g>
+              ) : null}
+
+              {/* Oracle reference */}
+              {plot.oracleY !== null ? (
+                <g>
+                  <line
+                    x1={CHART_PAD.left}
+                    x2={width - CHART_PAD.right}
+                    y1={plot.oracleY}
+                    y2={plot.oracleY}
+                    stroke="#ffffff35"
+                    strokeDasharray="3 6"
+                  />
+                  <text
+                    x={width - CHART_PAD.right + 2}
+                    y={plot.oracleY + 3}
+                    fill="#ffffff55"
+                    fontSize="9"
+                  >
+                    Oracle
+                  </text>
+                </g>
+              ) : null}
 
               {/* Area + line */}
               {plot.areaPath ? (
@@ -447,7 +467,7 @@ export function BlinkMarketChart(props: { market: string }) {
             </svg>
           )}
 
-          {/* Trade fill stream — Polymarket-style left annotations */}
+          {/* Live perp fill stream */}
           {!loading && !error ? (
             <div className="pointer-events-none absolute inset-y-8 left-3 flex w-[84px] flex-col justify-center gap-2">
               {tradeMarkers.map((trade) => (
@@ -493,9 +513,15 @@ export function BlinkMarketChart(props: { market: string }) {
           </div>
 
           <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] p-1">
-            <span className="inline-flex items-center gap-1.5 rounded-lg bg-[#3be1ba20] px-2.5 py-1.5 text-xs font-medium text-[#9af0d8]">
+            <span
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium"
+              style={{
+                backgroundColor: dailyUp ? `${CHART_UP}22` : `${CHART_DOWN}22`,
+                color: dailyUp ? "#9ef0d2" : "#fecdd3",
+              }}
+            >
               <LineChart className="size-3.5" />
-              Line
+              Line · {dailyUp ? "day up" : "day down"}
             </span>
             <span
               className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-foreground/35"

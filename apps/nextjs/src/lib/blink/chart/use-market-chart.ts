@@ -66,7 +66,8 @@ export function useMarketChart(market: string, interval: ChartInterval) {
   const [trades, setTrades] = useState<ChartTradeTick[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [candleEndTime, setCandleEndTime] = useState<number | null>(null);
+  const [dailyUp, setDailyUp] = useState(true);
+  const [dayOpen, setDayOpen] = useState(0);
   const pointsRef = useRef<ChartPoint[]>([]);
 
   const loadHistory = useCallback(async () => {
@@ -75,17 +76,33 @@ export function useMarketChart(market: string, interval: ChartInterval) {
     try {
       const endTime = Date.now();
       const startTime = endTime - LOOKBACK_CANDLES * INTERVAL_MS[interval];
-      const candles = await infoClient.candleSnapshot({
-        coin: market,
-        interval,
-        startTime,
-        endTime,
-      });
+
+      const [candles, dailyCandles] = await Promise.all([
+        infoClient.candleSnapshot({
+          coin: market,
+          interval,
+          startTime,
+          endTime,
+        }),
+        infoClient.candleSnapshot({
+          coin: market,
+          interval: "1d",
+          startTime: endTime - 5 * 24 * 60 * 60 * 1000,
+          endTime,
+        }),
+      ]);
+
       const parsed = candles.map(parseCandle);
       pointsRef.current = parsed;
       setPoints(parsed);
-      const last = parsed.at(-1);
-      setCandleEndTime(last ? last.time + INTERVAL_MS[interval] : null);
+
+      const latestDay = dailyCandles.at(-1);
+      if (latestDay) {
+        const open = Number(latestDay.o);
+        const close = Number(latestDay.c);
+        setDayOpen(open);
+        setDailyUp(close >= open);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load chart");
       setPoints([]);
@@ -101,6 +118,7 @@ export function useMarketChart(market: string, interval: ChartInterval) {
   useEffect(() => {
     let active = true;
     let candleSub: hl.Subscription | null = null;
+    let dailySub: hl.Subscription | null = null;
     let tradesSub: hl.Subscription | null = null;
 
     async function subscribe() {
@@ -112,8 +130,18 @@ export function useMarketChart(market: string, interval: ChartInterval) {
         const next = mergeCandles(pointsRef.current, [point]);
         pointsRef.current = next;
         setPoints(next);
-        setCandleEndTime(point.time + INTERVAL_MS[interval]);
       });
+
+      dailySub = await client.candle(
+        { coin: market, interval: "1d" },
+        (candle) => {
+          if (!active) return;
+          const open = Number(candle.o);
+          const close = Number(candle.c);
+          setDayOpen(open);
+          setDailyUp(close >= open);
+        },
+      );
 
       tradesSub = await client.trades({ coin: market }, (data) => {
         if (!active) return;
@@ -146,43 +174,21 @@ export function useMarketChart(market: string, interval: ChartInterval) {
     return () => {
       active = false;
       candleSub?.unsubscribe();
+      dailySub?.unsubscribe();
       tradesSub?.unsubscribe();
     };
   }, [interval, market]);
 
-  const stats = useMemo(() => {
-    if (points.length === 0) {
-      return {
-        priceToBeat: 0,
-        currentPrice: 0,
-        changeUsd: 0,
-        changePct: 0,
-      };
-    }
-    const first = points[0];
-    const last = points.at(-1);
-    if (!first || !last) {
-      return {
-        priceToBeat: 0,
-        currentPrice: 0,
-        changeUsd: 0,
-        changePct: 0,
-      };
-    }
-    const priceToBeat = first.open;
-    const currentPrice = last.close;
-    const changeUsd = currentPrice - priceToBeat;
-    const changePct = priceToBeat > 0 ? (changeUsd / priceToBeat) * 100 : 0;
-    return { priceToBeat, currentPrice, changeUsd, changePct };
-  }, [points]);
+  const lastPrice = useMemo(() => points.at(-1)?.close ?? 0, [points]);
 
   return {
     points,
     trades,
     loading,
     error,
-    stats,
-    candleEndTime,
+    dailyUp,
+    dayOpen,
+    lastPrice,
     reload: loadHistory,
   };
 }

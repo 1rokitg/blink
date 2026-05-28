@@ -190,17 +190,21 @@ function Podium(props: { entries: LeaderboardEntry[] }) {
               ) : null}
               <TraderAvatar entry={entry} size={rank === 1 ? "lg" : "md"} />
               <p className="mt-3 max-w-full truncate text-center text-sm font-semibold text-white">
-                {entry.displayName}
+                {entry.displayName || entry.handle}
               </p>
               <p className="max-w-full truncate text-[11px] text-foreground/45">
                 {entry.handle}
+                {entry.isVerified ? " · verified" : ""}
+              </p>
+              <p className="mt-2 text-base font-bold tabular-nums text-white">
+                {formatUsd(entry.routedVolumeUsd)}
               </p>
               <p
-                className={`mt-2 text-base font-bold tabular-nums ${
+                className={`mt-1 text-xs font-semibold tabular-nums ${
                   entry.routedPnlUsd >= 0 ? "text-emerald-300" : "text-rose-300"
                 }`}
               >
-                {formatSignedUsd(entry.routedPnlUsd)}
+                {formatSignedUsd(entry.routedPnlUsd)} PnL
               </p>
               <p className="mt-1 text-[10px] text-foreground/40">
                 #{rank} · {entry.fillsCount} fills
@@ -269,7 +273,7 @@ export function BlinkLeaderboardPanel(props: { compact?: boolean }) {
       )}
 
       <p className="border-t border-white/[0.05] px-3 py-2 text-center text-[10px] leading-4 text-foreground/30">
-        X verified · builder approved · Blink-routed fills
+        Builder approved · ranked by routed volume
       </p>
     </div>
   );
@@ -295,9 +299,8 @@ export function BlinkLeaderboardPage() {
               Where traders become legends
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-foreground/58">
-              Top 100 performers on Blink — ranked by realized PnL on trades
-              routed through our builder code. Verified on X, approved, and
-              trading live.
+              Top 100 Blink traders — builder-approved wallets ranked by routed
+              volume and realized PnL. X verified traders get the blue badge.
             </p>
           </div>
           <Link
@@ -345,8 +348,7 @@ export function BlinkLeaderboardPage() {
               <div className="border-b border-white/8 px-5 py-4">
                 <h2 className="text-lg font-semibold text-white">Top 100</h2>
                 <p className="mt-1 text-xs text-foreground/45">
-                  Realized PnL on Blink-routed fills · volume and fill count
-                  shown for context
+                  Ranked by routed volume · PnL and fill count for context
                 </p>
               </div>
               <div className="divide-y divide-white/[0.05]">

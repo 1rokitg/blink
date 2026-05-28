@@ -1,6 +1,6 @@
 import { unstable_cache } from "next/cache";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, gte, inArray } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
 import {
@@ -11,6 +11,10 @@ import {
   UserProfile,
 } from "@acme/db/schema";
 
+import { env } from "~/env";
+
+import { BUILDER_FEE_UNITS } from "./builder";
+import { GROWTH_ZERO_FEE_MARKETS, isGrowthModeEnabled } from "./growth-mode";
 import { infoClient } from "./hyperliquid";
 import { getProfileSlugByWalletAddress } from "./resolve-address";
 
@@ -44,18 +48,100 @@ const PERIOD_MS: Record<LeaderboardPeriod, number> = {
   all: 90 * 24 * 60 * 60 * 1000,
 };
 
+type TraderCandidate = {
+  wallet: string;
+  approvedAtMs: number;
+  twitter: {
+    twitterUsername: string;
+    twitterName: string | null;
+  } | null;
+};
+
+type ScoredTrader = Omit<LeaderboardEntry, "rank">;
+
 function numberOrZero(value: unknown) {
   const n = Number(value ?? 0);
   return Number.isFinite(n) ? n : 0;
 }
 
-function getStrictBuilderFeeUsd(fill: Record<string, unknown>) {
-  const explicit = numberOrZero((fill as { builderFee?: unknown }).builderFee);
-  return explicit > 0 ? explicit : 0;
+function truncateWallet(address: string) {
+  return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
-function avatarUrl(id: string) {
-  return `https://avatar.vercel.sh/${encodeURIComponent(id)}.png?size=96`;
+function avatarUrl(seed: string) {
+  return `https://avatar.vercel.sh/${encodeURIComponent(seed)}.png?size=96`;
+}
+
+function estimateBuilderFeeUsd(
+  params: {
+    coin: string;
+    notionalUsd: number;
+    walletAddress: string;
+    explicitBuilderFeeUsd?: number;
+  },
+  proSet: Set<string>,
+) {
+  const explicit = numberOrZero(params.explicitBuilderFeeUsd);
+  if (explicit > 0) {
+    return {
+      builderFeeUsd: explicit,
+      feeUnits:
+        params.notionalUsd > 0
+          ? Math.round((explicit / params.notionalUsd) * 1e6)
+          : 0,
+    };
+  }
+
+  const isZeroFeeGrowthMarket =
+    isGrowthModeEnabled() && GROWTH_ZERO_FEE_MARKETS.includes(params.coin);
+  const feeUnits = isZeroFeeGrowthMarket
+    ? 0
+    : proSet.has(params.walletAddress.toLowerCase())
+      ? env.BLINK_PRO_BUILDER_FEE_BPS
+      : BUILDER_FEE_UNITS;
+
+  return {
+    builderFeeUsd: params.notionalUsd * feeUnits * 1e-6,
+    feeUnits,
+  };
+}
+
+/** Fill counts toward Blink leaderboard after builder approval. */
+function isBlinkRoutedFill(
+  fill: Record<string, unknown>,
+  wallet: string,
+  approvedAtMs: number,
+  proSet: Set<string>,
+) {
+  const time = numberOrZero(fill.time);
+  if (!time || time < approvedAtMs) return false;
+
+  const coin = String(fill.coin ?? "").toUpperCase();
+  const px = numberOrZero(fill.px);
+  const sz = Math.abs(numberOrZero(fill.sz));
+  const volume = px * sz;
+  if (!Number.isFinite(volume) || volume <= 0) return false;
+
+  const explicitBuilderFeeUsd = numberOrZero(
+    (fill as { builderFee?: unknown }).builderFee,
+  );
+  if (explicitBuilderFeeUsd > 0) return true;
+
+  if (isGrowthModeEnabled() && GROWTH_ZERO_FEE_MARKETS.includes(coin)) {
+    return true;
+  }
+
+  const { feeUnits } = estimateBuilderFeeUsd(
+    {
+      coin,
+      notionalUsd: volume,
+      walletAddress: wallet,
+      explicitBuilderFeeUsd,
+    },
+    proSet,
+  );
+
+  return feeUnits > 0;
 }
 
 async function mapPool<T, R>(
@@ -85,10 +171,26 @@ async function mapPool<T, R>(
   return results;
 }
 
-async function loadEligibleWallets() {
-  const [approvals, twitterRows] = await Promise.all([
+async function getActiveProSet() {
+  const activeProRows = await db
+    .select({ walletAddress: BlinkMembership.walletAddress })
+    .from(BlinkMembership)
+    .where(
+      and(
+        eq(BlinkMembership.status, "active"),
+        gte(BlinkMembership.currentPeriodEnd, new Date()),
+      ),
+    );
+  return new Set(activeProRows.map((row) => row.walletAddress.toLowerCase()));
+}
+
+async function loadEligibleTraders(): Promise<TraderCandidate[]> {
+  const [approvalRows, twitterRows] = await Promise.all([
     db
-      .select({ walletAddress: BuilderApproval.walletAddress })
+      .select({
+        walletAddress: BuilderApproval.walletAddress,
+        approvedAt: BuilderApproval.approvedAt,
+      })
       .from(BuilderApproval),
     db
       .select({
@@ -103,13 +205,55 @@ async function loadEligibleWallets() {
     twitterRows.map((row) => [row.walletAddress.toLowerCase(), row]),
   );
 
-  return approvals
-    .map((row) => row.walletAddress.toLowerCase())
-    .filter((wallet) => twitterByWallet.has(wallet))
-    .flatMap((wallet) => {
+  const approvalByWallet = new Map<string, number>();
+  for (const row of approvalRows) {
+    const wallet = row.walletAddress.toLowerCase();
+    const approvedAtMs = new Date(row.approvedAt).getTime();
+    const existing = approvalByWallet.get(wallet);
+    approvalByWallet.set(
+      wallet,
+      existing ? Math.min(existing, approvedAtMs) : approvedAtMs,
+    );
+  }
+
+  return Array.from(approvalByWallet.entries()).map(
+    ([wallet, approvedAtMs]) => {
       const twitter = twitterByWallet.get(wallet);
-      return twitter ? [{ wallet, twitter }] : [];
-    });
+      return {
+        wallet,
+        approvedAtMs,
+        twitter: twitter
+          ? {
+              twitterUsername: twitter.twitterUsername,
+              twitterName: twitter.twitterName,
+            }
+          : null,
+      };
+    },
+  );
+}
+
+function dedupeScoredTraders(scored: ScoredTrader[]) {
+  const byWallet = new Map<string, ScoredTrader>();
+
+  for (const entry of scored) {
+    const key = entry.walletAddress.toLowerCase();
+    const existing = byWallet.get(key);
+    if (!existing) {
+      byWallet.set(key, entry);
+      continue;
+    }
+
+    if (
+      entry.routedVolumeUsd > existing.routedVolumeUsd ||
+      (entry.routedVolumeUsd === existing.routedVolumeUsd &&
+        entry.routedPnlUsd > existing.routedPnlUsd)
+    ) {
+      byWallet.set(key, entry);
+    }
+  }
+
+  return Array.from(byWallet.values());
 }
 
 async function computeLeaderboard(
@@ -117,10 +261,13 @@ async function computeLeaderboard(
   limit: number,
 ): Promise<LeaderboardSnapshot> {
   const startTime = Date.now() - PERIOD_MS[period];
-  const eligible = await loadEligibleWallets();
+  const [eligible, proSet] = await Promise.all([
+    loadEligibleTraders(),
+    getActiveProSet(),
+  ]);
 
   const walletList = eligible.map((row) => row.wallet);
-  const [profiles, codes, proRows] =
+  const [profiles, codes] =
     walletList.length > 0
       ? await Promise.all([
           db
@@ -138,17 +285,8 @@ async function computeLeaderboard(
             })
             .from(ReferralCode)
             .where(inArray(ReferralCode.walletAddress, walletList)),
-          db
-            .select({ walletAddress: BlinkMembership.walletAddress })
-            .from(BlinkMembership)
-            .where(
-              and(
-                inArray(BlinkMembership.walletAddress, walletList),
-                eq(BlinkMembership.status, "active"),
-              ),
-            ),
         ])
-      : [[], [], []];
+      : [[], []];
 
   const profileMap = new Map(
     profiles.map((row) => [row.walletAddress.toLowerCase(), row]),
@@ -156,17 +294,19 @@ async function computeLeaderboard(
   const codeMap = new Map(
     codes.map((row) => [row.walletAddress.toLowerCase(), row.code]),
   );
-  const proSet = new Set(proRows.map((row) => row.walletAddress.toLowerCase()));
   for (const row of profiles) {
     if (row.isPro) proSet.add(row.walletAddress.toLowerCase());
   }
 
-  const scored = await mapPool(eligible, 6, async ({ wallet, twitter }) => {
+  const scored = await mapPool(eligible, 6, async (trader) => {
+    const { wallet, approvedAtMs, twitter } = trader;
+    const effectiveStart = Math.max(startTime, approvedAtMs);
+
     let fills: Array<Record<string, unknown>> = [];
     try {
       fills = (await infoClient.userFillsByTime({
         user: wallet as `0x${string}`,
-        startTime,
+        startTime: effectiveStart,
       })) as unknown as Array<Record<string, unknown>>;
     } catch {
       return null;
@@ -177,13 +317,11 @@ async function computeLeaderboard(
     let fillsCount = 0;
 
     for (const fill of fills) {
-      const builderFeeUsd = getStrictBuilderFeeUsd(fill);
-      if (builderFeeUsd <= 0) continue;
+      if (!isBlinkRoutedFill(fill, wallet, approvedAtMs, proSet)) continue;
 
       const px = numberOrZero(fill.px);
       const sz = Math.abs(numberOrZero(fill.sz));
       const volume = px * sz;
-      if (!Number.isFinite(volume) || volume <= 0) continue;
 
       routedPnlUsd += numberOrZero((fill as { closedPnl?: unknown }).closedPnl);
       routedVolumeUsd += volume;
@@ -197,20 +335,25 @@ async function computeLeaderboard(
     const slug =
       (await getProfileSlugByWalletAddress(wallet)) ??
       code ??
-      twitter.twitterUsername;
+      twitter?.twitterUsername ??
+      wallet;
     const displayName =
       profile?.displayName?.trim() ||
-      twitter.twitterName?.trim() ||
-      twitter.twitterUsername;
-    const handle = `@${twitter.twitterUsername}`;
+      twitter?.twitterName?.trim() ||
+      twitter?.twitterUsername ||
+      code ||
+      truncateWallet(wallet);
+    const handle = twitter
+      ? `@${twitter.twitterUsername}`
+      : truncateWallet(wallet);
 
     return {
       walletAddress: wallet,
       displayName,
       handle,
       profileHref: `/profile/${encodeURIComponent(slug)}`,
-      avatarUrl: avatarUrl(slug),
-      isVerified: true,
+      avatarUrl: avatarUrl(wallet),
+      isVerified: Boolean(twitter),
       isPro: proSet.has(wallet),
       routedPnlUsd,
       routedVolumeUsd,
@@ -218,8 +361,13 @@ async function computeLeaderboard(
     };
   });
 
-  const ranked = scored
-    .sort((a, b) => b.routedPnlUsd - a.routedPnlUsd)
+  const ranked = dedupeScoredTraders(scored)
+    .sort((a, b) => {
+      if (b.routedVolumeUsd !== a.routedVolumeUsd) {
+        return b.routedVolumeUsd - a.routedVolumeUsd;
+      }
+      return b.routedPnlUsd - a.routedPnlUsd;
+    })
     .slice(0, limit)
     .map((entry, index) => ({
       rank: index + 1,
@@ -230,9 +378,9 @@ async function computeLeaderboard(
     period,
     updatedAt: new Date().toISOString(),
     criteria: [
-      "X verified",
-      "Blink builder approved",
-      "Routed fills through Blink",
+      "Builder approved on Blink",
+      "Routed perp activity after approval",
+      "Ranked by volume · X badge when verified",
     ],
     entries: ranked,
   };
@@ -247,7 +395,7 @@ export async function getBlinkLeaderboard(options?: {
 
   const cached = unstable_cache(
     async () => computeLeaderboard(period, limit),
-    ["blink-leaderboard", period, String(limit)],
+    ["blink-leaderboard-v2", period, String(limit)],
     { revalidate: 600 },
   );
 

@@ -279,8 +279,8 @@ function PreferencesTab() {
           <div>
             <p className="font-medium text-white">Persist order size</p>
             <p className="mt-1 text-sm text-foreground/58">
-              Keep your size and unit mode across markets, refreshes, and fresh
-              limit prices from the order book.
+              On by default — keeps your size and unit mode across markets,
+              refreshes, and after market fills.
             </p>
             <p className="mt-3 text-xs text-foreground/40">
               Click a price in the book to prefill limit price. Click a size to

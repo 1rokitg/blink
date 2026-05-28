@@ -99,17 +99,25 @@ import {
 } from "~/lib/blink/markets";
 import {
   type OrderEntrySizeMode,
+  readPersistSizePreference,
   readPersistedOrderSizeDraft,
   usePersistSizePreference,
   writePersistedOrderSizeDraft,
 } from "~/lib/blink/order-entry-preferences";
+import {
+  fetchCoinMarketCtxMap,
+  formatFundingApr,
+  formatHourlyFunding,
+  liquidationDistancePct,
+} from "~/lib/blink/position-market-ctx";
 
 import { emitTradingEvent } from "~/lib/blink/island-bus";
 import { runWalletConnect } from "~/lib/blink/wallet-connect";
 import { AccountManagementModal } from "./account-management-modal";
 import { AssetIcon } from "./asset-icon";
-import { BlinkProUpsellCard } from "./blink-pro-upsell-card";
 import { BlinkLeaderboardPanel } from "./blink-leaderboard";
+import { BlinkMarketChart } from "./blink-market-chart";
+import { BlinkProUpsellCard } from "./blink-pro-upsell-card";
 import { BuilderSetupModal } from "./builder-setup-modal";
 import { MarketInfoBar } from "./market-info-bar";
 import { type PnlPositionData, PnlShareModal } from "./pnl-share-modal";
@@ -120,7 +128,6 @@ import {
   TerminalOrderBook,
 } from "./terminal-order-book";
 import { TradingIsland } from "./trading-island";
-import { BlinkMarketChart } from "./blink-market-chart";
 
 function truncateAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -946,11 +953,21 @@ function OrderEntryPanel(props: {
   const { persistSize } = usePersistSizePreference();
 
   const [side, setSide] = useState<"buy" | "sell">("buy");
-  const [orderType, setOrderType] = useState<"limit" | "market">("limit");
+  const [orderType, setOrderType] = useState<"limit" | "market">("market");
   const [price, setPrice] = useState("");
-  const [size, setSize] = useState("");
+  const [size, setSize] = useState(() => {
+    if (typeof window === "undefined" || !readPersistSizePreference()) {
+      return "";
+    }
+    return readPersistedOrderSizeDraft().size;
+  });
   // "coin" = raw coin units; "usd" = notional USD (divided by mark on submit)
-  const [sizeMode, setSizeMode] = useState<OrderEntrySizeMode>("coin");
+  const [sizeMode, setSizeMode] = useState<OrderEntrySizeMode>(() => {
+    if (typeof window === "undefined" || !readPersistSizePreference()) {
+      return "coin";
+    }
+    return readPersistedOrderSizeDraft().sizeMode;
+  });
   const [leverage, setLeverage] = useState(10);
   const [updatingLeverage, setUpdatingLeverage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -1953,6 +1970,17 @@ function AccountPanel(props: {
   const accountValue = Number(
     accountQuery.data?.state?.marginSummary?.accountValue ?? 0,
   );
+  const hasOpenPositions = positions.some(
+    (entry) => Number(entry.position.szi) !== 0,
+  );
+  const marketCtxQuery = useQuery({
+    queryKey: ["blink", "position-market-ctx"],
+    queryFn: fetchCoinMarketCtxMap,
+    enabled: hasOpenPositions,
+    staleTime: 2_000,
+    refetchInterval: 5_000,
+  });
+  const marketCtxByCoin = marketCtxQuery.data;
 
   // ── Fill detection — emit island event for each new fill ──────────────────
   const seenFillsRef = useRef<Set<number>>(new Set());
@@ -2182,114 +2210,195 @@ function AccountPanel(props: {
         {/* ── Positions ─────────────────────────────────────────────────── */}
         <TabsContent value="positions" className="mt-0 p-3">
           {positions.length > 0 ? (
-            <>
-              {/* column headers */}
-              <div className="mb-1.5 grid grid-cols-[1fr_56px_88px_80px_100px_116px_auto] items-center gap-2 px-3 py-1 text-[10px] uppercase tracking-[0.13em] text-foreground/32">
-                <span>Market</span>
-                <span className="text-center">Side</span>
-                <span className="text-right">Entry</span>
-                <span className="text-right">Liq.</span>
-                <span className="text-right">Value</span>
-                <span className="text-right">Unrealized PnL</span>
-                <span />
-              </div>
-              <div className="space-y-1.5">
-                {positions.map(({ position }) => {
-                  const sz = Number(position.szi);
-                  if (sz === 0) return null;
-                  const isLong = sz > 0;
-                  const absSz = Math.abs(sz);
-                  const entry = Number(position.entryPx);
-                  const posValue = Number(position.positionValue);
-                  const leverage = Number(position.leverage?.value ?? 1);
-                  const posLiq =
-                    entry > 0
-                      ? isLong
-                        ? entry * (1 - 1 / leverage + 0.005)
-                        : entry * (1 + 1 / leverage - 0.005)
+            <div className="overflow-x-auto">
+              <div className="min-w-[820px]">
+                <div className="mb-1.5 grid grid-cols-[minmax(108px,1fr)_52px_64px_72px_72px_80px_68px_68px_96px] items-center gap-x-2 px-3 py-1 text-[10px] uppercase tracking-[0.13em] text-foreground/32">
+                  <span>Market</span>
+                  <span className="text-center">Side</span>
+                  <span className="text-right">Size</span>
+                  <span className="text-right">Entry</span>
+                  <span className="text-right">Mark</span>
+                  <span className="text-right">Liq. price</span>
+                  <span className="text-right">Funding</span>
+                  <span className="text-right">Margin</span>
+                  <span className="text-right">PnL · ROE</span>
+                </div>
+                <div className="space-y-1.5">
+                  {positions.map(({ position }) => {
+                    const sz = Number(position.szi);
+                    if (sz === 0) return null;
+                    const isLong = sz > 0;
+                    const absSz = Math.abs(sz);
+                    const entry = Number(position.entryPx);
+                    const posValue = Number(position.positionValue);
+                    const leverage = Number(position.leverage?.value ?? 1);
+                    const marginUsed = Number(position.marginUsed ?? 0);
+                    const liqPx = position.liquidationPx
+                      ? Number(position.liquidationPx)
                       : null;
-                  const pnl = Number(position.unrealizedPnl);
-                  const pnlPct =
-                    posValue > 0 ? (pnl / (posValue / leverage)) * 100 : 0;
-                  const accentColor = isLong ? "#3be1ba" : "#f87171";
-                  const isActing =
-                    positionActionKey ===
-                    `${position.coin}-${isLong ? "sell" : "buy"}-Ioc`;
+                    const coinCtx = marketCtxByCoin?.get(position.coin);
+                    const markPx =
+                      coinCtx?.markPx ??
+                      (absSz > 0
+                        ? entry + Number(position.unrealizedPnl) / absSz
+                        : 0);
+                    const fundingSinceOpen = Number(
+                      position.cumFunding?.sinceOpen ?? 0,
+                    );
+                    const fundingHourly = coinCtx?.fundingHourly ?? 0;
+                    const liqDistance =
+                      liqPx && markPx > 0
+                        ? liquidationDistancePct(markPx, liqPx, isLong)
+                        : null;
+                    const pnl = Number(position.unrealizedPnl);
+                    const roePct = Number(position.returnOnEquity) * 100;
+                    const accentColor = isLong ? "#3be1ba" : "#f87171";
+                    const isActing =
+                      positionActionKey ===
+                      `${position.coin}-${isLong ? "sell" : "buy"}-Ioc`;
+                    const positionsGridClass =
+                      "grid grid-cols-[minmax(108px,1fr)_52px_64px_72px_72px_80px_68px_68px_96px] items-center gap-x-2";
 
-                  return (
-                    <div
-                      key={`${position.coin}-${position.entryPx}`}
-                      className="group overflow-hidden rounded-[14px] border border-white/[0.07] bg-white/[0.025] transition hover:border-white/[0.12] hover:bg-white/[0.04]"
-                      style={{ borderLeft: `2px solid ${accentColor}55` }}
-                    >
-                      <div className="grid grid-cols-[1fr_56px_88px_80px_100px_116px_auto] items-center gap-2 px-3 py-3">
-                        {/* market */}
-                        <div className="flex items-center gap-2.5">
-                          <CoinIcon coin={position.coin} size={24} />
-                          <div>
-                            <p className="text-sm font-semibold leading-none text-white">
-                              {position.coin}
-                            </p>
-                            <p className="mt-0.5 text-[10px] text-foreground/38">
-                              {leverage.toFixed(0)}×
-                            </p>
+                    return (
+                      <div
+                        key={`${position.coin}-${position.entryPx}`}
+                        className="group overflow-hidden rounded-[14px] border border-white/[0.07] bg-white/[0.025] transition hover:border-white/[0.12] hover:bg-white/[0.04]"
+                        style={{ borderLeft: `2px solid ${accentColor}55` }}
+                      >
+                        <div className={`${positionsGridClass} px-3 py-3`}>
+                          <div className="flex items-center gap-2.5">
+                            <CoinIcon coin={position.coin} size={24} />
+                            <div>
+                              <p className="text-sm font-semibold leading-none text-white">
+                                {position.coin}
+                              </p>
+                              <p className="mt-0.5 text-[10px] text-foreground/38">
+                                {leverage.toFixed(0)}× ·{" "}
+                                {maskNumberish(
+                                  posValue,
+                                  formatUsd,
+                                  props.hideBalances,
+                                )}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                        {/* side */}
-                        <div className="flex justify-center">
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                              isLong
-                                ? "bg-emerald-400/15 text-emerald-300"
-                                : "bg-rose-400/15 text-rose-300"
-                            }`}
-                          >
-                            {isLong ? "Long" : "Short"}
-                          </span>
-                        </div>
-                        {/* entry */}
-                        <span className="text-right font-mono text-xs text-foreground/65">
-                          {maskNumberish(entry, formatUsd, props.hideBalances)}
-                        </span>
-                        {/* liq */}
-                        <span className="text-right font-mono text-xs text-rose-300/60">
-                          {posLiq
-                            ? maskNumberish(
-                                posLiq,
-                                formatUsd,
-                                props.hideBalances,
-                              )
-                            : "—"}
-                        </span>
-                        {/* value */}
-                        <span className="text-right font-mono text-xs text-foreground/75">
-                          {maskNumberish(
-                            posValue,
-                            formatUsd,
-                            props.hideBalances,
-                          )}
-                        </span>
-                        {/* pnl */}
-                        <div className="flex flex-col items-end">
-                          <span
-                            className={`font-mono text-sm font-semibold leading-none ${pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
-                          >
-                            {pnl >= 0 ? "+" : ""}
-                            {maskNumberish(pnl, formatUsd, props.hideBalances)}
-                          </span>
-                          <span
-                            className={`mt-0.5 text-[10px] ${pnl >= 0 ? "text-emerald-400/60" : "text-rose-400/60"}`}
-                          >
-                            {pnlPct >= 0 ? "+" : ""}
+                          <div className="flex justify-center">
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                                isLong
+                                  ? "bg-emerald-400/15 text-emerald-300"
+                                  : "bg-rose-400/15 text-rose-300"
+                              }`}
+                            >
+                              {isLong ? "Long" : "Short"}
+                            </span>
+                          </div>
+                          <span className="text-right font-mono text-xs text-foreground/70">
                             {maskValue(
-                              `${pnlPct.toFixed(2)}%`,
+                              formatCompactNumber(absSz),
                               props.hideBalances,
                             )}
                           </span>
+                          <span className="text-right font-mono text-xs text-foreground/65">
+                            {maskNumberish(
+                              entry,
+                              formatUsd,
+                              props.hideBalances,
+                            )}
+                          </span>
+                          <span className="text-right font-mono text-xs text-foreground/75">
+                            {markPx > 0
+                              ? maskNumberish(
+                                  markPx,
+                                  formatUsd,
+                                  props.hideBalances,
+                                )
+                              : "—"}
+                          </span>
+                          <div className="flex flex-col items-end">
+                            <span className="font-mono text-xs font-medium text-rose-400">
+                              {liqPx
+                                ? maskNumberish(
+                                    liqPx,
+                                    formatUsd,
+                                    props.hideBalances,
+                                  )
+                                : "—"}
+                            </span>
+                            {liqDistance !== null ? (
+                              <span className="mt-0.5 text-[10px] text-rose-400/65">
+                                {maskValue(
+                                  `${liqDistance.toFixed(2)}% to go`,
+                                  props.hideBalances,
+                                )}
+                              </span>
+                            ) : null}
+                          </div>
+                          <div
+                            className="flex flex-col items-end"
+                            title={
+                              fundingHourly !== 0
+                                ? formatFundingApr(fundingHourly)
+                                : undefined
+                            }
+                          >
+                            <span
+                              className={`font-mono text-[11px] ${
+                                fundingHourly >= 0
+                                  ? "text-emerald-300/75"
+                                  : "text-rose-300/75"
+                              }`}
+                            >
+                              {maskValue(
+                                formatHourlyFunding(fundingHourly),
+                                props.hideBalances,
+                              )}
+                            </span>
+                            <span
+                              className={`mt-0.5 font-mono text-[10px] ${
+                                fundingSinceOpen >= 0
+                                  ? "text-emerald-400/55"
+                                  : "text-rose-400/55"
+                              }`}
+                            >
+                              {fundingSinceOpen >= 0 ? "+" : ""}
+                              {maskNumberish(
+                                fundingSinceOpen,
+                                formatUsd,
+                                props.hideBalances,
+                              )}
+                            </span>
+                          </div>
+                          <span className="text-right font-mono text-xs text-foreground/65">
+                            {maskNumberish(
+                              marginUsed,
+                              formatUsd,
+                              props.hideBalances,
+                            )}
+                          </span>
+                          <div className="flex flex-col items-end">
+                            <span
+                              className={`font-mono text-sm font-semibold leading-none ${pnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+                            >
+                              {pnl >= 0 ? "+" : ""}
+                              {maskNumberish(
+                                pnl,
+                                formatUsd,
+                                props.hideBalances,
+                              )}
+                            </span>
+                            <span
+                              className={`mt-0.5 text-[10px] ${roePct >= 0 ? "text-emerald-400/60" : "text-rose-400/60"}`}
+                            >
+                              {roePct >= 0 ? "+" : ""}
+                              {maskValue(
+                                `${roePct.toFixed(2)}% ROE`,
+                                props.hideBalances,
+                              )}
+                            </span>
+                          </div>
                         </div>
-                        {/* actions */}
-                        <div className="flex items-center justify-end gap-1">
-                          {/* Share PnL */}
+                        <div className="flex items-center justify-end gap-1 border-t border-white/[0.05] px-3 py-2">
                           <button
                             type="button"
                             title="Share PnL"
@@ -2299,9 +2408,9 @@ function AccountPanel(props: {
                                 coin: position.coin,
                                 side: isLong ? "Long" : "Short",
                                 entryPx: entry,
-                                markPx: entry + pnl / absSz,
+                                markPx: markPx > 0 ? markPx : entry,
                                 pnl,
-                                pnlPct,
+                                pnlPct: roePct,
                                 size: absSz,
                                 leverage,
                               })
@@ -2309,7 +2418,6 @@ function AccountPanel(props: {
                           >
                             <Share className="size-3" />
                           </button>
-                          {/* Edit exit */}
                           <button
                             type="button"
                             className="rounded-full border border-white/[0.08] bg-white/[0.03] px-2.5 py-1 text-[11px] text-foreground/55 transition hover:border-white/20 hover:text-white"
@@ -2325,7 +2433,6 @@ function AccountPanel(props: {
                           >
                             Edit exit
                           </button>
-                          {/* Close */}
                           <button
                             type="button"
                             disabled={isActing}
@@ -2346,7 +2453,6 @@ function AccountPanel(props: {
                               "Close"
                             )}
                           </button>
-                          {/* Reverse */}
                           <button
                             type="button"
                             disabled={isActing}
@@ -2367,7 +2473,6 @@ function AccountPanel(props: {
                             Reverse
                           </button>
                         </div>
-                      </div>
 
                       {/* Edit exit inline panel */}
                       <AnimatePresence>
@@ -2430,8 +2535,9 @@ function AccountPanel(props: {
                     </div>
                   );
                 })}
+                </div>
               </div>
-            </>
+            </div>
           ) : (
             <div className="flex flex-col items-center justify-center rounded-[14px] border border-dashed border-white/[0.08] py-12 text-center">
               <p className="text-sm text-foreground/35">No active positions</p>

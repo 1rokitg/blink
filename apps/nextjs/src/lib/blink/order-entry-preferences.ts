@@ -14,20 +14,19 @@ function emitSettingsChanged() {
   window.dispatchEvent(new Event(SETTINGS_CHANGED_EVENT));
 }
 
+/** Defaults to on; users can disable in Account → Preferences. */
 export function readPersistSizePreference() {
-  if (typeof window === "undefined") return false;
-  return window.localStorage.getItem(PERSIST_SIZE_KEY) === "1";
+  if (typeof window === "undefined") return true;
+
+  const stored = window.localStorage.getItem(PERSIST_SIZE_KEY);
+  if (stored === null) return true;
+  return stored === "1";
 }
 
 export function setPersistSizePreference(nextValue: boolean) {
   if (typeof window === "undefined") return;
 
-  if (nextValue) {
-    window.localStorage.setItem(PERSIST_SIZE_KEY, "1");
-  } else {
-    window.localStorage.removeItem(PERSIST_SIZE_KEY);
-  }
-
+  window.localStorage.setItem(PERSIST_SIZE_KEY, nextValue ? "1" : "0");
   emitSettingsChanged();
 }
 
@@ -66,7 +65,9 @@ export function writePersistedOrderSizeDraft(params: {
 }
 
 export function usePersistSizePreference() {
-  const [persistSize, setPersistSizeState] = useState(false);
+  const [persistSize, setPersistSizeState] = useState(() =>
+    typeof window === "undefined" ? true : readPersistSizePreference(),
+  );
 
   useEffect(() => {
     const sync = () => {

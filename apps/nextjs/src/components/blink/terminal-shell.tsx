@@ -326,15 +326,18 @@ function SidePanelMarketRow(props: {
 }) {
   const positive = props.item.changePct >= 0;
   const compact = props.compact ?? false;
+  const isZeroFee = ZERO_FEE_MARKETS.has(props.item.coin);
 
   return (
     <Link
       href={`/trade/${marketToSlug(props.item.coin)}`}
-      className={`flex items-center gap-2 border transition ${
+      className={`relative flex items-center gap-2 overflow-hidden border transition ${
         compact ? "rounded-[8px] px-2 py-1.5" : "rounded-[10px] px-2.5 py-2"
       } ${
         props.selected
           ? "border-[#3be1ba9e] bg-[#2dc9ff2b]"
+          : isZeroFee
+            ? "border-[#7ea9ff4a] bg-[linear-gradient(120deg,rgba(126,169,255,0.08),rgba(30,60,120,0.06))] hover:border-[#9dc0ff73] hover:bg-[linear-gradient(120deg,rgba(126,169,255,0.13),rgba(30,60,120,0.1))]"
           : props.item.isHip3
             ? "border-white/[0.06] bg-white/[0.02] hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
             : compact
@@ -342,6 +345,9 @@ function SidePanelMarketRow(props: {
               : "border-white/0 bg-transparent hover:border-[#89c0ff57] hover:bg-[#89c0ff14]"
       }`}
     >
+      {isZeroFee ? (
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_85%_45%,rgba(126,169,255,0.14),transparent_55%)]" />
+      ) : null}
       <CoinIcon coin={props.item.coin} size={compact ? 22 : 28} />
       <div className="min-w-0 flex-1">
         <p
@@ -353,12 +359,14 @@ function SidePanelMarketRow(props: {
               HIP-3
             </span>
           ) : null}
-          {ZERO_FEE_MARKETS.has(props.item.coin) ? (
+          {isZeroFee ? (
             <span
-              className="size-1.5 shrink-0 rounded-full bg-[#39e5b6]"
-              style={{ boxShadow: "0 0 5px 1px #39e5b688" }}
-              title="Zero maker fee"
-            />
+              className="inline-flex items-center gap-1 rounded-full border border-[#8fbaff4d] bg-[#8fbaff1a] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#bdd2ff]"
+              title="Zero builder fee market"
+            >
+              <TicketPercent className="size-2.5" />
+              0 fee
+            </span>
           ) : null}
         </p>
         <p className="mt-0.5 text-xs text-foreground/45">
@@ -366,7 +374,7 @@ function SidePanelMarketRow(props: {
         </p>
       </div>
       <span
-        className={`shrink-0 text-xs tabular-nums ${positive ? "text-emerald-300" : "text-rose-300"}`}
+        className={`relative shrink-0 text-xs tabular-nums ${positive ? "text-emerald-300" : "text-rose-300"} ${isZeroFee ? "rounded-full border border-[#8fbaff40] bg-[#8fbaff14] px-2 py-0.5 shadow-[0_0_12px_rgba(143,186,255,0.22)]" : ""}`}
       >
         {positive ? "+" : ""}
         {props.item.changePct.toFixed(2)}%
@@ -487,7 +495,14 @@ function DiscoverPanel({ markets }: { markets: MarketRow[] }) {
           <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-teal-400/80">
             Zero Platform Fee
           </span>
+          <span className="inline-flex items-center gap-1 rounded-full border border-[#8fbaff45] bg-[#8fbaff1a] px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em] text-[#bdd2ff]">
+            <TicketPercent className="size-2.5" />
+            tag
+          </span>
         </div>
+        <p className="mb-2 text-[10px] text-foreground/40">
+          Start here for cleaner fills and zero builder fee routing.
+        </p>
         <div className="flex flex-wrap gap-1.5">
           {[...ZERO_FEE_MARKETS].map((coin) => (
             <Link

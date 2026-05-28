@@ -1347,7 +1347,7 @@ export function AdminDashboard(props?: {
             </div>
           </section>
 
-          <section className="mt-4 grid gap-4 lg:grid-cols-3">
+          <section className="mt-4 grid gap-4 lg:grid-cols-4">
             <div className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
               <h2 className="text-base font-semibold text-white">
                 Revenue by source
@@ -1397,6 +1397,37 @@ export function AdminDashboard(props?: {
                       <p className="text-sm font-medium text-emerald-300">
                         {formatMoney(row.revenueUsd)}
                       </p>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
+              <h2 className="text-base font-semibold text-white">
+                Revenue by market
+              </h2>
+              <div className="mt-4 space-y-2">
+                {(stats?.builder.attribution.byMarket ?? [])
+                  .slice(0, 8)
+                  .map((row) => (
+                    <div
+                      key={row.market}
+                      className="flex items-center justify-between rounded-xl border border-white/8 bg-[#121726] px-3 py-2"
+                    >
+                      <div>
+                        <p className="text-sm text-white/85">{row.market}</p>
+                        <p className="text-xs text-foreground/45">
+                          {row.users} users · {row.fillsCount} fills
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-emerald-300">
+                          {formatMoney(row.revenueUsd)}
+                        </p>
+                        <p className="text-xs text-foreground/45">
+                          {formatCompact(row.volumeUsd)} vol
+                        </p>
+                      </div>
                     </div>
                   ))}
               </div>

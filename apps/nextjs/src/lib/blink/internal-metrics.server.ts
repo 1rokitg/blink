@@ -545,6 +545,16 @@ export async function getBuilderAttributionSnapshot(days = 90) {
       fillsCount: number;
     }
   >();
+  const byMarket = new Map<
+    string,
+    {
+      market: string;
+      volumeUsd: number;
+      revenueUsd: number;
+      users: Set<string>;
+      fillsCount: number;
+    }
+  >();
 
   for (const wallet of approvedWallets) {
     let fills: Array<Record<string, unknown>> = [];
@@ -623,6 +633,19 @@ export async function getBuilderAttributionSnapshot(days = 90) {
       currentCountry.fillsCount += 1;
       currentCountry.users.add(wallet);
       byCountry.set(acquisition.country, currentCountry);
+
+      const currentMarket = byMarket.get(coin) ?? {
+        market: coin,
+        volumeUsd: 0,
+        revenueUsd: 0,
+        users: new Set<string>(),
+        fillsCount: 0,
+      };
+      currentMarket.volumeUsd += volume;
+      currentMarket.revenueUsd += builderFeeUsd;
+      currentMarket.fillsCount += 1;
+      currentMarket.users.add(wallet);
+      byMarket.set(coin, currentMarket);
     }
   }
 
@@ -634,6 +657,9 @@ export async function getBuilderAttributionSnapshot(days = 90) {
       .map((r) => ({ ...r, users: r.users.size }))
       .sort((a, b) => b.revenueUsd - a.revenueUsd),
     byCountry: Array.from(byCountry.values())
+      .map((r) => ({ ...r, users: r.users.size }))
+      .sort((a, b) => b.revenueUsd - a.revenueUsd),
+    byMarket: Array.from(byMarket.values())
       .map((r) => ({ ...r, users: r.users.size }))
       .sort((a, b) => b.revenueUsd - a.revenueUsd),
   };

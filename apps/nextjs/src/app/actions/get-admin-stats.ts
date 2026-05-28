@@ -167,6 +167,13 @@ export interface AdminStats {
         users: number;
         fillsCount: number;
       }>;
+      byMarket: Array<{
+        market: string;
+        volumeUsd: number;
+        revenueUsd: number;
+        users: number;
+        fillsCount: number;
+      }>;
     };
     live: {
       windowMinutes: number;
@@ -289,6 +296,7 @@ export async function getAdminStats(options?: {
           byUser: [],
           bySource: [],
           byCountry: [],
+          byMarket: [],
         }),
     getLiveBuilderFillFeed({
       minutes: liveWindowMinutes,

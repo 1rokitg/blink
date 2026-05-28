@@ -65,6 +65,7 @@ import { Input } from "@acme/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@acme/ui/popover";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@acme/ui/tabs";
 
+import { BlinkSlotFigure } from "~/components/blink/blink-slot-figure";
 import { createAgentExchangeClient } from "~/lib/blink/agent-wallet";
 import {
   BUILDER_ADDRESS,
@@ -1921,20 +1922,29 @@ function OrderEntryPanel(props: {
           <p className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">
             Available
           </p>
-          <p className="mt-0.5 font-mono text-sm font-medium text-white">
-            {accountValue > 0
-              ? maskNumberish(availableMargin, formatUsd, props.hideBalances)
-              : "—"}
+          <p className="mt-0.5 text-sm font-medium">
+            <BlinkSlotFigure
+              value={availableMargin}
+              format={formatUsd}
+              hidden={props.hideBalances}
+              inactive={accountValue <= 0}
+              className="text-white"
+            />
           </p>
         </div>
         <div className="rounded-[16px] bg-white/[0.03] px-3 py-2">
           <p className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">
             Mark price
           </p>
-          <p className="mt-0.5 font-mono text-sm font-medium text-white">
-            {markPrice > 0
-              ? maskNumberish(markPrice, formatUsd, props.hideBalances)
-              : "—"}
+          <p className="mt-0.5 text-sm font-medium">
+            <BlinkSlotFigure
+              value={markPrice}
+              format={formatUsd}
+              hidden={props.hideBalances}
+              inactive={markPrice <= 0}
+              debounceMs={120}
+              className="text-white"
+            />
           </p>
         </div>
       </div>
@@ -3699,6 +3709,7 @@ export function TerminalShell(props: { market: string }) {
 
           <MarketInfoBar
             market={props.market}
+            hideBalances={blurBalances}
             rightSlot={
               <AnimatePresence mode="wait" initial={false}>
                 {tradeEnabled ? (
@@ -3725,13 +3736,16 @@ export function TerminalShell(props: { market: string }) {
                             className="flex h-full flex-col justify-center border-r border-white/10 px-3.5 py-1.5 text-left leading-tight"
                           >
                             <span className="text-[14px] font-medium text-foreground/70">
-                              {headerAccountLoading
-                                ? "—"
-                                : maskNumberish(
-                                    headerWithdrawable,
-                                    (v) => `${formatUsdcHeader(v)} USDC`,
-                                    blurBalances,
-                                  )}
+                              {headerAccountLoading ? (
+                                "—"
+                              ) : (
+                                <BlinkSlotFigure
+                                  value={headerWithdrawable}
+                                  format={(v) => `${formatUsdcHeader(v)} USDC`}
+                                  hidden={blurBalances}
+                                  inactive={headerWithdrawable <= 0}
+                                />
+                              )}
                             </span>
                             <span className="text-[14px] font-semibold text-[#7fa8ff]">
                               {headerWithdrawable < 20
@@ -3742,13 +3756,18 @@ export function TerminalShell(props: { market: string }) {
                           <span className="flex h-full items-center gap-2.5 px-3 py-1.5">
                             <span className="flex flex-col text-left leading-tight">
                               <span className="text-[15px] font-semibold text-white">
-                                {headerAccountLoading
-                                  ? "—"
-                                  : maskNumberish(
-                                      headerAccountValue,
-                                      formatUsd,
-                                      blurBalances,
-                                    )}
+                                {headerAccountLoading ? (
+                                  "—"
+                                ) : (
+                                  <BlinkSlotFigure
+                                    value={headerAccountValue}
+                                    format={formatUsd}
+                                    hidden={blurBalances}
+                                    inactive={headerAccountValue <= 0}
+                                    debounceMs={100}
+                                    className="font-semibold"
+                                  />
+                                )}
                               </span>
                               <span
                                 className={`text-[13px] font-medium ${

@@ -99,7 +99,7 @@ importers:
         version: 3.2.0(@planetscale/database@1.19.0)(@types/react@19.0.12)(bufferutil@4.0.8)(permissionless@0.2.57(viem@2.38.0(bufferutil@4.0.8)(typescript@5.8.2)(zod@3.24.2)))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(typescript@5.8.2)(use-sync-external-store@1.6.0(react@19.0.0))(zod@3.24.2)
       '@statelyai/inspect':
         specifier: ^0.4.0
-        version: 0.4.0(ws@8.18.2(bufferutil@4.0.8))(xstate@5.22.1)
+        version: 0.4.0(ws@8.18.0(bufferutil@4.0.8))(xstate@5.22.1)
       '@t3-oss/env-nextjs':
         specifier: ^0.12.0
         version: 0.12.0(typescript@5.8.2)(zod@3.24.2)
@@ -154,6 +154,9 @@ importers:
       react-grid-layout:
         specifier: ^1.5.2
         version: 1.5.2(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
+      react-slot-counter:
+        specifier: ^3.3.3
+        version: 3.3.3(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       react-use-measure:
         specifier: ^2.1.7
         version: 2.1.7(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
@@ -4894,6 +4897,13 @@ packages:
     peerDependencies:
       react: '>= 16.3'
 
+  react-slot-counter@3.3.3:
+    resolution: {integrity: sha512-sB5qwYmDFgYZsiG6zloSjzvJzYeeZgV5f/tHWdb8tKB+Jq6+NanvUV5Qbrii34TVP+ZFBeoI33VVvGLCVpiCsw==}
+    engines: {node: '>=16.0.0'}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
+
   react-smooth@4.0.4:
     resolution: {integrity: sha512-gnGKTpYwqL0Iii09gHobNolvX4Kiq4PKx6eWBCYYix+8cdw+cGo3do906l1NBPKkSWx1DghC1dlWG9L2uGd61Q==}
     peerDependencies:
@@ -8234,10 +8244,10 @@ snapshots:
 
   '@standard-schema/utils@0.3.0': {}
 
-  '@statelyai/inspect@0.4.0(ws@8.18.2(bufferutil@4.0.8))(xstate@5.22.1)':
+  '@statelyai/inspect@0.4.0(ws@8.18.0(bufferutil@4.0.8))(xstate@5.22.1)':
     dependencies:
       fast-safe-stringify: 2.1.1
-      isomorphic-ws: 5.0.0(ws@8.18.2(bufferutil@4.0.8))
+      isomorphic-ws: 5.0.0(ws@8.18.0(bufferutil@4.0.8))
       partysocket: 0.0.25
       safe-stable-stringify: 2.5.0
       superjson: 1.13.3
@@ -10025,9 +10035,9 @@ snapshots:
 
   isexe@3.1.1: {}
 
-  isomorphic-ws@5.0.0(ws@8.18.2(bufferutil@4.0.8)):
+  isomorphic-ws@5.0.0(ws@8.18.0(bufferutil@4.0.8)):
     dependencies:
-      ws: 8.18.2(bufferutil@4.0.8)
+      ws: 8.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.4)
 
   isows@1.0.6(ws@8.18.0(bufferutil@4.0.8)):
     dependencies:
@@ -10869,6 +10879,11 @@ snapshots:
       react-draggable: 4.5.0(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
     transitivePeerDependencies:
       - react-dom
+
+  react-slot-counter@3.3.3(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
+    dependencies:
+      react: 19.0.0
+      react-dom: 19.0.0(react@19.0.0)
 
   react-smooth@4.0.4(react-dom@19.0.0(react@19.0.0))(react@19.0.0):
     dependencies:

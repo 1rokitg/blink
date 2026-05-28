@@ -7,6 +7,7 @@ import { Check, Copy, Megaphone, Twitter } from "lucide-react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@acme/ui/popover";
 
+import { BlinkSlotFigure } from "~/components/blink/blink-slot-figure";
 import { resolvePerpMarket } from "~/lib/blink/hyperliquid";
 import {
   formatCompactNumber,
@@ -141,6 +142,7 @@ function formatHourlyFunding(hourly: number) {
 export function MarketInfoBar(props: {
   market: string;
   rightSlot?: ReactNode;
+  hideBalances?: boolean;
 }) {
   const ctxQuery = useQuery({
     queryKey: ["blink", "market-ctx", props.market],
@@ -210,9 +212,15 @@ export function MarketInfoBar(props: {
         <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/45">
           {props.market}
         </span>
-        <span className="font-mono text-xl font-semibold tabular-nums text-white">
-          {displayPrice > 0 ? formatUsd(displayPrice) : "Loading…"}
-        </span>
+        <BlinkSlotFigure
+          value={displayPrice}
+          format={formatUsd}
+          hidden={props.hideBalances}
+          inactive={displayPrice <= 0}
+          fallback={ctxQuery.isLoading ? "Loading…" : "—"}
+          debounceMs={120}
+          className="text-xl font-semibold text-white"
+        />
       </div>
 
       {/* Divider */}

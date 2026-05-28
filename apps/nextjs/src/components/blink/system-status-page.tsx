@@ -83,6 +83,16 @@ function formatCheckedAt(value: string) {
   }).format(new Date(value));
 }
 
+function formatMinutes(minutes: number) {
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours < 24) return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+}
+
 export function SystemStatusPage() {
   const [loadState, setLoadState] = useState<LoadState>({ kind: "loading" });
   const [refreshing, setRefreshing] = useState(false);
@@ -206,6 +216,104 @@ export function SystemStatusPage() {
                 Last checked {formatCheckedAt(report.checkedAt)} · auto-refresh
                 every 30s
               </p>
+            </section>
+
+            <section className="mt-4 rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-semibold text-white">
+                    Uptime ({report.uptime.windowDays}d)
+                  </h2>
+                  <p className="mt-1 text-xs text-foreground/45">
+                    Honest duration-based formula from status transition events (not event counts).
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[26px] font-semibold tracking-tight text-emerald-300">
+                    {report.uptime.uptimePct.toFixed(3)}%
+                  </p>
+                  <p className="text-xs text-foreground/45">
+                    coverage {report.uptime.coveragePct.toFixed(1)}%
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="rounded-xl border border-white/10 bg-[#111827] px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-foreground/45">
+                    Uptime
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-emerald-300">
+                    {formatMinutes(report.uptime.uptimeMinutes)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-[#111827] px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-foreground/45">
+                    Downtime
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-rose-300">
+                    {formatMinutes(report.uptime.downtimeMinutes)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-[#111827] px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-foreground/45">
+                    Degraded
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-amber-300">
+                    {formatMinutes(report.uptime.degradedMinutes)}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-[#111827] px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-foreground/45">
+                    Incidents
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-white">
+                    {report.uptime.incidentCount}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-[#111827] px-3 py-2">
+                  <p className="text-[10px] uppercase tracking-[0.12em] text-foreground/45">
+                    Recoveries
+                  </p>
+                  <p className="mt-1 text-sm font-semibold text-white">
+                    {report.uptime.recoveryCount}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-white/10 bg-[#0f1422] p-3">
+                <div className="flex flex-wrap gap-1">
+                  {report.uptime.timeline.map((day) => (
+                    <span
+                      key={day.day}
+                      className={`h-5 w-2.5 rounded-[3px] ${
+                        day.status === "ok"
+                          ? "bg-emerald-400"
+                          : day.status === "degraded"
+                            ? "bg-amber-400"
+                            : day.status === "outage"
+                              ? "bg-rose-400"
+                              : "bg-slate-500"
+                      }`}
+                      title={`${day.day}: ${day.status}`}
+                    />
+                  ))}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-foreground/55">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="size-2 rounded-sm bg-emerald-400" />
+                    Operational day
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="size-2 rounded-sm bg-amber-400" />
+                    Degraded day
+                  </span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="size-2 rounded-sm bg-rose-400" />
+                    Outage day
+                  </span>
+                </div>
+              </div>
             </section>
 
             <section className="mt-4 space-y-3">

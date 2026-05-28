@@ -1,7 +1,8 @@
 import * as hl from "@nktkas/hyperliquid";
-import { sql } from "drizzle-orm";
+import { and, asc, desc, gte, inArray, lt, lte, sql } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
+import { MetricEvent } from "@acme/db/schema";
 
 import { BUILDER_ADDRESS } from "./builder";
 import { infoClient } from "./hyperliquid";
@@ -18,6 +19,13 @@ export type {
 
 const HYPERLIQUID_WS_URL = "wss://api.hyperliquid.xyz/ws";
 const WS_HEALTH_TIMEOUT_MS = 8_000;
+const UPTIME_WINDOW_DAYS = 90;
+const STATUS_EVENT_TYPES = [
+  "system_status_ok",
+  "system_status_degraded",
+  "system_status_outage",
+] as const;
+type StatusState = "ok" | "degraded" | "outage" | "unknown";
 
 export function getDeploymentSha() {
   return (
@@ -145,6 +153,150 @@ function resolveOverallStatus(
   return "ok";
 }
 
+function eventTypeToStatus(eventType: string): Exclude<StatusState, "unknown"> {
+  if (eventType === "system_status_outage") return "outage";
+  if (eventType === "system_status_degraded") return "degraded";
+  return "ok";
+}
+
+function dayKey(ms: number) {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+async function getUptimeSummary(windowDays = UPTIME_WINDOW_DAYS) {
+  const now = Date.now();
+  const startMs = now - windowDays * 24 * 60 * 60 * 1000;
+  const startDate = new Date(startMs);
+  const nowDate = new Date(now);
+
+  const [latestBeforeWindow, windowEvents] = await Promise.all([
+    db
+      .select({
+        createdAt: MetricEvent.createdAt,
+        eventType: MetricEvent.eventType,
+      })
+      .from(MetricEvent)
+      .where(
+        and(
+          inArray(MetricEvent.eventType, STATUS_EVENT_TYPES),
+          lt(MetricEvent.createdAt, startDate),
+        ),
+      )
+      .orderBy(desc(MetricEvent.createdAt))
+      .limit(1),
+    db
+      .select({
+        createdAt: MetricEvent.createdAt,
+        eventType: MetricEvent.eventType,
+      })
+      .from(MetricEvent)
+      .where(
+        and(
+          inArray(MetricEvent.eventType, STATUS_EVENT_TYPES),
+          gte(MetricEvent.createdAt, startDate),
+          lte(MetricEvent.createdAt, nowDate),
+        ),
+      )
+      .orderBy(asc(MetricEvent.createdAt)),
+  ]);
+
+  const minutesByState: Record<StatusState, number> = {
+    degraded: 0,
+    ok: 0,
+    outage: 0,
+    unknown: 0,
+  };
+  const perDay = new Map<
+    string,
+    Record<StatusState, number>
+  >();
+
+  const addDuration = (fromMs: number, toMs: number, status: StatusState) => {
+    if (toMs <= fromMs) return;
+    let cursor = fromMs;
+    while (cursor < toMs) {
+      const cursorDay = new Date(cursor);
+      const dayEndMs = Date.UTC(
+        cursorDay.getUTCFullYear(),
+        cursorDay.getUTCMonth(),
+        cursorDay.getUTCDate() + 1,
+      );
+      const segmentEnd = Math.min(toMs, dayEndMs);
+      const segmentMinutes = (segmentEnd - cursor) / 60_000;
+      minutesByState[status] += segmentMinutes;
+      const key = dayKey(cursor);
+      const bucket = perDay.get(key) ?? {
+        degraded: 0,
+        ok: 0,
+        outage: 0,
+        unknown: 0,
+      };
+      bucket[status] += segmentMinutes;
+      perDay.set(key, bucket);
+      cursor = segmentEnd;
+    }
+  };
+
+  let currentStatus: StatusState = latestBeforeWindow[0]
+    ? eventTypeToStatus(latestBeforeWindow[0].eventType)
+    : "unknown";
+  let cursorMs = startMs;
+  let incidentCount = 0;
+  let recoveryCount = 0;
+
+  for (const event of windowEvents) {
+    const eventMs = new Date(event.createdAt).getTime();
+    addDuration(cursorMs, eventMs, currentStatus);
+
+    const nextStatus = eventTypeToStatus(event.eventType);
+    if (nextStatus !== currentStatus) {
+      if (currentStatus === "ok" && nextStatus !== "ok") incidentCount += 1;
+      if (currentStatus !== "ok" && nextStatus === "ok") recoveryCount += 1;
+    }
+
+    currentStatus = nextStatus;
+    cursorMs = eventMs;
+  }
+  addDuration(cursorMs, now, currentStatus);
+
+  const totalWindowMinutes = windowDays * 24 * 60;
+  const observedMinutes =
+    minutesByState.ok + minutesByState.degraded + minutesByState.outage;
+  const uptimePct = observedMinutes > 0
+    ? (minutesByState.ok / observedMinutes) * 100
+    : 0;
+  const coveragePct = (observedMinutes / totalWindowMinutes) * 100;
+
+  const timeline = Array.from({ length: windowDays }, (_, index) => {
+    const ms = startMs + index * 24 * 60 * 60 * 1000;
+    const key = dayKey(ms);
+    const bucket = perDay.get(key) ?? {
+      degraded: 0,
+      ok: 0,
+      outage: 0,
+      unknown: 24 * 60,
+    };
+    const ordered: StatusState[] = ["outage", "degraded", "ok", "unknown"];
+    const status = ordered.reduce((best, candidate) =>
+      bucket[candidate] > bucket[best] ? candidate : best,
+    "unknown" as StatusState);
+    return { day: key, status };
+  });
+
+  return {
+    coveragePct: Number(coveragePct.toFixed(2)),
+    degradedMinutes: Math.round(minutesByState.degraded),
+    downtimeMinutes: Math.round(minutesByState.outage),
+    incidentCount,
+    recoveryCount,
+    timeline,
+    unknownMinutes: Math.round(minutesByState.unknown),
+    uptimeMinutes: Math.round(minutesByState.ok),
+    uptimePct: Number(uptimePct.toFixed(3)),
+    windowDays,
+  };
+}
+
 export async function getSystemHealthReport(): Promise<SystemHealthReport> {
   const [neonDatabase, hyperliquidRest, hyperliquidWebSocket, blinkApi] =
     await Promise.all([
@@ -164,6 +316,7 @@ export async function getSystemHealthReport(): Promise<SystemHealthReport> {
   return {
     checkedAt: new Date().toISOString(),
     status: resolveOverallStatus(checks),
+    uptime: await getUptimeSummary(),
     version: { sha: getDeploymentSha() },
     checks,
   };

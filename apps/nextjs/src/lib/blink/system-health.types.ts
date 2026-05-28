@@ -9,6 +9,21 @@ export type HealthCheckResult = {
 export type SystemHealthReport = {
   checkedAt: string;
   status: "ok" | "degraded" | "outage";
+  uptime: {
+    coveragePct: number;
+    degradedMinutes: number;
+    downtimeMinutes: number;
+    incidentCount: number;
+    recoveryCount: number;
+    timeline: Array<{
+      day: string;
+      status: "ok" | "degraded" | "outage" | "unknown";
+    }>;
+    unknownMinutes: number;
+    uptimeMinutes: number;
+    uptimePct: number;
+    windowDays: number;
+  };
   version: {
     sha: string;
   };

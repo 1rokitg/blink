@@ -878,7 +878,14 @@ const ZERO_FEE_MARKETS = new Set(
 );
 
 const LEVERAGE_PRESETS = [1, 2, 3, 5, 10, 20] as const;
-const MARKET_ORDER_COOLDOWN_MS = 5_000;
+/** Brief optimistic ack on the submit button — real routing runs in background. */
+const MARKET_SUBMIT_ACK_MS = 420;
+
+type QueuedMarketOrder = {
+  id: string;
+  side: "buy" | "sell";
+  size: number;
+};
 
 const LEVERAGE_RISK: Record<
   (typeof LEVERAGE_PRESETS)[number],
@@ -928,18 +935,19 @@ function OrderSubmitButton({
   side,
   market,
   submitting,
+  ackPulse = false,
   orderResult,
   queueDepth = 0,
-  cooldownRatio = 0,
 }: {
   onConfirm: () => void;
   disabled?: boolean;
   side: "buy" | "sell";
   market: string;
   submitting: boolean;
+  /** Short optimistic flash after tap (market orders). */
+  ackPulse?: boolean;
   orderResult: "idle" | "success" | "error";
   queueDepth?: number;
-  cooldownRatio?: number;
 }) {
   const isBuy = side === "buy";
 
@@ -983,14 +991,11 @@ function OrderSubmitButton({
         whileTap={{ scale: 0.976 }}
         transition={{ type: "spring", stiffness: 500, damping: 32 }}
       >
-        {cooldownRatio > 0 ? (
+        {ackPulse ? (
           <span
-            className={`absolute inset-y-0 left-0 z-0 transition-all duration-150 ${
-              isBuy ? "bg-emerald-400/28" : "bg-rose-400/28"
+            className={`pointer-events-none absolute inset-0 z-0 ${
+              isBuy ? "bg-emerald-400/35" : "bg-rose-400/35"
             }`}
-            style={{
-              width: `${Math.min(100, Math.max(0, cooldownRatio * 100))}%`,
-            }}
           />
         ) : null}
         <span
@@ -999,9 +1004,11 @@ function OrderSubmitButton({
         >
           {submitting
             ? `Routing ${isBuy ? "buy" : "sell"}…`
-            : queueDepth > 0
-              ? `${isBuy ? "Buy / Long" : "Sell / Short"} ${market} · ${queueDepth} queued`
-              : `${isBuy ? "Buy / Long" : "Sell / Short"} ${market}`}
+            : ackPulse
+              ? `${isBuy ? "Buy" : "Sell"} sent`
+              : queueDepth > 0
+                ? `${isBuy ? "Buy / Long" : "Sell / Short"} ${market} · ${queueDepth} queued`
+                : `${isBuy ? "Buy / Long" : "Sell / Short"} ${market}`}
         </span>
       </motion.button>
     </div>
@@ -1041,14 +1048,13 @@ function OrderEntryPanel(props: {
   const [marginMode, setMarginMode] = useState<MarginMode>("cross");
   const [updatingLeverage, setUpdatingLeverage] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [processingMarketOrder, setProcessingMarketOrder] = useState(false);
-  const [marketOrderQueue, setMarketOrderQueue] = useState<
-    Array<{ id: string; side: "buy" | "sell"; size: number }>
-  >([]);
-  const [marketCooldownUntil, setMarketCooldownUntil] = useState<number | null>(
+  const [marketQueueDepth, setMarketQueueDepth] = useState(0);
+  const [marketSubmitAck, setMarketSubmitAck] = useState(false);
+  const marketQueueRef = useRef<QueuedMarketOrder[]>([]);
+  const marketDrainActiveRef = useRef(false);
+  const marketSubmitAckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-  const [nowMs, setNowMs] = useState(() => Date.now());
   const [requestListingOpen, setRequestListingOpen] = useState(false);
   const [orderResult, setOrderResult] = useState<"idle" | "success" | "error">(
     "idle",
@@ -1083,17 +1089,25 @@ function OrderEntryPanel(props: {
     const timeout = setTimeout(() => setMarketFillGlowAt(null), 1250);
     return () => clearTimeout(timeout);
   }, [marketFillGlowAt]);
+  const pulseMarketSubmitAck = useCallback(() => {
+    setMarketSubmitAck(true);
+    setMarketFillGlowAt(Date.now());
+    if (marketSubmitAckTimerRef.current) {
+      clearTimeout(marketSubmitAckTimerRef.current);
+    }
+    marketSubmitAckTimerRef.current = setTimeout(() => {
+      setMarketSubmitAck(false);
+      marketSubmitAckTimerRef.current = null;
+    }, MARKET_SUBMIT_ACK_MS);
+  }, []);
+
   useEffect(() => {
-    if (!marketCooldownUntil) return;
-    const tick = setInterval(() => {
-      const now = Date.now();
-      setNowMs(now);
-      if (now >= marketCooldownUntil) {
-        setMarketCooldownUntil(null);
+    return () => {
+      if (marketSubmitAckTimerRef.current) {
+        clearTimeout(marketSubmitAckTimerRef.current);
       }
-    }, 100);
-    return () => clearInterval(tick);
-  }, [marketCooldownUntil]);
+    };
+  }, []);
 
   const marketQuery = useQuery({
     queryKey: ["blink", "market", props.market],
@@ -1228,15 +1242,6 @@ function OrderEntryPanel(props: {
   }, [marketMaxLeverage]);
   const orderCost = marginRequired ?? 0;
   const estimatedBuilderFee = notional * (props.builderFeeUnits * 1e-6);
-  const queueDepth = marketOrderQueue.length;
-  const marketCooldownRemainingMs = marketCooldownUntil
-    ? Math.max(0, marketCooldownUntil - nowMs)
-    : 0;
-  const marketCooldownRatio =
-    marketCooldownRemainingMs > 0
-      ? marketCooldownRemainingMs / MARKET_ORDER_COOLDOWN_MS
-      : 0;
-
   // ── % size shortcuts ───────────────────────────────────────────────────
   const fillSizePct = useCallback(
     (pct: number) => {
@@ -1405,6 +1410,138 @@ function OrderEntryPanel(props: {
     }
   }, [hip3Deployer, requestListingTemplate]);
 
+  const drainMarketQueue = useCallback(async () => {
+    if (marketDrainActiveRef.current) return;
+    marketDrainActiveRef.current = true;
+
+    while (marketQueueRef.current.length > 0) {
+      const queued = marketQueueRef.current.shift();
+      if (!queued) break;
+      setMarketQueueDepth(marketQueueRef.current.length);
+
+      const eventId = `market-${queued.id}`;
+      emitTradingEvent({
+        type: "loading",
+        id: eventId,
+        message: `Market ${queued.side} ${props.market}`,
+      });
+
+      try {
+        if (!props.tradeEnabled) {
+          props.onRequireBuilderSetup();
+          throw new Error("Trading setup required");
+        }
+        if (queued.size < minSize) {
+          throw new Error(`Min order size is ${minSize} ${props.market}`);
+        }
+        const [exchClient, market] = await Promise.all([
+          Promise.resolve(
+            createAgentExchangeClient(props.walletAddress as `0x${string}`),
+          ),
+          resolvePerpMarket(props.market),
+        ]);
+        const universeEntry = market.meta.universe[market.localIndex];
+        const sizeDecimals = Math.max(0, universeEntry?.szDecimals ?? 6);
+        const priceDecimals = getHyperliquidPerpPriceDecimals(
+          market.midPrice,
+          sizeDecimals,
+        );
+        const sizeStr = roundWithMode(queued.size, sizeDecimals, "down");
+        const mid = market.midPrice;
+        if (!mid) throw new Error("Could not fetch mark price");
+        const slippage = queued.side === "buy" ? mid * 1.05 : mid * 0.95;
+        const marketPxStr =
+          queued.side === "buy"
+            ? roundWithMode(slippage, priceDecimals, "up")
+            : roundWithMode(slippage, priceDecimals, "down");
+        const place = async () =>
+          exchClient.order({
+            orders: [
+              {
+                a: market.assetId,
+                b: queued.side === "buy",
+                p: marketPxStr,
+                s: sizeStr,
+                r: false,
+                t: { limit: { tif: "Ioc" } },
+              },
+            ],
+            grouping: "na",
+            builder: { b: BUILDER_ADDRESS, f: props.builderFeeUnits },
+          });
+        try {
+          await place();
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          if (msg.toLowerCase().includes("duplicate nonce")) {
+            await place();
+          } else {
+            throw err;
+          }
+        }
+        pulseOrderResult("success");
+        emitTradingEvent({
+          type: "success",
+          id: eventId,
+          message: "Market order submitted",
+          detail: `${queued.side === "buy" ? "Buy" : "Sell"} ${sizeStr} ${props.market}`,
+        });
+        if (typeof window !== "undefined") {
+          const firstTradeKey = `blink:first-trade:${props.walletAddress.toLowerCase()}`;
+          if (!window.localStorage.getItem(firstTradeKey)) {
+            window.localStorage.setItem(firstTradeKey, "1");
+            void fetch("/api/metrics/event", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...getEventIdentityHeaders(),
+              },
+              body: JSON.stringify({
+                eventType: "first_trade",
+                walletAddress: props.walletAddress,
+                source: "terminal",
+                metadata: {
+                  market: props.market,
+                  side: queued.side,
+                  orderType: "market",
+                  size: sizeStr,
+                },
+              }),
+            });
+          }
+        }
+        void queryClient.invalidateQueries({
+          queryKey: ["blink", "account", props.walletAddress],
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        pulseOrderResult("error");
+        emitTradingEvent({
+          type: "error",
+          id: eventId,
+          message: msg || "Market order failed",
+        });
+        toast.error(msg || "Market order failed");
+      }
+    }
+
+    setMarketQueueDepth(marketQueueRef.current.length);
+    marketDrainActiveRef.current = false;
+
+    if (marketQueueRef.current.length > 0) {
+      void drainMarketQueue();
+    }
+  }, [
+    minSize,
+    props.market,
+    props.walletAddress,
+    props.builderFeeUnits,
+    props.tradeEnabled,
+    props.onRequireBuilderSetup,
+    pulseOrderResult,
+    queryClient,
+  ]);
+
   const handleSubmit = useCallback(async () => {
     if (!props.tradeEnabled) {
       props.onRequireBuilderSetup();
@@ -1446,13 +1583,13 @@ function OrderEntryPanel(props: {
         return;
       }
       const queuedId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      setMarketOrderQueue((prev) => [
-        ...prev,
-        { id: queuedId, side, size: sizeNum },
-      ]);
-      toast.success("Market order queued", {
-        description: `${side === "buy" ? "Buy" : "Sell"} ${formatCompactNumber(sizeNum)} ${props.market}`,
+      marketQueueRef.current.push({
+        id: queuedId,
+        side,
+        size: sizeNum,
       });
+      setMarketQueueDepth(marketQueueRef.current.length);
+      pulseMarketSubmitAck();
       emitTradingEvent({
         type: "order_placed",
         coin: props.market,
@@ -1461,6 +1598,7 @@ function OrderEntryPanel(props: {
         size: roundWithMode(sizeNum, szDecimals, "down"),
         orderType: "market",
       });
+      void drainMarketQueue();
       return;
     }
 
@@ -1637,160 +1775,15 @@ function OrderEntryPanel(props: {
     markPrice,
     pulseOrderResult,
     queryClient,
+    pulseMarketSubmitAck,
+    drainMarketQueue,
   ]);
-  useEffect(() => {
-    if (processingMarketOrder || marketOrderQueue.length === 0) return;
-    const queued = marketOrderQueue[0];
-    if (!queued) return;
 
-    let cancelled = false;
-    const run = async () => {
-      setProcessingMarketOrder(true);
-      setMarketCooldownUntil(Date.now() + MARKET_ORDER_COOLDOWN_MS);
-      const toastId = `market-queue-${queued.id}`;
-      toast.loading("Submitting market order…", {
-        id: toastId,
-        description: `${queued.side === "buy" ? "Buy" : "Sell"} ${formatCompactNumber(queued.size)} ${props.market}`,
-      });
-      emitTradingEvent({
-        type: "loading",
-        id: toastId,
-        message: `Submitting queued market ${queued.side} ${props.market}`,
-      });
-      try {
-        if (!props.tradeEnabled) {
-          props.onRequireBuilderSetup();
-          throw new Error("Trading setup required");
-        }
-        if (queued.size < minSize) {
-          throw new Error(`Min order size is ${minSize} ${props.market}`);
-        }
-        const [exchClient, market] = await Promise.all([
-          Promise.resolve(
-            createAgentExchangeClient(props.walletAddress as `0x${string}`),
-          ),
-          resolvePerpMarket(props.market),
-        ]);
-        const assetIdx = market.assetId;
-        const universeEntry = market.meta.universe[market.localIndex];
-        const sizeDecimals = Math.max(0, universeEntry?.szDecimals ?? 6);
-        const priceDecimals = getHyperliquidPerpPriceDecimals(
-          market.midPrice,
-          sizeDecimals,
-        );
-        const sizeStr = roundWithMode(queued.size, sizeDecimals, "down");
-        const mid = market.midPrice;
-        if (!mid) throw new Error("Could not fetch mark price");
-        const slippage = queued.side === "buy" ? mid * 1.05 : mid * 0.95;
-        const marketPxStr =
-          queued.side === "buy"
-            ? roundWithMode(slippage, priceDecimals, "up")
-            : roundWithMode(slippage, priceDecimals, "down");
-        const place = async () =>
-          exchClient.order({
-            orders: [
-              {
-                a: assetIdx,
-                b: queued.side === "buy",
-                p: marketPxStr,
-                s: sizeStr,
-                r: false,
-                t: { limit: { tif: "Ioc" } },
-              },
-            ],
-            grouping: "na",
-            builder: { b: BUILDER_ADDRESS, f: props.builderFeeUnits },
-          });
-        try {
-          await place();
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          if (msg.toLowerCase().includes("duplicate nonce")) {
-            await place();
-          } else {
-            throw err;
-          }
-        }
-        pulseOrderResult("success");
-        setMarketFillGlowAt(Date.now());
-        emitTradingEvent({
-          type: "success",
-          id: toastId,
-          message: "Market order submitted",
-          detail: `${queued.side === "buy" ? "Buy" : "Sell"} ${sizeStr} ${props.market}`,
-        });
-        toast.success("Market order submitted", {
-          id: toastId,
-          description: `${queued.side === "buy" ? "Buy" : "Sell"} ${sizeStr} ${props.market}`,
-        });
-        if (typeof window !== "undefined") {
-          const firstTradeKey = `blink:first-trade:${props.walletAddress.toLowerCase()}`;
-          if (!window.localStorage.getItem(firstTradeKey)) {
-            window.localStorage.setItem(firstTradeKey, "1");
-            void fetch("/api/metrics/event", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...getEventIdentityHeaders(),
-              },
-              body: JSON.stringify({
-                eventType: "first_trade",
-                walletAddress: props.walletAddress,
-                source: "terminal",
-                metadata: {
-                  market: props.market,
-                  side: queued.side,
-                  orderType: "market",
-                  size: sizeStr,
-                },
-              }),
-            });
-          }
-        }
-        if (!persistSize) {
-          setSize("");
-        }
-        setPrice("");
-        void queryClient.invalidateQueries({
-          queryKey: ["blink", "account", props.walletAddress],
-        });
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        pulseOrderResult("error");
-        emitTradingEvent({
-          type: "error",
-          id: toastId,
-          message: msg || "Market order failed",
-        });
-        toast.error("Market order failed", {
-          id: toastId,
-          description: msg,
-        });
-      } finally {
-        if (!cancelled) {
-          setMarketOrderQueue((prev) => prev.slice(1));
-          setProcessingMarketOrder(false);
-          setMarketCooldownUntil(null);
-        }
-      }
-    };
-    void run();
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    processingMarketOrder,
-    marketOrderQueue,
-    minSize,
-    props.market,
-    props.walletAddress,
-    props.builderFeeUnits,
-    props.tradeEnabled,
-    props.onRequireBuilderSetup,
-    persistSize,
-    pulseOrderResult,
-    queryClient,
-  ]);
+  useEffect(() => {
+    void props.market;
+    marketQueueRef.current = [];
+    setMarketQueueDepth(0);
+  }, [props.market]);
 
   return (
     <section className="glass-panel relative flex h-full flex-col overflow-hidden p-5">
@@ -2310,10 +2303,10 @@ function OrderEntryPanel(props: {
         onConfirm={() => void handleSubmit()}
         side={side}
         market={props.market}
-        submitting={submitting || processingMarketOrder}
+        submitting={orderType === "limit" && submitting}
+        ackPulse={orderType === "market" && marketSubmitAck}
         orderResult={orderResult}
-        queueDepth={queueDepth}
-        cooldownRatio={orderType === "market" ? marketCooldownRatio : 0}
+        queueDepth={orderType === "market" ? marketQueueDepth : 0}
       />
 
       {/* Inline order status feedback

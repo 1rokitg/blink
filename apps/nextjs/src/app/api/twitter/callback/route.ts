@@ -259,8 +259,6 @@ export async function GET(req: NextRequest) {
     });
 
   await sendDiscordProfileVerificationSighting({
-    walletAddress: claimContext.walletAddress,
-    twitterName: twitterUser.name,
     twitterUsername: twitterUser.username,
   }).catch((error) => {
     console.warn(

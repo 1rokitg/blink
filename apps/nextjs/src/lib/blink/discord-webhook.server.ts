@@ -17,7 +17,9 @@ export async function postDiscordWebhook(
 }
 
 export function getDiscordActivityWebhookUrl() {
-  return (
-    env.DISCORD_ACTIVITY_WEBHOOK_URL || env.DISCORD_SIGHTINGS_WEBHOOK_URL || ""
-  );
+  return env.DISCORD_ACTIVITY_WEBHOOK_URL || "";
+}
+
+export function getDiscordStatusWebhookUrl() {
+  return env.DISCORD_STATUS_WEBHOOK_URL || "";
 }

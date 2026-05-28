@@ -54,6 +54,16 @@ export const env = createEnv({
       ),
     /** Optional Discord user id to @mention on live activity alerts. */
     DISCORD_ACTIVITY_PING_USER_ID: z.string().default("1369012715590516906"),
+    /** Discord webhook for public status alerts (#status channel). */
+    DISCORD_STATUS_WEBHOOK_URL: z
+      .string()
+      .url()
+      .or(z.literal(""))
+      .default(
+        "https://discord.com/api/webhooks/1509388057114050641/yzegOaVzCMn2nMFMXdbrK5077Nge89xFYWxmklgDpm3rybFm_k4uro1VfFKMRkK9gUqu",
+      ),
+    /** Optional Discord role id to mention on outage/recovery alerts. */
+    DISCORD_STATUS_PING_ROLE_ID: z.string().default(""),
   },
 
   /**

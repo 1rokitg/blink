@@ -103,6 +103,7 @@ export type SuperuserWalletSnapshot = {
     following: number;
   };
   membership: {
+    createdAt: string | null;
     currentPeriodEnd: string | null;
     paymentMethod: string;
     status: string;
@@ -601,6 +602,7 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
         .limit(1),
       db
         .select({
+          createdAt: BlinkMembership.createdAt,
           currentPeriodEnd: BlinkMembership.currentPeriodEnd,
           paymentMethod: BlinkMembership.paymentMethod,
           status: BlinkMembership.status,
@@ -936,6 +938,7 @@ export async function getSuperuserWalletSnapshot(input: unknown) {
     },
     membership: membershipRow[0]
       ? {
+          createdAt: toIsoTimestamp(membershipRow[0].createdAt),
           currentPeriodEnd: toIsoTimestamp(membershipRow[0].currentPeriodEnd),
           paymentMethod: membershipRow[0].paymentMethod,
           status: membershipRow[0].status,
@@ -1100,6 +1103,7 @@ export async function giftBlinkMembershipAction(input: unknown) {
   return {
     ok: true as const,
     membership: {
+      createdAt: result.createdAt,
       currentPeriodEnd: result.currentPeriodEnd,
       paymentMethod: result.paymentMethod,
       status: result.status,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -28,6 +28,7 @@ import {
   upsertSuperuserReferralCodeAction,
 } from "~/app/actions/manage-superuser-wallet";
 import { builderMaxFeeRate } from "~/lib/blink/builder";
+import { describeGiftedMembership } from "~/lib/blink/gift-membership.server";
 import { getInternalUserPath } from "~/lib/blink/wallet-address";
 
 function formatTimestamp(value: string | null | undefined) {
@@ -111,6 +112,11 @@ export function SuperuserPanel(props: {
     365,
   );
   const [builderFeeDraft, setBuilderFeeDraft] = useState(builderMaxFeeRate());
+
+  const giftedMembership = useMemo(
+    () => describeGiftedMembership(snapshot?.membership ?? null),
+    [snapshot?.membership],
+  );
 
   useEffect(() => {
     if (!snapshot) return;
@@ -340,9 +346,16 @@ export function SuperuserPanel(props: {
                     <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-white/60">
                       Role {snapshot.role.role}
                     </span>
-                    {snapshot.membership?.status === "active" ? (
+                    {giftedMembership.isActiveGift ? (
+                      <span
+                        className="rounded-full border border-amber-400/35 bg-amber-400/12 px-2.5 py-1 text-[11px] font-medium text-amber-200"
+                        title={`Gift membership · expires ${formatTimestamp(snapshot.membership?.currentPeriodEnd)}`}
+                      >
+                        {giftedMembership.label}
+                      </span>
+                    ) : snapshot.membership?.status === "active" ? (
                       <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2.5 py-1 text-[11px] uppercase tracking-[0.14em] text-emerald-300">
-                        Pro active
+                        Pro active · paid
                       </span>
                     ) : null}
                     {snapshot.twitter ? (
@@ -487,10 +500,15 @@ export function SuperuserPanel(props: {
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-white/45">Membership</span>
-                    <span className="text-white/82">
+                    <span className="text-right text-white/82">
                       {snapshot.membership
                         ? `${snapshot.membership.tier} · ${snapshot.membership.status}`
                         : "—"}
+                      {giftedMembership.isGift ? (
+                        <span className="mt-0.5 block text-xs font-medium text-amber-300/90">
+                          {giftedMembership.label}
+                        </span>
+                      ) : null}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
@@ -1069,7 +1087,11 @@ export function SuperuserPanel(props: {
                             ) : null}
                             {log.country || log.city ? (
                               <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">
-                                {[log.city, log.region, countryWithFlag(log.country)]
+                                {[
+                                  log.city,
+                                  log.region,
+                                  countryWithFlag(log.country),
+                                ]
                                   .filter(Boolean)
                                   .join(", ")}
                               </span>
@@ -1204,6 +1226,19 @@ export function SuperuserPanel(props: {
               <h3 className="text-sm font-semibold text-white">
                 Gift Blink Pro
               </h3>
+              {giftedMembership.isActiveGift ? (
+                <div className="mt-3 rounded-xl border border-amber-400/30 bg-amber-400/10 px-3 py-2.5 text-sm leading-relaxed text-amber-100/95">
+                  <p className="font-medium">
+                    Already gifted — do not double-gift by mistake
+                  </p>
+                  <p className="mt-1 text-xs text-amber-200/80">
+                    {giftedMembership.label}. Expires{" "}
+                    {formatTimestamp(snapshot.membership?.currentPeriodEnd)}.
+                    Sending another gift extends or replaces the current gift
+                    period.
+                  </p>
+                </div>
+              ) : null}
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <select
                   value={giftTier}

@@ -2,29 +2,14 @@
 
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts";
 
+import { cn } from "@acme/ui";
 import {
+  type ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
-  type ChartConfig,
 } from "@acme/ui/chart";
-import { cn } from "@acme/ui";
-
-const chartData = [
-  { t: "00:00", equity: 120 },
-  { t: "02:00", equity: 118 },
-  { t: "04:00", equity: 136 },
-  { t: "06:00", equity: 152 },
-  { t: "08:00", equity: 150 },
-  { t: "10:00", equity: 175 },
-  { t: "12:00", equity: 178 },
-  { t: "14:00", equity: 176 },
-  { t: "16:00", equity: 182 },
-  { t: "18:00", equity: 180 },
-  { t: "20:00", equity: 92 },
-  { t: "22:00", equity: 95 },
-  { t: "24:00", equity: 94 },
-];
+import { Skeleton } from "@acme/ui/skeleton";
 
 const chartConfig = {
   equity: {
@@ -33,19 +18,79 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-export function ProfileEquityChart({ className }: { className?: string }) {
+export function ProfileEquityChart(props: {
+  className?: string;
+  data: Array<{ t: string; equity: number }>;
+  loading?: boolean;
+}) {
+  if (props.loading) {
+    return (
+      <div
+        className={cn(
+          "mt-3 h-[250px] rounded-[10px] bg-[#070c18] p-2",
+          props.className,
+        )}
+      >
+        <Skeleton className="h-full w-full rounded-lg bg-white/[0.06]" />
+      </div>
+    );
+  }
+
+  if (props.data.length < 2) {
+    return (
+      <div
+        className={cn(
+          "mt-3 flex h-[250px] items-center justify-center rounded-[10px] bg-[#070c18] p-2 text-sm text-white/40",
+          props.className,
+        )}
+      >
+        Not enough equity history for this period yet.
+      </div>
+    );
+  }
+
   return (
-    <div className={cn("mt-3 h-[250px] rounded-[10px] bg-[#070c18] p-2", className)}>
-      <ChartContainer config={chartConfig} className="h-full w-full !aspect-auto">
-        <AreaChart accessibilityLayer data={chartData} margin={{ left: 8, right: 8, top: 6, bottom: 2 }}>
+    <div
+      className={cn(
+        "mt-3 h-[250px] rounded-[10px] bg-[#070c18] p-2",
+        props.className,
+      )}
+    >
+      <ChartContainer
+        config={chartConfig}
+        className="h-full w-full !aspect-auto"
+      >
+        <AreaChart
+          accessibilityLayer
+          data={props.data}
+          margin={{ left: 8, right: 8, top: 6, bottom: 2 }}
+        >
           <defs>
             <linearGradient id="fillEquity" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="var(--color-equity)" stopOpacity={0.3} />
-              <stop offset="95%" stopColor="var(--color-equity)" stopOpacity={0} />
+              <stop
+                offset="5%"
+                stopColor="var(--color-equity)"
+                stopOpacity={0.3}
+              />
+              <stop
+                offset="95%"
+                stopColor="var(--color-equity)"
+                stopOpacity={0}
+              />
             </linearGradient>
           </defs>
-          <CartesianGrid vertical={false} stroke="#1a2437" strokeDasharray="2 8" />
-          <XAxis dataKey="t" tickLine={false} axisLine={false} tickMargin={6} hide />
+          <CartesianGrid
+            vertical={false}
+            stroke="#1a2437"
+            strokeDasharray="2 8"
+          />
+          <XAxis
+            dataKey="t"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={6}
+            hide
+          />
           <ChartTooltip
             cursor={false}
             content={<ChartTooltipContent indicator="line" />}

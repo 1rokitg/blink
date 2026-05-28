@@ -32,11 +32,16 @@ import {
 import { fetchHip4Markets, getHip4MarketPath } from "~/lib/blink/hip4/markets";
 import { infoClient } from "~/lib/blink/hyperliquid";
 import { formatUsd } from "~/lib/blink/markets";
+import {
+  type ProfileEquityPeriod,
+  fetchUserPortfolio,
+  getEquityChangeForProfilePeriod,
+  getEquityChartSeries,
+  profilePeriodLabel,
+} from "~/lib/blink/portfolio";
 
 import { PnlShareModal } from "./pnl-share-modal";
 import { ProfileEquityChart } from "./profile-equity-chart";
-
-type Period = "24H" | "7D" | "30D" | "ALL";
 
 type PositionThesisRow = {
   coin: string;
@@ -167,7 +172,7 @@ export function ProfileEquitySection({
     ? normalizedTargetAddress === ownAddress?.toLowerCase()
     : true;
 
-  const [period, setPeriod] = useState<Period>("24H");
+  const [period, setPeriod] = useState<ProfileEquityPeriod>("24H");
   const [shareOpen, setShareOpen] = useState(false);
   const [editingThesisCoin, setEditingThesisCoin] = useState<string | null>(
     null,
@@ -190,6 +195,17 @@ export function ProfileEquitySection({
     enabled: !!walletAddress,
     refetchInterval: 30_000,
     staleTime: 20_000,
+  });
+
+  const portfolioQuery = useQuery({
+    queryKey: ["blink", "portfolio", walletAddress],
+    queryFn: async () => {
+      if (!walletAddress) return null;
+      return fetchUserPortfolio(walletAddress);
+    },
+    enabled: !!walletAddress,
+    staleTime: 60_000,
+    refetchInterval: 120_000,
   });
 
   // ── All-time realized PnL from fills ─────────────────────────────────────
@@ -407,7 +423,16 @@ export function ProfileEquitySection({
     [thesesQuery.data],
   );
 
-  // Realized PnL = sum of closedPnl across all fills
+  const equityChartData = useMemo(() => {
+    if (!portfolioQuery.data) return [];
+    return getEquityChartSeries(portfolioQuery.data, period);
+  }, [period, portfolioQuery.data]);
+
+  const periodEquityChange = useMemo(() => {
+    if (!portfolioQuery.data) return null;
+    return getEquityChangeForProfilePeriod(portfolioQuery.data, period);
+  }, [period, portfolioQuery.data]);
+
   const totalRealizedPnl = (fillsQuery.data ?? []).reduce(
     (sum, fill) =>
       sum + Number((fill as { closedPnl?: string }).closedPnl ?? 0),
@@ -549,11 +574,27 @@ export function ProfileEquitySection({
                 {maskNumberish(accountValue, formatUsd, hideBalances)}
               </h2>
               <p
-                className={`mt-1 text-2xl ${totalRealizedPnl >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+                className={`mt-1 text-2xl ${
+                  (periodEquityChange ?? 0) >= 0
+                    ? "text-emerald-300"
+                    : "text-rose-300"
+                }`}
               >
-                {totalRealizedPnl >= 0 ? "+" : ""}
-                {maskNumberish(totalRealizedPnl, formatUsd, hideBalances)}{" "}
-                realized PnL
+                {portfolioQuery.isLoading && periodEquityChange === null ? (
+                  "—"
+                ) : (
+                  <>
+                    {(periodEquityChange ?? 0) >= 0 ? "+" : ""}
+                    {maskNumberish(
+                      periodEquityChange ?? 0,
+                      formatUsd,
+                      hideBalances,
+                    )}{" "}
+                    <span className="text-white/45">
+                      {profilePeriodLabel(period)} equity
+                    </span>
+                  </>
+                )}
               </p>
             </>
           )}
@@ -586,7 +627,7 @@ export function ProfileEquitySection({
               ? `${walletAddress.slice(0, 6)}…${walletAddress.slice(-4)}`
               : "—"}
           </span>
-          {(["24H", "7D", "30D", "ALL"] as Period[]).map((p) => (
+          {(["24H", "7D", "30D", "ALL"] as ProfileEquityPeriod[]).map((p) => (
             <button
               key={p}
               type="button"
@@ -601,7 +642,11 @@ export function ProfileEquitySection({
             </button>
           ))}
         </div>
-        <ProfileEquityChart className="mt-3 h-[340px] rounded-[12px]" />
+        <ProfileEquityChart
+          className="mt-3 h-[340px] rounded-[12px]"
+          data={equityChartData}
+          loading={portfolioQuery.isLoading && !portfolioQuery.data}
+        />
       </div>
 
       {/* Action buttons */}

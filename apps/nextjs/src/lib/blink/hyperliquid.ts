@@ -35,7 +35,7 @@ type PerpMetaAndAssetCtxsResponse = [
 
 type AllMidsResponse = Record<string, string>;
 
-async function postInfo<TResponse>(body: Record<string, unknown>) {
+export async function postInfo<TResponse>(body: Record<string, unknown>) {
   const response = await fetch(HYPERLIQUID_INFO_URL, {
     method: "POST",
     headers: {

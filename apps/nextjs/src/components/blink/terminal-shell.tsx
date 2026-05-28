@@ -106,6 +106,10 @@ import {
   writePersistedOrderSizeDraft,
 } from "~/lib/blink/order-entry-preferences";
 import {
+  fetchUserPortfolio,
+  getEquityChangeForPeriod,
+} from "~/lib/blink/portfolio";
+import {
   fetchCoinMarketCtxMap,
   formatFundingApr,
   formatHourlyFunding,
@@ -3495,21 +3499,13 @@ export function TerminalShell(props: { market: string }) {
     refetchInterval: 5_000,
     refetchOnWindowFocus: true,
   });
-  const pnl24hQuery = useQuery({
-    queryKey: ["blink", "account-pnl-24h", effectiveWalletAddress],
-    queryFn: async () => {
-      const fills = await infoClient.userFillsByTime({
-        user: asHexAddress(effectiveWalletAddress),
-        startTime: Date.now() - 24 * 60 * 60 * 1000,
-      });
-      return (fills ?? []).reduce(
-        (sum, fill) => sum + Number(fill.closedPnl ?? 0),
-        0,
-      );
-    },
-    enabled: Boolean(effectiveWalletAddress) && tradeEnabled,
-    staleTime: 30_000,
-    refetchInterval: 60_000,
+  const portfolioQuery = useQuery({
+    queryKey: ["blink", "portfolio", effectiveWalletAddress],
+    queryFn: async () =>
+      fetchUserPortfolio(asHexAddress(effectiveWalletAddress)),
+    enabled: Boolean(effectiveWalletAddress),
+    staleTime: 60_000,
+    refetchInterval: 120_000,
   });
   const headerWithdrawable = Number(
     headerAccountQuery.data?.state?.withdrawable ?? 0,
@@ -3517,11 +3513,13 @@ export function TerminalShell(props: { market: string }) {
   const headerAccountValue = Number(
     headerAccountQuery.data?.state?.marginSummary?.accountValue ?? 0,
   );
-  const headerPnl24h = pnl24hQuery.data ?? 0;
+  const headerEquityChange24h = portfolioQuery.data
+    ? getEquityChangeForPeriod(portfolioQuery.data, "day")
+    : undefined;
   const headerAccountLoading =
     headerAccountQuery.isLoading && !headerAccountQuery.data;
-  const headerPnlLoading =
-    pnl24hQuery.isLoading && pnl24hQuery.data === undefined;
+  const headerEquityChangeLoading =
+    portfolioQuery.isLoading && portfolioQuery.data === undefined;
 
   useEffect(() => {
     if (accountModalOpen || referralsModalOpen || builderModalOpen) {
@@ -3784,15 +3782,15 @@ export function TerminalShell(props: { market: string }) {
                               </span>
                               <span
                                 className={`text-[13px] font-medium ${
-                                  headerPnl24h >= 0
+                                  (headerEquityChange24h ?? 0) >= 0
                                     ? "text-emerald-300"
                                     : "text-rose-300"
                                 }`}
                               >
-                                {headerPnlLoading
+                                {headerEquityChangeLoading
                                   ? "— 24h"
                                   : `${maskNumberish(
-                                      headerPnl24h,
+                                      headerEquityChange24h ?? 0,
                                       formatHeaderPnl24h,
                                       blurBalances,
                                     )} 24h`}

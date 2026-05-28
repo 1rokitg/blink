@@ -45,6 +45,7 @@ type BuilderFillRow = {
 };
 
 type SyncFreshness = "fresh" | "stale" | "unknown";
+type LiveActivityEventType = "signup" | "builder_approved" | "trading_enabled" | "first_trade";
 
 function toDayKey(date: Date) {
   const y = date.getUTCFullYear();
@@ -56,6 +57,10 @@ function toDayKey(date: Date) {
 function numberOrZero(value: unknown) {
   const n = Number(value ?? 0);
   return Number.isFinite(n) ? n : 0;
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.length > 0;
 }
 
 function estimateBuilderFeeUsd(
@@ -103,17 +108,34 @@ function getStrictBuilderFeeUsd(fill: Record<string, unknown>) {
 
 /** Builder-approved wallets with blink-web agent (full Blink activation). */
 async function getApprovedWallets() {
-  const approvalRows = await db
-    .select({ walletAddress: BuilderApproval.walletAddress })
-    .from(BuilderApproval)
-    .where(eq(BuilderApproval.agentName, BLINK_WEB_AGENT_NAME));
+  let approvalRows: Array<{ walletAddress: string | null }> = [];
+  try {
+    const scoped = await db.execute(sql`
+      select wallet_address
+      from builder_approval
+      where agent_name = ${BLINK_WEB_AGENT_NAME}
+    `);
+    approvalRows = (scoped as { rows?: Array<{ wallet_address?: string | null }> }).rows?.map(
+      (row) => ({ walletAddress: row.wallet_address ?? null }),
+    ) ?? [];
+  } catch (error) {
+    // Backward-compatible fallback for environments where agent columns
+    // have not been migrated yet. Keeps internal dashboards available.
+    console.warn(
+      "[metrics] getApprovedWallets fallback to legacy approvals query",
+      error,
+    );
+    approvalRows = await db
+      .select({ walletAddress: BuilderApproval.walletAddress })
+      .from(BuilderApproval);
+  }
   return Array.from(
     new Set(
       approvalRows
         .map((row) => row.walletAddress?.toLowerCase())
-        .filter(Boolean),
+        .filter(isNonEmptyString),
     ),
-  );
+  ) satisfies string[];
 }
 
 export async function getTradingEnabledWallets() {
@@ -153,8 +175,13 @@ async function countWalletMetricEvents(
 
 export async function trackMetricEvent(input: TrackMetricEventInput) {
   const walletAddress = input.walletAddress?.toLowerCase() ?? null;
-  const shouldNotify =
-    walletAddress && !input.isBot && isLiveActivityEventType(input.eventType);
+  const liveEventType: LiveActivityEventType | null = isLiveActivityEventType(
+    input.eventType,
+  )
+    ? input.eventType
+    : null;
+  const notifyWallet = walletAddress && !input.isBot ? walletAddress : null;
+  const shouldNotify = Boolean(notifyWallet && liveEventType);
 
   let isFirstForWallet = false;
 
@@ -162,7 +189,7 @@ export async function trackMetricEvent(input: TrackMetricEventInput) {
     if (shouldNotify) {
       const priorCount = await countWalletMetricEvents(
         input.eventType,
-        walletAddress,
+        notifyWallet as string,
       );
       isFirstForWallet = priorCount === 0;
     }
@@ -181,8 +208,8 @@ export async function trackMetricEvent(input: TrackMetricEventInput) {
 
     if (shouldNotify && isFirstForWallet) {
       void notifyLiveActivityAlert({
-        eventType: input.eventType,
-        walletAddress,
+        eventType: liveEventType as LiveActivityEventType,
+        walletAddress: notifyWallet as string,
         source: input.source ?? null,
         metadata: input.metadata,
       });

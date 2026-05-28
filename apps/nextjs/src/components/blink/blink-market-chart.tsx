@@ -114,7 +114,9 @@ export function BlinkMarketChart(props: { market: string }) {
 
     const observer = new ResizeObserver((entries) => {
       const entry = entries[0];
-      if (entry) setWidth(Math.max(320, entry.contentRect.width));
+      if (entry) {
+        setWidth(Math.max(320, Math.floor(entry.contentRect.width)));
+      }
     });
     observer.observe(node);
     return () => observer.disconnect();
@@ -322,8 +324,9 @@ export function BlinkMarketChart(props: { market: string }) {
             </div>
           ) : (
             <svg
-              width={width}
+              width="100%"
               height={chartHeight}
+              viewBox={`0 0 ${width} ${chartHeight}`}
               className="overflow-visible"
               role="img"
               aria-label={`${props.market} price chart`}

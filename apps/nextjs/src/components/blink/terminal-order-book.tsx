@@ -40,8 +40,9 @@ export type OrderBookSelection =
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const LEVELS = 16;
-const TRADES_LIMIT = 30;
+// Keep depth focused near the mid so panel height matches chart better.
+const LEVELS = 10;
+const TRADES_LIMIT = 18;
 
 function buildTradeId(trade: {
   px: string;
@@ -319,10 +320,10 @@ export function TerminalOrderBook(props: {
 
           <div className="grid flex-1 grid-rows-[1fr_auto_1fr] overflow-hidden px-2 pb-2">
             {/* Asks (sells) — farthest at top, closest at bottom */}
-            <div className="grid auto-rows-[22px] content-end gap-px overflow-hidden">
+            <div className="grid auto-rows-[20px] content-end gap-px overflow-hidden">
               {paddedAsks.map(({ id, row }, i) => {
                 if (!row) {
-                  return <div key={id} className="h-[22px]" />;
+                  return <div key={id} className="h-[20px]" />;
                 }
                 const key = `ask-${row.price}`;
                 const width = (row.total / maxTotal) * 100;
@@ -332,7 +333,7 @@ export function TerminalOrderBook(props: {
                 return (
                   <div
                     key={id}
-                    className="relative grid h-[22px] grid-cols-[minmax(0,1fr)_72px_82px] items-center gap-x-2 rounded-[5px] px-2 text-[11px] leading-none"
+                    className="relative grid h-[20px] grid-cols-[minmax(0,1fr)_72px_82px] items-center gap-x-2 rounded-[5px] px-2 text-[11px] leading-none"
                     style={{ opacity }}
                   >
                     {/* depth bar */}
@@ -408,10 +409,10 @@ export function TerminalOrderBook(props: {
             </motion.div>
 
             {/* Bids (buys) — closest at top, farthest at bottom */}
-            <div className="grid auto-rows-[22px] content-start gap-px overflow-hidden">
+            <div className="grid auto-rows-[20px] content-start gap-px overflow-hidden">
               {paddedBids.map(({ id, row }, i) => {
                 if (!row) {
-                  return <div key={id} className="h-[22px]" />;
+                  return <div key={id} className="h-[20px]" />;
                 }
                 const key = `bid-${row.price}`;
                 const width = (row.total / maxTotal) * 100;
@@ -421,7 +422,7 @@ export function TerminalOrderBook(props: {
                 return (
                   <div
                     key={id}
-                    className="relative grid h-[22px] grid-cols-[minmax(0,1fr)_72px_82px] items-center gap-x-2 rounded-[5px] px-2 text-[11px] leading-none"
+                    className="relative grid h-[20px] grid-cols-[minmax(0,1fr)_72px_82px] items-center gap-x-2 rounded-[5px] px-2 text-[11px] leading-none"
                     style={{ opacity }}
                   >
                     {/* depth bar */}
@@ -504,7 +505,7 @@ export function TerminalOrderBook(props: {
                   return (
                     <div
                       key={trade.id}
-                      className="group grid h-[22px] grid-cols-[minmax(0,1fr)_72px_74px] items-center gap-x-2 rounded-[5px] px-2 text-[11px] leading-none"
+                      className="group grid h-[20px] grid-cols-[minmax(0,1fr)_72px_74px] items-center gap-x-2 rounded-[5px] px-2 text-[11px] leading-none"
                       style={{ opacity }}
                     >
                       {/* Arrow + Price */}

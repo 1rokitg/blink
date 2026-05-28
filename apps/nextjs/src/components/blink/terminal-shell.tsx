@@ -582,9 +582,15 @@ function LeftRail(props: {
   const otherHip3Rows = hip3Rows.filter(
     (market) => !CURATED_HIP3_MARKET_SET.has(market.coin),
   );
+  const isWatchlistEmpty =
+    activeTab === "watchlist" && marketRows.length === 0;
 
   return (
-    <aside className="flex min-h-[calc(100vh-7rem)] w-[366px] flex-col gap-2.5">
+    <aside
+      className={`flex min-h-[calc(100vh-7rem)] flex-col gap-2.5 transition-[width] duration-200 ${
+        isWatchlistEmpty ? "w-[248px]" : "w-[366px]"
+      }`}
+    >
       <div className="flex h-[68px] items-center gap-2 px-1 py-1">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="flex items-end gap-2">
@@ -758,9 +764,18 @@ function LeftRail(props: {
         ) : (
           <div className="flex-1 space-y-0.5 overflow-y-auto p-1.5">
             {marketRows.length === 0 ? (
-              <p className="py-6 text-center text-xs text-foreground/40">
-                No markets found
-              </p>
+              <div className="flex min-h-[220px] flex-col items-center justify-center rounded-[10px] border border-dashed border-white/[0.08] bg-white/[0.02] px-3 text-center">
+                <p className="text-xs text-foreground/45">No markets found</p>
+                {searchQuery.trim() ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="mt-2 rounded-full border border-white/12 bg-white/[0.04] px-3 py-1 text-[11px] text-foreground/70 transition hover:text-white"
+                  >
+                    Clear search
+                  </button>
+                ) : null}
+              </div>
             ) : (
               <>
                 {coreRows.length > 0 ? (

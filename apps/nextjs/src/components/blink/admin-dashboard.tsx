@@ -10,6 +10,7 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Loader2,
+  Radio,
   RefreshCw,
   Search,
   Wrench,
@@ -41,7 +42,7 @@ import {
 import { type AdminStats, getAdminStats } from "~/app/actions/get-admin-stats";
 import { setFeatureFlagAction } from "~/app/actions/set-feature-flag";
 import { BUILDER_ADDRESS } from "~/lib/blink/builder";
-import { LiveActivityFeed } from "./live-activity-feed";
+import { InternalLiveActivityFeed } from "./internal-live-activity-feed";
 import { SuperuserPanel } from "./superuser-panel";
 
 function truncateAddress(address: string) {
@@ -139,6 +140,7 @@ const ADMIN_RANGE_OPTIONS: Array<{
 const INTERNAL_NAV_ITEMS: NavItem[] = [
   { label: "Home", href: "/internal" },
   { label: "Status", href: "/status" },
+  { label: "Feed", href: "/internal/feed", icon: Radio },
   { label: "Tools", href: "/internal/tools", icon: Wrench },
   { label: "Affiliates", href: "/internal/affiliates" },
   { label: "Users", href: "/internal/users" },
@@ -155,7 +157,7 @@ function getRangeConfig(range: AdminRange) {
 }
 
 export function AdminDashboard(props?: {
-  section?: "overview" | "users";
+  section?: "overview" | "users" | "feed";
   initialUserAddress?: string;
 }) {
   const pathname = usePathname();
@@ -236,6 +238,8 @@ export function AdminDashboard(props?: {
             : item.href === "/internal/users"
               ? currentSection === "users" &&
                 pathname.startsWith("/internal/users")
+              : item.href === "/internal/feed"
+                ? currentSection === "feed" || pathname.startsWith("/internal/feed")
               : item.href !== "#" && pathname === item.href,
       })),
     [currentSection, pathname],
@@ -521,6 +525,69 @@ export function AdminDashboard(props?: {
                 </section>
               )}
             </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (currentSection === "feed") {
+    return (
+      <main className="min-h-screen bg-[#06070b] px-4 py-5 text-foreground md:px-6">
+        <div className="mx-auto flex max-w-[1500px] gap-4">
+          <aside className="hidden w-[248px] shrink-0 rounded-2xl border border-white/10 bg-[#0b0d13] p-3 lg:block">
+            <p className="px-2 py-1 text-xs uppercase tracking-[0.18em] text-foreground/45">
+              Internal
+            </p>
+            <div className="mt-2 space-y-1">
+              {navItems.map(({ label, active, href, soon, icon: Icon }) => (
+                <Link
+                  key={label}
+                  href={href}
+                  className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition ${
+                    active
+                      ? "bg-white/12 text-white"
+                      : "text-foreground/60 hover:bg-white/[0.06] hover:text-white/85"
+                  }`}
+                >
+                  {Icon ? (
+                    <Icon className="size-4 shrink-0 text-foreground/55" />
+                  ) : null}
+                  <span className="flex-1">{label}</span>
+                  {!active && soon ? (
+                    <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/35">
+                      Soon
+                    </span>
+                  ) : null}
+                </Link>
+              ))}
+            </div>
+          </aside>
+
+          <div className="min-w-0 flex-1">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-[#0b0d13] px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/60">
+                  Internal feed
+                </Badge>
+                {role === "superuser" ? (
+                  <Badge className="rounded-full border border-amber-400/40 bg-amber-400/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-amber-300">
+                    Superuser
+                  </Badge>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-foreground/45">
+                Signed in as{" "}
+                <span className="font-mono text-white/70">
+                  {truncateAddress(walletAddress)}
+                </span>
+              </div>
+            </div>
+
+            <InternalLiveActivityFeed
+              actingWalletAddress={walletAddress}
+              canGift={role === "superuser"}
+            />
           </div>
         </div>
       </main>
@@ -1455,10 +1522,24 @@ export function AdminDashboard(props?: {
             </div>
           </section>
 
-          <LiveActivityFeed
-            items={stats?.liveActivity ?? []}
-            loading={loading}
-          />
+          <section className="mt-4 rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-white">
+                  Live activity feed moved
+                </h2>
+                <p className="mt-1 text-xs text-foreground/45">
+                  Open the dedicated feed page for pagination, event mix, and user action quicklinks.
+                </p>
+              </div>
+              <Link
+                href="/internal/feed"
+                className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-white/80 transition hover:bg-white/[0.08]"
+              >
+                Open feed →
+              </Link>
+            </div>
+          </section>
 
           <section className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-[#0b0d13] p-0">
             <div className="border-b border-white/8 px-5 py-4">

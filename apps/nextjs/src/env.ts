@@ -5,6 +5,21 @@ import { z } from "zod";
 
 import { env as authEnv } from "@acme/auth/env";
 
+/** Treat `""` as unset so Zod `.default()` applies (Vercel often sets empty strings). */
+function emptyStringToUndefined(value: unknown) {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+const optionalWebhookUrl = (fallback = "") =>
+  z.preprocess(
+    emptyStringToUndefined,
+    fallback
+      ? z.string().url().optional().default(fallback)
+      : z.string().url().optional().or(z.literal("")).default(""),
+  );
+
 export const env = createEnv({
   extends: [authEnv, vercel()],
   shared: {
@@ -39,29 +54,20 @@ export const env = createEnv({
       .max(10)
       .default(2),
     /** Optional Discord webhook for curated Blink sightings such as profile verifications. */
-    DISCORD_SIGHTINGS_WEBHOOK_URL: z
-      .string()
-      .url()
-      .or(z.literal(""))
-      .default(""),
+    DISCORD_SIGHTINGS_WEBHOOK_URL: optionalWebhookUrl(),
     /** Discord webhook for live activity alerts (signup, builder approval, first trade). */
-    DISCORD_ACTIVITY_WEBHOOK_URL: z
-      .string()
-      .url()
-      .or(z.literal(""))
-      .default(
-        "https://discord.com/api/webhooks/1509328347707084860/TEBPaBPLPt2L24e8XjVG19pZ-wdrj4eHe8supuff_D_bQHYNUTe2J5tR5yNOU8XpjnDz",
-      ),
+    DISCORD_ACTIVITY_WEBHOOK_URL: optionalWebhookUrl(
+      "https://discord.com/api/webhooks/1509328347707084860/TEBPaBPLPt2L24e8XjVG19pZ-wdrj4eHe8supuff_D_bQHYNUTe2J5tR5yNOU8XpjnDz",
+    ),
     /** Optional Discord user id to @mention on live activity alerts. */
-    DISCORD_ACTIVITY_PING_USER_ID: z.string().default("1369012715590516906"),
+    DISCORD_ACTIVITY_PING_USER_ID: z.preprocess(
+      emptyStringToUndefined,
+      z.string().optional().default("1369012715590516906"),
+    ),
     /** Discord webhook for public status alerts (#status channel). */
-    DISCORD_STATUS_WEBHOOK_URL: z
-      .string()
-      .url()
-      .or(z.literal(""))
-      .default(
-        "https://discord.com/api/webhooks/1509388057114050641/yzegOaVzCMn2nMFMXdbrK5077Nge89xFYWxmklgDpm3rybFm_k4uro1VfFKMRkK9gUqu",
-      ),
+    DISCORD_STATUS_WEBHOOK_URL: optionalWebhookUrl(
+      "https://discord.com/api/webhooks/1509388057114050641/yzegOaVzCMn2nMFMXdbrK5077Nge89xFYWxmklgDpm3rybFm_k4uro1VfFKMRkK9gUqu",
+    ),
     /** Optional Discord role id to mention on outage/recovery alerts. */
     DISCORD_STATUS_PING_ROLE_ID: z.string().default(""),
   },

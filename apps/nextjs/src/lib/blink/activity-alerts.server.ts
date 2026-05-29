@@ -95,7 +95,12 @@ export async function notifyLiveActivityAlert(input: {
   metadata?: Record<string, unknown>;
 }) {
   const webhookUrl = getDiscordActivityWebhookUrl();
-  if (!webhookUrl) return;
+  if (!webhookUrl) {
+    console.warn(
+      "[activity-alerts] DISCORD_ACTIVITY_WEBHOOK_URL is not set — skipping Discord ping",
+    );
+    return;
+  }
 
   const walletAddress = input.walletAddress.toLowerCase();
   const config = ACTIVITY_LABELS[input.eventType];
@@ -147,7 +152,7 @@ export async function notifyLiveActivityAlert(input: {
       ],
     });
   } catch (error) {
-    console.warn("[activity-alerts] Discord notify failed", {
+    console.error("[activity-alerts] Discord notify failed", {
       eventType: input.eventType,
       walletAddress,
       error,

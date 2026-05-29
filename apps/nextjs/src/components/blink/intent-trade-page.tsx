@@ -339,7 +339,7 @@ export function IntentTradePage(props: {
         >
           <div className="mb-5 flex items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              <AssetIcon asset={props.market} className="size-12" size={48} />
+              <AssetIcon asset={props.market} size={48} />
               <div>
                 <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-white/45">
                   {modeLabel} intent

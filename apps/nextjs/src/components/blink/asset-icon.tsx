@@ -136,15 +136,31 @@ const HIP3_BADGE_OVERRIDES: Record<
   XYZ100: { label: "X1", bg: "#4338ca" },
 };
 
+/** Official Hyperliquid spot + perp icons (BTC, HYPE, xyz:NVDA, …). */
+function hyperliquidCoinUrl(asset: string) {
+  const coin = asset.trim();
+  if (!coin) return null;
+  return `https://app.hyperliquid.xyz/coins/${encodeURIComponent(coin)}.svg`;
+}
+
 // Primary source: cryptocurrency-icons via npm CDN (pinned, stable)
 function cryptoIconUrl(symbol: string) {
   return `https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/svg/color/${symbol.toLowerCase()}.svg`;
 }
 
-// Fallback: CoinGecko thumb (PNG, reliable but slower)
+/** CoinGecko thumb paths (image id + filename slug). */
+const COINGECKO_THUMBS: Record<string, string> = {
+  bitcoin: "1/bitcoin",
+  ethereum: "279/ethereum",
+  solana: "4128/solana",
+  hyperliquid: "50882/hyperliquid",
+};
+
+// Fallback: CoinGecko thumb (PNG)
 function coinGeckoUrl(symbol: string) {
   const id = COINGECKO_IDS[symbol.toUpperCase()] ?? symbol.toLowerCase();
-  return `https://assets.coingecko.com/coins/images/1/thumb/${id}.png`;
+  const path = COINGECKO_THUMBS[id] ?? `1/${id}`;
+  return `https://assets.coingecko.com/coins/images/${path}/thumb.png`;
 }
 
 function companyLogoUrl(symbol: string) {
@@ -186,6 +202,11 @@ function getAssetIconSources(asset: string) {
   const symbol = SYMBOL_ALIASES[normalizedSymbol] ?? normalizedSymbol;
   const isHip3 = asset.includes(":");
   const sources: string[] = [];
+
+  const hlIcon = hyperliquidCoinUrl(asset);
+  if (hlIcon) {
+    sources.push(hlIcon);
+  }
 
   const companyLogo = companyLogoUrl(symbol);
   if (companyLogo) {

@@ -61,6 +61,7 @@ import {
   internalPanelInsetClass,
 } from "./internal-dashboard-primitives";
 import { InternalLiveActivityFeed } from "./internal-live-activity-feed";
+import { InternalMembershipsPanel } from "./internal-memberships-panel";
 import { SuperuserPanel } from "./superuser-panel";
 
 const TODAY_KPI_LABELS = new Set([
@@ -178,7 +179,7 @@ const INTERNAL_NAV_ITEMS: NavItem[] = [
   { label: "Affiliates", href: "/internal/affiliates" },
   { label: "Users", href: "/internal/users" },
   { label: "Payments", href: "#", soon: true },
-  { label: "Memberships", href: "#", soon: true },
+  { label: "Memberships", href: "/internal/memberships" },
   { label: "Referrals", href: "#", soon: true },
   { label: "Settings", href: "#", soon: true },
 ];
@@ -190,7 +191,7 @@ function getRangeConfig(range: AdminRange) {
 }
 
 export function AdminDashboard(props?: {
-  section?: "overview" | "users" | "feed";
+  section?: "overview" | "users" | "feed" | "memberships";
   initialUserAddress?: string;
   /** SSR overview payload from InternalDashboardOverviewPage. */
   initialOverviewStats?: AdminStats;
@@ -287,7 +288,10 @@ export function AdminDashboard(props?: {
               : item.href === "/internal/feed"
                 ? currentSection === "feed" ||
                   pathname.startsWith("/internal/feed")
-                : item.href !== "#" && pathname === item.href,
+                : item.href === "/internal/memberships"
+                  ? currentSection === "memberships" ||
+                    pathname.startsWith("/internal/memberships")
+                  : item.href !== "#" && pathname === item.href,
       })),
     [currentSection, pathname],
   );
@@ -535,6 +539,36 @@ export function AdminDashboard(props?: {
             </section>
           )}
         </div>
+      </InternalDashboardShell>
+    );
+  }
+
+  if (currentSection === "memberships") {
+    return (
+      <InternalDashboardShell
+        navItems={shellNavItems}
+        header={
+          <>
+            <div className="flex items-center gap-2">
+              <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs font-medium text-white/55">
+                Memberships
+              </Badge>
+              {role === "superuser" ? (
+                <Badge className="rounded-full border border-amber-400/35 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-200">
+                  Superuser
+                </Badge>
+              ) : null}
+            </div>
+            <p className="text-xs text-white/45">
+              {truncateAddress(walletAddress)}
+            </p>
+          </>
+        }
+      >
+        <InternalMembershipsPanel
+          actingWalletAddress={walletAddress}
+          canManage={role === "superuser"}
+        />
       </InternalDashboardShell>
     );
   }

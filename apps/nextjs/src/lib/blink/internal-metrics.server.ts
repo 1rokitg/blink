@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, sql } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
 import {
@@ -18,6 +18,10 @@ import { BLINK_WEB_AGENT_NAME } from "./blink-agent";
 import { BUILDER_FEE_UNITS } from "./builder";
 import { GROWTH_ZERO_FEE_MARKETS, isGrowthModeEnabled } from "./growth-mode";
 import { infoClient } from "./hyperliquid";
+import {
+  isLifetimeMetricsWindow,
+  type MetricsWindowDays,
+} from "./metrics-window";
 
 type TrackMetricEventInput = {
   eventType: string;
@@ -296,13 +300,42 @@ export async function syncBuilderDailyMetrics(days = 90) {
   return { syncedDays: entries.length, wallets: approvedWallets.length };
 }
 
-export async function getBuilderMetricsSnapshot(days = 30) {
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-  const rows = await db
-    .select()
+async function resolveHyperliquidStartTime(windowDays: MetricsWindowDays) {
+  if (!isLifetimeMetricsWindow(windowDays)) {
+    return Date.now() - windowDays * 24 * 60 * 60 * 1000;
+  }
+
+  const [earliest] = await db
+    .select({ day: BuilderDailyMetric.day })
     .from(BuilderDailyMetric)
-    .where(gte(BuilderDailyMetric.day, toDayKey(since)))
-    .orderBy(BuilderDailyMetric.day);
+    .orderBy(asc(BuilderDailyMetric.day))
+    .limit(1);
+
+  if (earliest?.day) {
+    return new Date(String(earliest.day).slice(0, 10)).getTime();
+  }
+
+  return Date.now() - 90 * 24 * 60 * 60 * 1000;
+}
+
+export async function getBuilderMetricsSnapshot(
+  windowDays: MetricsWindowDays = 30,
+) {
+  const rows = isLifetimeMetricsWindow(windowDays)
+    ? await db
+        .select()
+        .from(BuilderDailyMetric)
+        .orderBy(BuilderDailyMetric.day)
+    : await db
+        .select()
+        .from(BuilderDailyMetric)
+        .where(
+          gte(
+            BuilderDailyMetric.day,
+            toDayKey(new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000)),
+          ),
+        )
+        .orderBy(BuilderDailyMetric.day);
 
   const totals = rows.reduce(
     (acc, row) => {
@@ -346,9 +379,11 @@ export async function getBuilderMetricsSnapshot(days = 30) {
   };
 }
 
-export async function gethyperliquidBuilderMetricsSnapshot(days = 30) {
+export async function gethyperliquidBuilderMetricsSnapshot(
+  windowDays: MetricsWindowDays = 30,
+) {
   const syncStartedAt = Date.now();
-  const startTime = syncStartedAt - days * 24 * 60 * 60 * 1000;
+  const startTime = await resolveHyperliquidStartTime(windowDays);
   const approvedWallets = await getApprovedWallets();
   if (approvedWallets.length === 0) {
     return {
@@ -478,9 +513,10 @@ export async function gethyperliquidBuilderMetricsSnapshot(days = 30) {
   };
 }
 
-export async function getBuilderAttributionSnapshot(days = 90) {
-  const now = Date.now();
-  const startTime = now - days * 24 * 60 * 60 * 1000;
+export async function getBuilderAttributionSnapshot(
+  windowDays: MetricsWindowDays = 90,
+) {
+  const startTime = await resolveHyperliquidStartTime(windowDays);
 
   const [approvedWallets, signupRows, proSet] = await Promise.all([
     getApprovedWallets(),

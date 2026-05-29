@@ -7,6 +7,11 @@ import {
   MetricEvent,
 } from "@acme/db/schema";
 
+import {
+  isLifetimeMetricsWindow,
+  type MetricsWindowDays,
+} from "./metrics-window";
+
 const PRO_MONTHLY_USD: Record<string, number> = {
   basic: 9.99,
   preferred: 79,
@@ -71,44 +76,78 @@ export type GrowthMetrics = {
   }>;
 };
 
-export async function getGrowthMetrics(days = 90): Promise<GrowthMetrics> {
+export async function getGrowthMetrics(
+  windowDays: MetricsWindowDays = 90,
+): Promise<GrowthMetrics> {
   const now = Date.now();
-  const cutoff = new Date(now - days * 24 * 60 * 60 * 1000);
+  const cutoff = isLifetimeMetricsWindow(windowDays)
+    ? null
+    : new Date(now - windowDays * 24 * 60 * 60 * 1000);
+  const boundedWindowDays = isLifetimeMetricsWindow(windowDays) ? 90 : windowDays;
   const ms30d = 30 * 24 * 60 * 60 * 1000;
 
   const [dailyMetrics, metricRows, memberships] = await Promise.all([
-    db
-      .select({
-        day: BuilderDailyMetric.day,
-        activeUsers: BuilderDailyMetric.activeUsers,
-      })
-      .from(BuilderDailyMetric)
-      .where(gte(BuilderDailyMetric.day, cutoff.toISOString().slice(0, 10)))
-      .orderBy(desc(BuilderDailyMetric.day))
-      .limit(days),
-    db
-      .select({
-        eventType: MetricEvent.eventType,
-        walletAddress: MetricEvent.walletAddress,
-        createdAt: MetricEvent.createdAt,
-        isBot: MetricEvent.isBot,
-      })
-      .from(MetricEvent)
-      .where(
-        and(
-          gte(MetricEvent.createdAt, cutoff),
-          inArray(MetricEvent.eventType, [
-            "signup",
-            "builder_approved",
-            "builder_fee_approved",
-            "trading_enabled",
-            "first_trade",
-            "pro_started",
-          ]),
-        ),
-      )
-      .orderBy(desc(MetricEvent.createdAt))
-      .limit(25_000),
+    cutoff
+      ? db
+          .select({
+            day: BuilderDailyMetric.day,
+            activeUsers: BuilderDailyMetric.activeUsers,
+          })
+          .from(BuilderDailyMetric)
+          .where(gte(BuilderDailyMetric.day, cutoff.toISOString().slice(0, 10)))
+          .orderBy(desc(BuilderDailyMetric.day))
+          .limit(boundedWindowDays)
+      : db
+          .select({
+            day: BuilderDailyMetric.day,
+            activeUsers: BuilderDailyMetric.activeUsers,
+          })
+          .from(BuilderDailyMetric)
+          .orderBy(desc(BuilderDailyMetric.day)),
+    cutoff
+      ? db
+          .select({
+            eventType: MetricEvent.eventType,
+            walletAddress: MetricEvent.walletAddress,
+            createdAt: MetricEvent.createdAt,
+            isBot: MetricEvent.isBot,
+          })
+          .from(MetricEvent)
+          .where(
+            and(
+              gte(MetricEvent.createdAt, cutoff),
+              inArray(MetricEvent.eventType, [
+                "signup",
+                "builder_approved",
+                "builder_fee_approved",
+                "trading_enabled",
+                "first_trade",
+                "pro_started",
+              ]),
+            ),
+          )
+          .orderBy(desc(MetricEvent.createdAt))
+          .limit(25_000)
+      : db
+          .select({
+            eventType: MetricEvent.eventType,
+            walletAddress: MetricEvent.walletAddress,
+            createdAt: MetricEvent.createdAt,
+            isBot: MetricEvent.isBot,
+          })
+          .from(MetricEvent)
+          .where(
+            inArray(MetricEvent.eventType, [
+              "signup",
+              "builder_approved",
+              "builder_fee_approved",
+              "trading_enabled",
+              "first_trade",
+              "pro_started",
+            ]),
+          )
+          .orderBy(desc(MetricEvent.createdAt))
+          .limit(50_000),
     db
       .select({
         tier: BlinkMembership.tier,

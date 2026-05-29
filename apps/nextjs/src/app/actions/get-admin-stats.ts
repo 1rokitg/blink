@@ -26,16 +26,20 @@ import {
   syncBuilderDailyMetrics,
 } from "~/lib/blink/internal-metrics.server";
 import { syncRecentBuilderApprovalsFromChain } from "~/lib/blink/sync-builder-approvals.server";
+import {
+  metricsWindowLabel,
+  type MetricsWindowDays,
+} from "~/lib/blink/metrics-window";
 
 type KpiSource = "hyperliquid" | "offchain";
 
 export interface AdminStats {
-  windowDays: number;
+  windowDays: MetricsWindowDays;
   syncedAt: string;
   kpiSource: Record<string, KpiSource>;
   hyperliquidSync: {
     lastSyncedAt: string;
-    window: "today" | "7d" | "30d" | "90d";
+    window: ReturnType<typeof metricsWindowLabel>;
     freshness: "fresh" | "stale" | "unknown";
   };
   internalAnalytics: {
@@ -221,7 +225,7 @@ export async function getAdminStats(options?: {
   includeAttribution?: boolean;
   liveWindowMinutes?: number;
   liveLimit?: number;
-  windowDays?: 1 | 7 | 30 | 90;
+  windowDays?: MetricsWindowDays;
 }): Promise<AdminStats> {
   // Keep UI on "Today" mode but fetch 2 days so yesterday deltas remain accurate.
   const canonicalWindowDays = 2;
@@ -241,14 +245,7 @@ export async function getAdminStats(options?: {
   const liveWindowMinutes = options?.liveWindowMinutes ?? 30;
   const liveLimit = options?.liveLimit ?? 120;
   const windowDays = options?.windowDays ?? 90;
-  const windowLabel =
-    windowDays === 1
-      ? "today"
-      : windowDays === 7
-        ? "7d"
-        : windowDays === 30
-          ? "30d"
-          : "90d";
+  const windowLabel = metricsWindowLabel(windowDays);
 
   const [
     totalRows,

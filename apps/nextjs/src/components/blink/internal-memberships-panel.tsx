@@ -22,11 +22,11 @@ import {
   DropdownMenuTrigger,
 } from "@acme/ui/dropdown-menu";
 
-import {
-  type InternalMembershipRow,
-  getInternalMemberships,
-} from "~/app/actions/get-internal-memberships";
-import type { MembershipLifecycle } from "~/lib/blink/internal-memberships.server";
+import { getInternalMemberships } from "~/app/actions/get-internal-memberships";
+import type {
+  InternalMembershipRow,
+  MembershipLifecycle,
+} from "~/lib/blink/internal-memberships.server";
 import { getInternalUserPath } from "~/lib/blink/wallet-address";
 import {
   InternalSection,

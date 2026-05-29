@@ -45,7 +45,7 @@ import { setFeatureFlagAction } from "~/app/actions/set-feature-flag";
 import { DEFAULT_ADMIN_OVERVIEW_RANGE } from "~/lib/blink/admin-dashboard-defaults";
 import { BUILDER_ADDRESS } from "~/lib/blink/builder";
 import { getInternalUserPath } from "~/lib/blink/wallet-address";
-import type { AdminRange } from "./admin-dashboard-types";
+import type { AdminMetricsWindow, AdminRange } from "./admin-dashboard-types";
 import { InternalAccessCheckpoint } from "./internal-access-checkpoint";
 import {
   ChartSkeleton,
@@ -159,7 +159,7 @@ type NavItem = {
 const ADMIN_RANGE_OPTIONS: Array<{
   value: AdminRange;
   label: string;
-  windowDays: 1 | 7 | 30 | 90;
+  windowDays: AdminMetricsWindow;
   liveMinutes: number;
 }> = [
   { value: "5m", label: "5m", windowDays: 1, liveMinutes: 5 },
@@ -169,6 +169,7 @@ const ADMIN_RANGE_OPTIONS: Array<{
   { value: "7d", label: "7d", windowDays: 7, liveMinutes: 180 },
   { value: "30d", label: "30d", windowDays: 30, liveMinutes: 360 },
   { value: "90d", label: "90d", windowDays: 90, liveMinutes: 720 },
+  { value: "lifetime", label: "Lifetime", windowDays: "lifetime", liveMinutes: 720 },
 ];
 
 const INTERNAL_NAV_ITEMS: NavItem[] = [

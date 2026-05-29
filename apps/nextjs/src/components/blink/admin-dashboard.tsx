@@ -47,6 +47,7 @@ import { BUILDER_ADDRESS } from "~/lib/blink/builder";
 import { getInternalUserPath } from "~/lib/blink/wallet-address";
 import type { AdminMetricsWindow, AdminRange } from "./admin-dashboard-types";
 import { InternalAccessCheckpoint } from "./internal-access-checkpoint";
+import { InternalAttributionPanel } from "./internal-attribution-panel";
 import {
   ChartSkeleton,
   DashboardOverviewSkeleton,
@@ -310,12 +311,23 @@ export function AdminDashboard(props?: {
         const rangeConfig = getRangeConfig(selectedRange);
         const data = await getAdminStats({
           syncHyperliquid: options?.syncHyperliquid,
-          includeAttribution: options?.includeAttribution,
+          includeAttribution: options?.includeAttribution ?? true,
           liveWindowMinutes: rangeConfig.liveMinutes,
           liveLimit: 120,
           windowDays: rangeConfig.windowDays,
         });
-        setStats(data);
+        setStats((prev) => {
+          if (options?.includeAttribution === false && prev?.builder.attribution) {
+            return {
+              ...data,
+              builder: {
+                ...data.builder,
+                attribution: prev.builder.attribution,
+              },
+            };
+          }
+          return data;
+        });
         setLastFetched(new Date());
       } catch (err) {
         console.error("[admin] Failed to load stats:", err);
@@ -1319,126 +1331,13 @@ export function AdminDashboard(props?: {
             </div>
           </section>
 
-          <section className="mt-4 grid gap-4 lg:grid-cols-4">
-            <div className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
-              <h2 className="text-base font-semibold text-white">
-                Revenue by source
-              </h2>
-              <div className="mt-4 space-y-2">
-                {(stats?.builder.attribution.bySource ?? [])
-                  .slice(0, 8)
-                  .map((row) => (
-                    <div
-                      key={row.source}
-                      className="flex items-center justify-between rounded-xl border border-white/8 bg-[#121726] px-3 py-2"
-                    >
-                      <div>
-                        <p className="text-sm text-white/85">
-                          {formatLabel(row.source)}
-                        </p>
-                        <p className="text-xs text-foreground/45">
-                          {row.users} users · {row.fillsCount} fills
-                        </p>
-                      </div>
-                      <p className="text-sm font-medium text-emerald-300">
-                        {formatMoney(row.revenueUsd)}
-                      </p>
-                    </div>
-                  ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
-              <h2 className="text-base font-semibold text-white">
-                Revenue by country
-              </h2>
-              <div className="mt-4 space-y-2">
-                {(stats?.builder.attribution.byCountry ?? [])
-                  .slice(0, 8)
-                  .map((row) => (
-                    <div
-                      key={row.country}
-                      className="flex items-center justify-between rounded-xl border border-white/8 bg-[#121726] px-3 py-2"
-                    >
-                      <div>
-                        <p className="text-sm text-white/85">
-                          {countryWithFlag(row.country)}
-                        </p>
-                        <p className="text-xs text-foreground/45">
-                          {row.users} users · {row.fillsCount} fills
-                        </p>
-                      </div>
-                      <p className="text-sm font-medium text-emerald-300">
-                        {formatMoney(row.revenueUsd)}
-                      </p>
-                    </div>
-                  ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
-              <h2 className="text-base font-semibold text-white">
-                Revenue by market
-              </h2>
-              <div className="mt-4 space-y-2">
-                {(stats?.builder.attribution.byMarket ?? [])
-                  .slice(0, 8)
-                  .map((row) => (
-                    <div
-                      key={row.market}
-                      className="flex items-center justify-between rounded-xl border border-white/8 bg-[#121726] px-3 py-2"
-                    >
-                      <div>
-                        <p className="text-sm text-white/85">{row.market}</p>
-                        <p className="text-xs text-foreground/45">
-                          {row.users} users · {row.fillsCount} fills
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-emerald-300">
-                          {formatMoney(row.revenueUsd)}
-                        </p>
-                        <p className="text-xs text-foreground/45">
-                          {formatCompact(row.volumeUsd)} vol
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
-              <h2 className="text-base font-semibold text-white">Top users</h2>
-              <div className="mt-4 space-y-2">
-                {(stats?.builder.attribution.byUser ?? [])
-                  .slice(0, 8)
-                  .map((row) => (
-                    <div
-                      key={row.walletAddress}
-                      className="flex items-center justify-between rounded-xl border border-white/8 bg-[#121726] px-3 py-2"
-                    >
-                      <div>
-                        <p className="font-mono text-xs text-white/85">
-                          {truncateAddress(row.walletAddress)}
-                        </p>
-                        <p className="text-xs text-foreground/45">
-                          {formatLabel(row.source)} ·{" "}
-                          {countryWithFlag(row.country)}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-emerald-300">
-                          {formatMoney(row.revenueUsd)}
-                        </p>
-                        <p className="text-xs text-foreground/45">
-                          {formatCompact(row.volumeUsd)} vol
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </section>
+          <InternalAttributionPanel
+            attribution={stats?.builder.attribution}
+            isLoading={initialLoading}
+            windowLabel={
+              selectedRange === "lifetime" ? "lifetime" : selectedRange
+            }
+          />
 
           <InternalSection
             title="Live builder fills"

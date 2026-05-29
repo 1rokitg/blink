@@ -4,7 +4,6 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
 import {
-  BuilderApproval,
   MetricEvent,
   Referral,
   ReferralCode,
@@ -14,7 +13,7 @@ import {
   getAffiliateProfile,
   isAffiliateWallet,
 } from "~/lib/blink/affiliate-program";
-import { BLINK_WEB_AGENT_NAME } from "~/lib/blink/blink-agent";
+import { fetchBlinkActivatedWalletSet } from "~/lib/blink/builder-approval-query.server";
 
 export const runtime = "nodejs";
 
@@ -99,53 +98,44 @@ export async function GET(request: Request) {
   >();
 
   if (referredWallets.length > 0) {
-    const [approvals, firstTradeRows, proRows, signupRows] = await Promise.all([
-      db
-        .select({ walletAddress: BuilderApproval.walletAddress })
-        .from(BuilderApproval)
-        .where(
-          and(
-            inArray(BuilderApproval.walletAddress, referredWallets),
-            eq(BuilderApproval.agentName, BLINK_WEB_AGENT_NAME),
+    const [activatedWallets, firstTradeRows, proRows, signupRows] =
+      await Promise.all([
+        fetchBlinkActivatedWalletSet(referredWallets),
+        db
+          .select({ walletAddress: MetricEvent.walletAddress })
+          .from(MetricEvent)
+          .where(
+            and(
+              inArray(MetricEvent.walletAddress, referredWallets),
+              eq(MetricEvent.eventType, "first_trade"),
+            ),
           ),
-        ),
-      db
-        .select({ walletAddress: MetricEvent.walletAddress })
-        .from(MetricEvent)
-        .where(
-          and(
-            inArray(MetricEvent.walletAddress, referredWallets),
-            eq(MetricEvent.eventType, "first_trade"),
+        db
+          .select({ walletAddress: MetricEvent.walletAddress })
+          .from(MetricEvent)
+          .where(
+            and(
+              inArray(MetricEvent.walletAddress, referredWallets),
+              eq(MetricEvent.eventType, "pro_checkout_started"),
+            ),
           ),
-        ),
-      db
-        .select({ walletAddress: MetricEvent.walletAddress })
-        .from(MetricEvent)
-        .where(
-          and(
-            inArray(MetricEvent.walletAddress, referredWallets),
-            eq(MetricEvent.eventType, "pro_checkout_started"),
+        db
+          .select({
+            createdAt: MetricEvent.createdAt,
+            metadata: MetricEvent.metadata,
+            source: MetricEvent.source,
+            walletAddress: MetricEvent.walletAddress,
+          })
+          .from(MetricEvent)
+          .where(
+            and(
+              inArray(MetricEvent.walletAddress, referredWallets),
+              eq(MetricEvent.eventType, "signup"),
+            ),
           ),
-        ),
-      db
-        .select({
-          createdAt: MetricEvent.createdAt,
-          metadata: MetricEvent.metadata,
-          source: MetricEvent.source,
-          walletAddress: MetricEvent.walletAddress,
-        })
-        .from(MetricEvent)
-        .where(
-          and(
-            inArray(MetricEvent.walletAddress, referredWallets),
-            eq(MetricEvent.eventType, "signup"),
-          ),
-        ),
-    ]);
+      ]);
 
-    builderApprovedSet = new Set(
-      approvals.map((row) => row.walletAddress.toLowerCase()),
-    );
+    builderApprovedSet = activatedWallets;
     firstTradeSet = new Set(
       firstTradeRows
         .map((row) => row.walletAddress)

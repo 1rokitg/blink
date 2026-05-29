@@ -2,14 +2,13 @@ import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
 import {
-  BuilderApproval,
   MetricEvent,
   Referral,
   ReferralCode,
 } from "@acme/db/schema";
 
 import { AFFILIATE_SEEDS, type AffiliateSeed } from "./affiliate-seeds";
-import { BLINK_WEB_AGENT_NAME } from "./blink-agent";
+import { fetchBlinkActivatedWalletSet } from "./builder-approval-query.server";
 
 export type AffiliateLeaderboardMetrics = {
   referrals: number;
@@ -202,16 +201,8 @@ export async function getAffiliateLeaderboardSnapshot(): Promise<AffiliateLeader
   let proStartedSet = new Set<string>();
 
   if (referredWallets.length > 0) {
-    const [approvals, firstTradeRows, proRows] = await Promise.all([
-      db
-        .select({ walletAddress: BuilderApproval.walletAddress })
-        .from(BuilderApproval)
-        .where(
-          and(
-            inArray(BuilderApproval.walletAddress, referredWallets),
-            eq(BuilderApproval.agentName, BLINK_WEB_AGENT_NAME),
-          ),
-        ),
+    const [activatedWallets, firstTradeRows, proRows] = await Promise.all([
+      fetchBlinkActivatedWalletSet(referredWallets),
       db
         .select({ walletAddress: MetricEvent.walletAddress })
         .from(MetricEvent)
@@ -232,9 +223,7 @@ export async function getAffiliateLeaderboardSnapshot(): Promise<AffiliateLeader
         ),
     ]);
 
-    builderApprovedSet = new Set(
-      approvals.map((row) => row.walletAddress.toLowerCase()),
-    );
+    builderApprovedSet = activatedWallets;
     firstTradeSet = new Set(
       firstTradeRows
         .map((row) => row.walletAddress)

@@ -3,10 +3,10 @@ import { NextResponse } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
-import { BuilderApproval, MetricEvent, Referral, ReferralCode } from "@acme/db/schema";
+import { MetricEvent, Referral, ReferralCode } from "@acme/db/schema";
 
 import { getAffiliateProfile, isAffiliateWallet } from "~/lib/blink/affiliate-program";
-import { BLINK_WEB_AGENT_NAME } from "~/lib/blink/blink-agent";
+import { fetchBlinkActivatedWalletSet } from "~/lib/blink/builder-approval-query.server";
 
 export const runtime = "nodejs";
 
@@ -51,16 +51,8 @@ export async function GET(request: Request) {
   let proStarted = 0;
 
   if (referredWallets.length > 0) {
-    const [approvals, firstTradeRows, proRows] = await Promise.all([
-      db
-        .select({ walletAddress: BuilderApproval.walletAddress })
-        .from(BuilderApproval)
-        .where(
-          and(
-            inArray(BuilderApproval.walletAddress, referredWallets),
-            eq(BuilderApproval.agentName, BLINK_WEB_AGENT_NAME),
-          ),
-        ),
+    const [activatedWallets, firstTradeRows, proRows] = await Promise.all([
+      fetchBlinkActivatedWalletSet(referredWallets),
       db
         .select({ walletAddress: MetricEvent.walletAddress })
         .from(MetricEvent)
@@ -81,7 +73,7 @@ export async function GET(request: Request) {
         ),
     ]);
 
-    builderApproved = new Set(approvals.map((row) => row.walletAddress.toLowerCase())).size;
+    builderApproved = activatedWallets.size;
     firstTrade = new Set(
       firstTradeRows
         .map((row) => row.walletAddress)

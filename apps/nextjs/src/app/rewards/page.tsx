@@ -598,6 +598,12 @@ export default function RewardsPage() {
                       Your affiliate code is managed by Blink and cannot be
                       changed.
                     </p>
+                    <Link
+                      href="/affiliates/leaderboard"
+                      className="mt-3 inline-flex text-xs font-medium text-emerald-300 hover:text-emerald-200"
+                    >
+                      View KOL leaderboard →
+                    </Link>
                   </div>
                 </div>
               ) : null}

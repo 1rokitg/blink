@@ -107,8 +107,8 @@ export function ProprFundedCta(props: {
             {PROPR_TAGLINE}
           </p>
           <p className="mt-2 max-w-md text-sm leading-6 text-white/50">
-            {PROPR_SUBCOPY} Perfect if you want more size without depositing your
-            own stack.
+            {PROPR_SUBCOPY} Perfect if you want more size without depositing
+            your own stack.
           </p>
 
           <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:items-center">
@@ -127,7 +127,7 @@ export function ProprFundedCta(props: {
               rel="noreferrer"
               className="inline-flex h-12 items-center justify-center gap-1.5 rounded-2xl border border-white/10 bg-white/[0.04] px-4 text-xs font-medium text-white/55 transition hover:border-white/20 hover:text-white/80"
             >
-              Why rokit recommends it
+              Why Propr?
               <ArrowUpRight className="size-3.5" />
             </a>
           </div>

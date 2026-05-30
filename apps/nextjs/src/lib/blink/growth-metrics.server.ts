@@ -10,7 +10,7 @@ import {
 import {
   isMembershipEntitledStatus,
   isStripeTrialMembership,
-} from "./internal-memberships.server";
+} from "./membership-trial.server";
 import {
   isLifetimeMetricsWindow,
   type MetricsWindowDays,

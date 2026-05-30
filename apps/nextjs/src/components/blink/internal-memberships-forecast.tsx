@@ -1,6 +1,6 @@
 "use client";
 
-import type { InternalMembershipRevenueForecast } from "~/lib/blink/internal-memberships.server";
+import type { InternalMembershipRevenueForecast } from "~/lib/blink/internal-memberships.types";
 
 import {
   InternalSection,

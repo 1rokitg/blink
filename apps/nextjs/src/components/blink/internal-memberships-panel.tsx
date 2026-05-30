@@ -27,7 +27,7 @@ import type {
   InternalMembershipRevenueForecast,
   InternalMembershipRow,
   MembershipLifecycle,
-} from "~/lib/blink/internal-memberships.server";
+} from "~/lib/blink/internal-memberships.types";
 import { getInternalUserPath } from "~/lib/blink/wallet-address";
 import {
   InternalSection,

@@ -9,6 +9,30 @@ import {
 } from "@acme/db/schema";
 
 import { LIFETIME_MEMBERSHIP_END } from "./gift-membership.server";
+import type {
+  InternalMembershipRevenueForecast,
+  InternalMembershipRow,
+  InternalMembershipSummary,
+  MembershipForecastScenario,
+  MembershipForecastTierRow,
+  MembershipLifecycle,
+} from "./internal-memberships.types";
+import {
+  DAY_MS,
+  isMembershipEntitledStatus,
+  isStripeTrialMembership,
+} from "./membership-trial.server";
+
+export type {
+  InternalMembershipRevenueForecast,
+  InternalMembershipRow,
+  InternalMembershipSummary,
+  MembershipForecastScenario,
+  MembershipForecastTierRow,
+  MembershipLifecycle,
+} from "./internal-memberships.types";
+
+export { isMembershipEntitledStatus, isStripeTrialMembership } from "./membership-trial.server";
 
 const PRO_MONTHLY_USD: Record<string, number> = {
   basic: 9.99,
@@ -20,81 +44,6 @@ const PRO_YEARLY_USD: Record<string, number> = {
   basic: 99,
   preferred: 790,
   premium: 2490,
-};
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** First billing period length for Stripe checkout trials (`trial_period_days: 7`). */
-const STRIPE_TRIAL_MIN_DAYS = 4;
-const STRIPE_TRIAL_MAX_DAYS = 10;
-
-export type MembershipLifecycle =
-  | "active"
-  | "trial"
-  | "expires_soon"
-  | "gift"
-  | "lifetime"
-  | "ended"
-  | "inactive";
-
-export type InternalMembershipRow = {
-  walletAddress: string;
-  displayName: string | null;
-  profileSlug: string | null;
-  twitterUsername: string | null;
-  tier: string;
-  productLabel: string;
-  status: string;
-  lifecycle: MembershipLifecycle;
-  statusLabel: string;
-  paymentMethod: string;
-  stripeCustomerId: string | null;
-  stripeSubscriptionId: string | null;
-  totalSpendUsd: number;
-  createdAt: string;
-  currentPeriodEnd: string | null;
-  updatedAt: string | null;
-  canceledAt: string | null;
-  isActive: boolean;
-  isTrial: boolean;
-};
-
-export type InternalMembershipSummary = {
-  total: number;
-  active: number;
-  paying: number;
-  trials: number;
-  gifted: number;
-  mrrUsd: number;
-};
-
-export type MembershipForecastScenario = {
-  id: "conservative" | "base" | "upside";
-  label: string;
-  horizonLabel: string;
-  trialConversionRate: number;
-  projectedMrrUsd: number;
-  upliftUsd: number;
-};
-
-export type MembershipForecastTierRow = {
-  tier: string;
-  label: string;
-  payingCount: number;
-  trialCount: number;
-  mrrUsd: number;
-  pipelineMrrUsd: number;
-};
-
-export type InternalMembershipRevenueForecast = {
-  currentMrrUsd: number;
-  arrUsd: number;
-  trialPipelineMrrUsd: number;
-  trialsEndingWithin7d: number;
-  pipelineEndingWithin7dMrrUsd: number;
-  mrrByTier: MembershipForecastTierRow[];
-  scenarios: MembershipForecastScenario[];
-  assumptions: string[];
 };
 
 function estimateTierListMonthlyUsd(tier: string) {
@@ -209,42 +158,6 @@ export function buildMembershipRevenueForecast(
       "Near-term row highlights trials ending in the next 7 days.",
     ],
   };
-}
-
-export function isStripeTrialMembership(membership: {
-  status: string;
-  paymentMethod: string;
-  stripeCustomerId: string | null;
-  stripeSubscriptionId: string | null;
-  createdAt: Date;
-  currentPeriodEnd: Date | null;
-}) {
-  if (membership.paymentMethod === "gift") return false;
-
-  const normalizedStatus = membership.status.trim().toLowerCase();
-  if (normalizedStatus === "trialing") return true;
-
-  const periodEnd = membership.currentPeriodEnd;
-  if (!periodEnd || normalizedStatus !== "active") return false;
-
-  const hasStripe =
-    Boolean(membership.stripeSubscriptionId) ||
-    Boolean(membership.stripeCustomerId);
-  if (!hasStripe) return false;
-
-  const periodDays =
-    (periodEnd.getTime() - membership.createdAt.getTime()) / DAY_MS;
-
-  return (
-    periodDays >= STRIPE_TRIAL_MIN_DAYS &&
-    periodDays <= STRIPE_TRIAL_MAX_DAYS &&
-    periodEnd.getTime() > Date.now()
-  );
-}
-
-export function isMembershipEntitledStatus(status: string) {
-  const normalized = status.trim().toLowerCase();
-  return normalized === "active" || normalized === "trialing";
 }
 
 function tierProductLabel(tier: string) {

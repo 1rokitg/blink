@@ -1,6 +1,6 @@
 "use server";
 
-import { count, desc, eq, sql } from "drizzle-orm";
+import { count, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
 import {
@@ -279,7 +279,7 @@ export async function getAdminStats(options?: {
     db
       .select({ c: count() })
       .from(BlinkMembership)
-      .where(eq(BlinkMembership.status, "active")),
+      .where(inArray(BlinkMembership.status, ["active", "trialing"])),
     db
       .select({
         eventType: MetricEvent.eventType,

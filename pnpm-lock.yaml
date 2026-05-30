@@ -88,6 +88,9 @@ importers:
       '@nktkas/hyperliquid':
         specifier: ^0.24.3
         version: 0.24.3
+      '@opennextjs/cloudflare':
+        specifier: ^1.19.11
+        version: 1.19.11(next@15.5.18(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(wrangler@4.95.0(bufferutil@4.0.8)(utf-8-validate@6.0.4))
       '@orpc/openapi':
         specifier: ^0.54.0
         version: 0.54.0
@@ -102,7 +105,7 @@ importers:
         version: 3.2.0(@planetscale/database@1.19.0)(@types/react@19.0.12)(aws4fetch@1.0.20)(bufferutil@4.0.8)(permissionless@0.2.57(viem@2.38.0(bufferutil@4.0.8)(typescript@5.8.2)(utf-8-validate@6.0.4)(zod@3.24.2)))(react-dom@19.0.0(react@19.0.0))(react@19.0.0)(typescript@5.8.2)(use-sync-external-store@1.6.0(react@19.0.0))(utf-8-validate@6.0.4)(zod@3.24.2)
       '@statelyai/inspect':
         specifier: ^0.4.0
-        version: 0.4.0(ws@8.18.2(bufferutil@4.0.8)(utf-8-validate@6.0.4))(xstate@5.22.1)
+        version: 0.4.0(ws@8.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.4))(xstate@5.22.1)
       '@t3-oss/env-nextjs':
         specifier: ^0.12.0
         version: 0.12.0(typescript@5.8.2)(zod@3.24.2)
@@ -185,9 +188,6 @@ importers:
       '@acme/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/typescript
-      '@opennextjs/cloudflare':
-        specifier: ^1.19.11
-        version: 1.19.11(next@15.5.18(@opentelemetry/api@1.9.0)(@playwright/test@1.60.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0))(wrangler@4.95.0(bufferutil@4.0.8)(utf-8-validate@6.0.4))
       '@playwright/test':
         specifier: ^1.54.2
         version: 1.60.0
@@ -10644,10 +10644,10 @@ snapshots:
 
   '@standard-schema/utils@0.3.0': {}
 
-  '@statelyai/inspect@0.4.0(ws@8.18.2(bufferutil@4.0.8)(utf-8-validate@6.0.4))(xstate@5.22.1)':
+  '@statelyai/inspect@0.4.0(ws@8.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.4))(xstate@5.22.1)':
     dependencies:
       fast-safe-stringify: 2.1.1
-      isomorphic-ws: 5.0.0(ws@8.18.2(bufferutil@4.0.8)(utf-8-validate@6.0.4))
+      isomorphic-ws: 5.0.0(ws@8.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.4))
       partysocket: 0.0.25
       safe-stable-stringify: 2.5.0
       superjson: 1.13.3
@@ -12760,9 +12760,9 @@ snapshots:
 
   isexe@3.1.1: {}
 
-  isomorphic-ws@5.0.0(ws@8.18.2(bufferutil@4.0.8)(utf-8-validate@6.0.4)):
+  isomorphic-ws@5.0.0(ws@8.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.4)):
     dependencies:
-      ws: 8.18.2(bufferutil@4.0.8)(utf-8-validate@6.0.4)
+      ws: 8.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.4)
 
   isows@1.0.6(ws@8.18.0(bufferutil@4.0.8)(utf-8-validate@6.0.4)):
     dependencies:

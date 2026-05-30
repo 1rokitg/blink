@@ -9,6 +9,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowDown,
   ArrowDownRight,
+  ArrowLeft,
   ArrowRight,
   ArrowUp,
   ArrowUpRight,
@@ -39,6 +40,7 @@ import {
   Users,
   Wallet,
   X,
+  Zap,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
@@ -233,87 +235,186 @@ function ConnectGate() {
     }
   }, [authenticated, linkWallet, login]);
 
+  const marketChips = ["BTC", "ETH", "SOL", "HYPE"] as const;
+
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-6 py-10 text-foreground">
-      {/* Ambient background glows — matches trading terminal */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_25%_30%,rgba(44,107,255,0.22),transparent_48%),radial-gradient(circle_at_75%_20%,rgba(59,225,186,0.16),transparent_44%),radial-gradient(circle_at_50%_80%,rgba(35,73,168,0.14),transparent_50%)] blur-3xl" />
+    <main className="relative flex min-h-[100dvh] flex-col items-center justify-center overflow-hidden bg-[#060510] px-4 py-10 text-[#f2f4f7]">
+      <TradingIsland />
+
+      <div
+        className="pointer-events-none fixed inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 90% 70% at 50% 0%, rgba(44,107,255,0.22), transparent 60%), radial-gradient(ellipse 55% 45% at 12% 88%, rgba(59,225,186,0.1), transparent 55%), radial-gradient(ellipse 45% 40% at 88% 78%, rgba(125,90,255,0.12), transparent 50%)",
+        }}
+      />
+
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <motion.div
+          aria-hidden
+          className="absolute left-1/2 top-[18%] size-[520px] -translate-x-1/2 rounded-full bg-[#2c6bff]/20 blur-[100px]"
+          animate={{ opacity: [0.35, 0.65, 0.35], scale: [0.92, 1.05, 0.92] }}
+          transition={{ duration: 5, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+        />
+        <motion.div
+          aria-hidden
+          className="absolute bottom-[8%] right-[10%] size-[280px] rounded-full bg-[#3be1ba]/10 blur-[80px]"
+          animate={{ opacity: [0.2, 0.45, 0.2], x: [0, -18, 0] }}
+          transition={{ duration: 7, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+        />
       </div>
 
-      <div className="relative w-full max-w-[420px]">
-        {/* Wordmark */}
-        <Link href="/" className="mb-8 block">
-          <span className="text-4xl font-bold tracking-[-0.04em] text-white">
-            blink
-          </span>
-        </Link>
-
-        {/* Card */}
-        <div className="rounded-[24px] border border-white/[0.09] bg-[#080d1aee] p-8 shadow-[0_24px_64px_rgba(0,0,0,0.6),0_0_0_1px_rgba(255,255,255,0.04)] backdrop-blur-xl">
-          {/* Subtle inner glow */}
-          <div className="pointer-events-none absolute inset-0 rounded-[24px] bg-[radial-gradient(ellipse_at_top_left,rgba(44,107,255,0.08),transparent_55%)]" />
-
-          <h1 className="text-[2rem] font-semibold leading-tight tracking-[-0.03em] text-white">
-            {authenticated ? "Link wallet to trade." : "Sign in to trade."}
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-foreground/50">
-            {authenticated
-              ? "You're signed in, but Blink still needs your external wallet linked before trading."
-              : "Connect a non-custodial wallet to access Hyperliquid markets on Blink."}
-          </p>
-
-          <button
-            type="button"
-            disabled={connecting}
-            onClick={() => void handleConnect()}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-[14px] border border-white/[0.09] bg-white/[0.04] text-sm font-medium text-white/80 transition hover:border-white/[0.16] hover:bg-white/[0.07] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {connecting ? (
-              <Loader2 className="size-4 animate-spin text-white/55" />
-            ) : (
-              <Wallet className="size-4 text-white/55" />
-            )}
-            {authenticated ? "Link wallet" : "Connect wallet"}
-          </button>
-
-          {authenticated ? (
-            <button
-              type="button"
-              onClick={() => void logout()}
-              className="mt-3 w-full text-center text-xs text-foreground/40 transition hover:text-foreground/65"
-            >
-              Sign out and start over
-            </button>
-          ) : null}
-
-          {/* Feature pills */}
-          <div className="mt-6 grid grid-cols-3 gap-2">
-            {[
-              { icon: ShieldCheck, label: "Non-custodial" },
-              { icon: Wallet, label: "Embedded wallet" },
-              { icon: Sparkles, label: "Zero-fee markets" },
-            ].map(({ icon: Icon, label }) => (
-              <div
-                key={label}
-                className="flex flex-col items-center gap-1.5 rounded-[12px] border border-white/[0.06] bg-white/[0.025] px-2 py-3 text-center"
-              >
-                <Icon className="size-3.5 text-[#3be1ba]/80" />
-                <p className="text-[10px] leading-4 text-foreground/45">
-                  {label}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Back link */}
+      <div className="relative z-10 mb-6 flex w-full max-w-lg items-center justify-between">
         <Link
           href="/"
-          className="mt-5 block text-center text-xs text-foreground/35 transition hover:text-foreground/60"
+          className="text-sm font-semibold tracking-[-0.03em] text-white/80 transition hover:text-white"
         >
-          ← Back to landing
+          blink
         </Link>
+        <span className="inline-flex items-center gap-2 rounded-full border border-[#3be1ba]/25 bg-[#3be1ba]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#8ef5dc]">
+          <span className="relative flex size-1.5">
+            <span className="absolute inline-flex size-full animate-ping rounded-full bg-[#3be1ba] opacity-60" />
+            <span className="relative inline-flex size-1.5 rounded-full bg-[#3be1ba]" />
+          </span>
+          Live perps
+        </span>
       </div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 18, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.45, ease: "easeOut" }}
+        className="relative z-10 w-full max-w-lg shadow-[0_0_80px_rgba(44,107,255,0.2)]"
+      >
+        <div className="pointer-events-none absolute -inset-3 rounded-[30px] bg-[radial-gradient(circle,rgba(44,107,255,0.28),transparent_68%)] blur-2xl" />
+        <div className="pointer-events-none absolute -inset-px rounded-[26px] border border-[#5b8fff40] shadow-[0_0_40px_6px_rgba(44,107,255,0.18)]" />
+
+        <div className="relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-[#0a0918]/92 backdrop-blur-xl">
+          <div className="onboarding-hero relative h-36 border-b border-white/10 px-6 py-5">
+            <div className="relative z-10 flex h-full flex-col justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#b8d8ff]/80">
+                Hyperliquid · Builder routed
+              </p>
+              <div className="flex items-end justify-between gap-3">
+                <motion.p
+                  className="text-5xl font-bold tracking-[-0.05em] text-[#8af2df]"
+                  animate={{ opacity: [1, 0.82, 1] }}
+                  transition={{ duration: 2.4, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+                >
+                  Blink!
+                </motion.p>
+                <motion.div
+                  aria-hidden
+                  className="text-4xl"
+                  animate={{ scale: [1, 1.08, 1] }}
+                  transition={{ duration: 1.8, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+                >
+                  👀
+                </motion.div>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-6 sm:p-8">
+            <div className="mb-5 flex flex-wrap gap-2">
+              {marketChips.map((coin) => (
+                <span
+                  key={coin}
+                  className="rounded-full border border-[#4a7fff30] bg-[#2c6bff]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#9ec0ff]"
+                >
+                  {coin}
+                </span>
+              ))}
+            </div>
+
+            <h1 className="text-[2rem] font-bold leading-[1.05] tracking-[-0.04em] text-white sm:text-[2.35rem]">
+              {authenticated ? "Link wallet." : "Enter the floor."}
+            </h1>
+            <p className="mt-3 max-w-md text-sm leading-6 text-white/50">
+              {authenticated
+                ? "You're signed in — link your wallet once to unlock one-click perps on Blink."
+                : "Connect in one tap. Self-custody execution on Hyperliquid — no custody, no friction."}
+            </p>
+
+            <div className="relative mt-8">
+              <motion.div
+                aria-hidden
+                className="pointer-events-none absolute -inset-2 rounded-[22px] bg-[radial-gradient(circle,rgba(45,114,255,0.55),transparent_70%)] blur-xl"
+                animate={{ opacity: [0.45, 0.85, 0.45] }}
+                transition={{ duration: 2.2, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+              />
+              <div className="pointer-events-none absolute -inset-px rounded-[18px] border border-[#6fa8ff55] shadow-[0_0_28px_4px_rgba(44,107,255,0.35)]" />
+              <button
+                type="button"
+                disabled={connecting}
+                onClick={() => void handleConnect()}
+                className="relative flex h-14 w-full items-center justify-center gap-2.5 rounded-[18px] bg-[linear-gradient(180deg,#3c76ff_0%,#2457db_100%)] text-base font-bold tracking-[-0.02em] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_18px_50px_rgba(37,90,224,0.45)] transition hover:brightness-110 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-65"
+              >
+                {connecting ? (
+                  <Loader2 className="size-5 animate-spin" />
+                ) : (
+                  <Wallet className="size-5" />
+                )}
+                {authenticated ? "Link wallet" : "Connect wallet"}
+              </button>
+            </div>
+
+            {!authenticated ? (
+              <p className="mt-3 text-center text-xs text-white/35">
+                One tap · Embedded or external wallet · Hyperliquid mainnet
+              </p>
+            ) : null}
+
+            {authenticated ? (
+              <button
+                type="button"
+                onClick={() => void logout()}
+                className="mt-4 w-full text-center text-xs text-white/35 transition hover:text-white/60"
+              >
+                Sign out and start over
+              </button>
+            ) : null}
+
+            <div className="mt-7 grid grid-cols-3 gap-2">
+              {[
+                { icon: ShieldCheck, label: "Non-custodial", tone: "teal" as const },
+                { icon: Zap, label: "One-click fills", tone: "blue" as const },
+                { icon: Sparkles, label: "Zero-fee markets", tone: "gold" as const },
+              ].map(({ icon: Icon, label, tone }) => (
+                <div
+                  key={label}
+                  className={`flex flex-col items-center gap-1.5 rounded-[14px] border px-2 py-3 text-center ${
+                    tone === "teal"
+                      ? "border-[#3be1ba]/20 bg-[#3be1ba]/[0.06] shadow-[0_0_20px_rgba(59,225,186,0.08)]"
+                      : tone === "blue"
+                        ? "border-[#4a7fff]/25 bg-[#2c6bff]/[0.08] shadow-[0_0_20px_rgba(44,107,255,0.12)]"
+                        : "border-[#ffd166]/20 bg-[#ffd166]/[0.06] shadow-[0_0_20px_rgba(255,209,102,0.08)]"
+                  }`}
+                >
+                  <Icon
+                    className={`size-3.5 ${
+                      tone === "teal"
+                        ? "text-[#3be1ba]"
+                        : tone === "blue"
+                          ? "text-[#7ea9ff]"
+                          : "text-[#ffd166]"
+                    }`}
+                  />
+                  <p className="text-[10px] leading-4 text-white/55">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </motion.div>
+
+      <Link
+        href="/"
+        className="relative z-10 mt-8 inline-flex items-center gap-1 text-sm text-white/40 transition hover:text-white/70"
+      >
+        <ArrowLeft className="size-3.5" />
+        Back to landing
+      </Link>
     </main>
   );
 }

@@ -118,7 +118,7 @@ export function ProprFundedCta(props: {
               rel="noreferrer"
               className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-2xl border border-[#ffd166]/35 bg-[linear-gradient(180deg,#ffd166_0%,#e6a800_100%)] px-5 text-sm font-bold tracking-[-0.02em] text-[#1a1200] shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_16px_40px_rgba(255,209,102,0.28)] transition hover:brightness-110"
             >
-              Start Propr challenge
+              Funded Accounts
               <ArrowUpRight className="size-4" />
             </a>
             <a

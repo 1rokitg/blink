@@ -36,7 +36,7 @@ import {
   internalPanelInsetClass,
 } from "./internal-dashboard-primitives";
 
-type StatusFilter = "all" | "active" | "ended" | "gift" | "paid";
+type StatusFilter = "all" | "active" | "trial" | "ended" | "gift" | "paid";
 type TierFilter = "all" | "basic" | "preferred" | "premium";
 
 function formatMoney(value: number) {
@@ -77,6 +77,8 @@ function lifecycleBadgeClass(lifecycle: MembershipLifecycle) {
   switch (lifecycle) {
     case "active":
       return "border-emerald-400/35 bg-emerald-400/10 text-emerald-300";
+    case "trial":
+      return "border-sky-400/35 bg-sky-400/10 text-sky-200";
     case "expires_soon":
       return "border-amber-400/35 bg-amber-400/10 text-amber-200";
     case "gift":
@@ -89,7 +91,8 @@ function lifecycleBadgeClass(lifecycle: MembershipLifecycle) {
   }
 }
 
-function paymentLabel(method: string) {
+function paymentLabel(method: string, isTrial: boolean) {
+  if (isTrial) return "Trial";
   if (method === "gift") return "Gift";
   if (method === "crypto") return "Crypto";
   if (method === "card") return "Card";
@@ -102,10 +105,11 @@ function matchesStatusFilter(
 ) {
   if (filter === "all") return true;
   if (filter === "active") return row.isActive;
+  if (filter === "trial") return row.isTrial;
   if (filter === "ended") return !row.isActive;
   if (filter === "gift") return row.paymentMethod === "gift";
   if (filter === "paid") {
-    return row.paymentMethod !== "gift" && row.isActive;
+    return row.paymentMethod !== "gift" && row.isActive && !row.isTrial;
   }
   return true;
 }
@@ -165,6 +169,7 @@ export function InternalMembershipsPanel(props: {
     total: 0,
     active: 0,
     paying: 0,
+    trials: 0,
     gifted: 0,
     mrrUsd: 0,
   });
@@ -221,6 +226,7 @@ export function InternalMembershipsPanel(props: {
   const filterChips: Array<{ id: StatusFilter; label: string }> = [
     { id: "all", label: "All" },
     { id: "active", label: "Active" },
+    { id: "trial", label: "Trials" },
     { id: "paid", label: "Paying" },
     { id: "gift", label: "Gifted" },
     { id: "ended", label: "Ended" },
@@ -235,9 +241,9 @@ export function InternalMembershipsPanel(props: {
               Memberships
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-white/50">
-              Blink Pro entitlements from Neon — paid Stripe subscriptions and
-              superuser gifts. Search, filter, and open a wallet in the user
-              console to adjust access.
+              Blink Pro entitlements from Neon — Stripe trials (7-day checkout),
+              paid subscriptions, and superuser gifts. Search, filter, and open a
+              wallet in the user console to adjust access.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -273,19 +279,20 @@ export function InternalMembershipsPanel(props: {
         ) : null}
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <InternalStatCard label="Total" value={summary.total} />
         <InternalStatCard
           label="Active"
           value={summary.active}
           tone="positive"
         />
+        <InternalStatCard label="Trials" value={summary.trials} />
         <InternalStatCard label="Paying" value={summary.paying} />
         <InternalStatCard label="Gifted" value={summary.gifted} />
         <InternalStatCard
           label="Est. MRR"
           value={formatMoney(summary.mrrUsd)}
-          hint="Paying active only"
+          hint="Paying only (excludes trials)"
         />
       </div>
 
@@ -427,7 +434,7 @@ export function InternalMembershipsPanel(props: {
                         </Badge>
                       </td>
                       <td className="px-4 py-3 text-white/80">
-                        {row.paymentMethod === "gift"
+                        {row.paymentMethod === "gift" || row.isTrial
                           ? "—"
                           : formatMoney(row.totalSpendUsd)}
                       </td>
@@ -447,7 +454,7 @@ export function InternalMembershipsPanel(props: {
                       </td>
                       <td className="px-4 py-3">
                         <span className={internalLabelClass}>
-                          {paymentLabel(row.paymentMethod)}
+                          {paymentLabel(row.paymentMethod, row.isTrial)}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-right">

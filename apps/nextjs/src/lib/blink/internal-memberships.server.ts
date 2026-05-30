@@ -24,8 +24,13 @@ const PRO_YEARLY_USD: Record<string, number> = {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** First billing period length for Stripe checkout trials (`trial_period_days: 7`). */
+const STRIPE_TRIAL_MIN_DAYS = 4;
+const STRIPE_TRIAL_MAX_DAYS = 10;
+
 export type MembershipLifecycle =
   | "active"
+  | "trial"
   | "expires_soon"
   | "gift"
   | "lifetime"
@@ -51,15 +56,53 @@ export type InternalMembershipRow = {
   updatedAt: string | null;
   canceledAt: string | null;
   isActive: boolean;
+  isTrial: boolean;
 };
 
 export type InternalMembershipSummary = {
   total: number;
   active: number;
   paying: number;
+  trials: number;
   gifted: number;
   mrrUsd: number;
 };
+
+export function isStripeTrialMembership(membership: {
+  status: string;
+  paymentMethod: string;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  createdAt: Date;
+  currentPeriodEnd: Date | null;
+}) {
+  if (membership.paymentMethod === "gift") return false;
+
+  const normalizedStatus = membership.status.trim().toLowerCase();
+  if (normalizedStatus === "trialing") return true;
+
+  const periodEnd = membership.currentPeriodEnd;
+  if (!periodEnd || normalizedStatus !== "active") return false;
+
+  const hasStripe =
+    Boolean(membership.stripeSubscriptionId) ||
+    Boolean(membership.stripeCustomerId);
+  if (!hasStripe) return false;
+
+  const periodDays =
+    (periodEnd.getTime() - membership.createdAt.getTime()) / DAY_MS;
+
+  return (
+    periodDays >= STRIPE_TRIAL_MIN_DAYS &&
+    periodDays <= STRIPE_TRIAL_MAX_DAYS &&
+    periodEnd.getTime() > Date.now()
+  );
+}
+
+export function isMembershipEntitledStatus(status: string) {
+  const normalized = status.trim().toLowerCase();
+  return normalized === "active" || normalized === "trialing";
+}
 
 function tierProductLabel(tier: string) {
   const normalized = tier.trim().toLowerCase();
@@ -86,11 +129,15 @@ function inferBillingIntervalMonths(
 
 export function estimateMembershipMonthlyUsd(membership: {
   tier: string;
+  status: string;
   paymentMethod: string;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
   createdAt: Date;
   currentPeriodEnd: Date | null;
 }) {
   if (membership.paymentMethod === "gift") return 0;
+  if (isStripeTrialMembership(membership)) return 0;
 
   const tier = membership.tier.toLowerCase();
   const monthly = PRO_MONTHLY_USD[tier] ?? 0;
@@ -171,13 +218,15 @@ function formatRelativePast(targetMs: number, nowMs: number) {
 export function describeMembershipLifecycle(membership: {
   status: string;
   paymentMethod: string;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+  createdAt: Date;
   currentPeriodEnd: Date | null;
 }): { lifecycle: MembershipLifecycle; statusLabel: string; isActive: boolean } {
   const now = Date.now();
   const periodEndMs = membership.currentPeriodEnd?.getTime() ?? null;
   const isPeriodActive = periodEndMs === null || periodEndMs > now;
-  const isActive =
-    membership.status === "active" && isPeriodActive;
+  const isActive = isMembershipEntitledStatus(membership.status) && isPeriodActive;
 
   if (membership.paymentMethod === "gift") {
     if (isLifetimePeriodEnd(membership.currentPeriodEnd)) {
@@ -201,6 +250,28 @@ export function describeMembershipLifecycle(membership: {
       statusLabel: periodEndMs
         ? `Gift ended ${formatRelativePast(periodEndMs, now)}`
         : "Gift ended",
+      isActive: false,
+    };
+  }
+
+  const isTrial = isStripeTrialMembership(membership);
+
+  if (isTrial && isActive) {
+    return {
+      lifecycle: "trial",
+      statusLabel: periodEndMs
+        ? `Trial · ${formatRelativeFuture(periodEndMs, now)} left`
+        : "Trial",
+      isActive: true,
+    };
+  }
+
+  if (isTrial && !isActive) {
+    return {
+      lifecycle: "ended",
+      statusLabel: periodEndMs
+        ? `Trial ended ${formatRelativePast(periodEndMs, now)}`
+        : "Trial ended",
       isActive: false,
     };
   }
@@ -299,13 +370,24 @@ export async function listInternalMembershipRows(): Promise<{
   );
 
   const rows: InternalMembershipRow[] = membershipRows.map((row) => {
+    const createdAt = row.createdAt;
+    const isTrial = isStripeTrialMembership({
+      status: row.status,
+      paymentMethod: row.paymentMethod,
+      stripeCustomerId: row.stripeCustomerId,
+      stripeSubscriptionId: row.stripeSubscriptionId,
+      createdAt,
+      currentPeriodEnd: row.currentPeriodEnd,
+    });
     const lifecycle = describeMembershipLifecycle({
       status: row.status,
       paymentMethod: row.paymentMethod,
+      stripeCustomerId: row.stripeCustomerId,
+      stripeSubscriptionId: row.stripeSubscriptionId,
+      createdAt,
       currentPeriodEnd: row.currentPeriodEnd,
     });
 
-    const createdAt = row.createdAt;
     const isEnded = !lifecycle.isActive;
 
     return {
@@ -314,37 +396,48 @@ export async function listInternalMembershipRows(): Promise<{
       profileSlug: codeByWallet.get(row.walletAddress) ?? null,
       twitterUsername: twitterByWallet.get(row.walletAddress) ?? null,
       tier: row.tier,
-      productLabel: tierProductLabel(row.tier),
+      productLabel: isTrial
+        ? `${tierProductLabel(row.tier)} · Trial`
+        : tierProductLabel(row.tier),
       status: row.status,
       lifecycle: lifecycle.lifecycle,
       statusLabel: lifecycle.statusLabel,
       paymentMethod: row.paymentMethod,
       stripeCustomerId: row.stripeCustomerId,
       stripeSubscriptionId: row.stripeSubscriptionId,
-      totalSpendUsd: estimateMembershipTotalSpendUsd({
-        tier: row.tier,
-        paymentMethod: row.paymentMethod,
-        createdAt,
-        currentPeriodEnd: row.currentPeriodEnd,
-        status: row.status,
-      }),
+      totalSpendUsd: isTrial
+        ? 0
+        : estimateMembershipTotalSpendUsd({
+            tier: row.tier,
+            paymentMethod: row.paymentMethod,
+            createdAt,
+            currentPeriodEnd: row.currentPeriodEnd,
+            status: row.status,
+          }),
       createdAt: createdAt.toISOString(),
       currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
       updatedAt: row.updatedAt?.toISOString() ?? null,
       canceledAt: isEnded ? (row.updatedAt?.toISOString() ?? null) : null,
       isActive: lifecycle.isActive,
+      isTrial,
     };
   });
 
   const activeRows = rows.filter((row) => row.isActive);
-  const payingRows = activeRows.filter((row) => row.paymentMethod !== "gift");
+  const trialRows = activeRows.filter((row) => row.isTrial);
+  const payingRows = activeRows.filter(
+    (row) => row.paymentMethod !== "gift" && !row.isTrial,
+  );
   const giftedRows = activeRows.filter((row) => row.paymentMethod === "gift");
   const mrrUsd = payingRows.reduce(
     (sum, row) =>
       sum +
       estimateMembershipMonthlyUsd({
         tier: row.tier,
+        status: row.status,
         paymentMethod: row.paymentMethod,
+        stripeCustomerId: row.stripeCustomerId,
+        stripeSubscriptionId: row.stripeSubscriptionId,
         createdAt: new Date(row.createdAt),
         currentPeriodEnd: row.currentPeriodEnd
           ? new Date(row.currentPeriodEnd)
@@ -359,6 +452,7 @@ export async function listInternalMembershipRows(): Promise<{
       total: rows.length,
       active: activeRows.length,
       paying: payingRows.length,
+      trials: trialRows.length,
       gifted: giftedRows.length,
       mrrUsd,
     },

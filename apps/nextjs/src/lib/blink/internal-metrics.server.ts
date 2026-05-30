@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, sql } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
 import {
@@ -154,7 +154,7 @@ async function getActiveProSet() {
     .from(BlinkMembership)
     .where(
       and(
-        eq(BlinkMembership.status, "active"),
+        inArray(BlinkMembership.status, ["active", "trialing"]),
         gte(BlinkMembership.currentPeriodEnd, new Date()),
       ),
     );

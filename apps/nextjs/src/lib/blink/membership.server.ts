@@ -1,4 +1,4 @@
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, inArray } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
 import { BlinkMembership } from "@acme/db/schema";
@@ -27,7 +27,7 @@ export async function isWalletBlinkPro(walletAddress: string) {
       .where(
         and(
           eq(BlinkMembership.walletAddress, normalized),
-          eq(BlinkMembership.status, "active"),
+          inArray(BlinkMembership.status, ["active", "trialing"]),
           gt(BlinkMembership.currentPeriodEnd, new Date()),
         ),
       )

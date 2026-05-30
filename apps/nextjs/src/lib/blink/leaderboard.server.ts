@@ -177,7 +177,7 @@ async function getActiveProSet() {
     .from(BlinkMembership)
     .where(
       and(
-        eq(BlinkMembership.status, "active"),
+        inArray(BlinkMembership.status, ["active", "trialing"]),
         gte(BlinkMembership.currentPeriodEnd, new Date()),
       ),
     );

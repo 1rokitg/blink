@@ -8,6 +8,10 @@ import {
 } from "@acme/db/schema";
 
 import {
+  isMembershipEntitledStatus,
+  isStripeTrialMembership,
+} from "./internal-memberships.server";
+import {
   isLifetimeMetricsWindow,
   type MetricsWindowDays,
 } from "./metrics-window";
@@ -30,11 +34,15 @@ function toDayKey(date: Date) {
 
 function estimateMonthlyRevenueUsd(membership: {
   tier: string;
+  status: string;
   paymentMethod: string;
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
   createdAt: Date;
   currentPeriodEnd: Date | null;
 }) {
   if (membership.paymentMethod === "gift") return 0;
+  if (isStripeTrialMembership(membership)) return 0;
 
   const tier = membership.tier.toLowerCase();
   const monthly = PRO_MONTHLY_USD[tier] ?? 0;
@@ -153,6 +161,8 @@ export async function getGrowthMetrics(
         tier: BlinkMembership.tier,
         status: BlinkMembership.status,
         paymentMethod: BlinkMembership.paymentMethod,
+        stripeCustomerId: BlinkMembership.stripeCustomerId,
+        stripeSubscriptionId: BlinkMembership.stripeSubscriptionId,
         createdAt: BlinkMembership.createdAt,
         updatedAt: BlinkMembership.updatedAt,
         currentPeriodEnd: BlinkMembership.currentPeriodEnd,
@@ -216,13 +226,13 @@ export async function getGrowthMetrics(
     .map(([day, values]) => ({ day, ...values }));
 
   const activeMemberships = memberships.filter((row) => {
-    if (row.status !== "active") return false;
+    if (!isMembershipEntitledStatus(row.status)) return false;
     if (!row.currentPeriodEnd) return true;
     return row.currentPeriodEnd.getTime() > now;
   });
 
   const payingPro = activeMemberships.filter(
-    (row) => row.paymentMethod !== "gift",
+    (row) => row.paymentMethod !== "gift" && !isStripeTrialMembership(row),
   );
   const giftedPro = activeMemberships.filter(
     (row) => row.paymentMethod === "gift",

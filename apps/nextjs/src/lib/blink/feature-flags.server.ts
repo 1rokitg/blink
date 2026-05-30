@@ -39,7 +39,7 @@ export async function getFeatureFlags() {
             ? "Apply discounted Blink Pro pricing."
             : "Increase referral reward multipliers."),
     updatedBy: byKey.get(key)?.updatedBy ?? null,
-    updatedAt: byKey.get(key)?.updatedAt ?? null,
+    updatedAt: byKey.get(key)?.updatedAt?.toISOString() ?? null,
   }));
 }
 

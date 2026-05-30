@@ -1311,7 +1311,7 @@ export function AdminDashboard(props?: {
                                           ...f,
                                           enabled: nextValue,
                                           updatedBy: walletAddress,
-                                          updatedAt: new Date(),
+                                          updatedAt: new Date().toISOString(),
                                         }
                                       : f,
                                   ),

@@ -215,7 +215,7 @@ export interface AdminStats {
     enabled: boolean;
     description: string;
     updatedBy: string | null;
-    updatedAt: Date | null;
+    updatedAt: string | null;
   }>;
   growth: GrowthMetrics;
 }
@@ -231,10 +231,17 @@ export async function getAdminStats(options?: {
   const canonicalWindowDays = 2;
 
   if (options?.syncHyperliquid) {
-    await Promise.all([
-      syncBuilderDailyMetrics(canonicalWindowDays),
-      syncRecentBuilderApprovalsFromChain({ lookbackDays: 7, maxWallets: 80 }),
-    ]);
+    try {
+      await Promise.all([
+        syncBuilderDailyMetrics(canonicalWindowDays),
+        syncRecentBuilderApprovalsFromChain({
+          lookbackDays: 7,
+          maxWallets: 80,
+        }),
+      ]);
+    } catch (error) {
+      console.error("[admin] hyperliquid sync failed", error);
+    }
   }
 
   const now = Date.now();

@@ -167,7 +167,20 @@ export async function getGrowthMetrics(
         updatedAt: BlinkMembership.updatedAt,
         currentPeriodEnd: BlinkMembership.currentPeriodEnd,
       })
-      .from(BlinkMembership),
+      .from(BlinkMembership)
+      .catch((error) => {
+        console.error("[growth-metrics] blink_membership query failed", error);
+        return [] as Array<{
+          tier: string;
+          status: string;
+          paymentMethod: string;
+          stripeCustomerId: string | null;
+          stripeSubscriptionId: string | null;
+          createdAt: Date;
+          updatedAt: Date | null;
+          currentPeriodEnd: Date | null;
+        }>;
+      }),
   ]);
 
   const dayMap = new Map<

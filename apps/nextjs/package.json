@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "next build",
+    "build:cloudflare": "opennextjs-cloudflare build",
+    "deploy:cloudflare": "wrangler deploy",
+    "preview:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "build:local": "pnpm with-env next build",
     "clean": "git clean -xdf .cache .next .turbo node_modules",
     "dev": "pnpm with-env next dev --turbopack",
@@ -58,6 +61,7 @@
   "devDependencies": {
     "@acme/tailwind-config": "workspace:*",
     "@acme/tsconfig": "workspace:*",
+    "@opennextjs/cloudflare": "^1.19.11",
     "@playwright/test": "^1.54.2",
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^22.13.11",
@@ -68,6 +72,7 @@
     "i": "^0.3.7",
     "jiti": "^1.21.7",
     "tailwindcss": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "wrangler": "^4.95.0"
   }
 }

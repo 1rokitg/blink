@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 import createJiti from "jiti";
 import { withBotId } from "botid/next/config";
 
@@ -28,3 +29,5 @@ const config = {
 };
 
 export default withBotId(config);
+
+initOpenNextCloudflareForDev();

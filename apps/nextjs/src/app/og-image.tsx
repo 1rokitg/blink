@@ -3,7 +3,7 @@
 // This file is kept to avoid 404s from any cached references to /og-image.
 import { ImageResponse } from "next/og";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const size = {
   width: 1200,
   height: 630,

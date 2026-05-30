@@ -8,6 +8,8 @@
   "packageManager": "pnpm@10.6.3",
   "scripts": {
     "build": "turbo run build",
+    "build:cloudflare": "turbo run build --filter=@acme/nextjs^... && pnpm --filter @acme/nextjs build:cloudflare",
+    "deploy:cloudflare": "pnpm --filter @acme/nextjs run deploy:cloudflare",
     "clean": "git clean -xdf node_modules",
     "clean:workspaces": "turbo run clean",
     "db:push": "turbo -F @acme/db push",

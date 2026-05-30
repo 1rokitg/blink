@@ -95,6 +95,15 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
     /** Growth campaign mode toggle. When enabled, activates growth-specific perks. */
     NEXT_PUBLIC_GROWTH_MODE: z.enum(["0", "1"]).default("0"),
+    /** Public Privy App ID used by the web client for wallet auth. */
+    NEXT_PUBLIC_PRIVY_APP_ID: z.preprocess(
+      emptyStringToUndefined,
+      z
+        .string()
+        .min(12)
+        .regex(/^[^\s"'`]+$/)
+        .default("cmphrowed00j20cjuned0ftmt"),
+    ),
   },
   /**
    * Destructure all variables from `process.env` to make sure they aren't tree-shaken away.
@@ -105,6 +114,7 @@ export const env = createEnv({
     NEXT_PUBLIC_BUILDER_FEE_BPS: process.env.NEXT_PUBLIC_BUILDER_FEE_BPS,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_GROWTH_MODE: process.env.NEXT_PUBLIC_GROWTH_MODE,
+    NEXT_PUBLIC_PRIVY_APP_ID: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
   },
   // Do not skip validation when CI=1 (Cloudflare/Vercel builds). Skipping drops Zod
   // defaults and leaves NEXT_PUBLIC_* undefined, which crashes module init.

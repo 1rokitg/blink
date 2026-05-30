@@ -298,6 +298,7 @@ export default function RewardsPage() {
                 label: "Profile",
               },
               { href: "/rewards", label: "Rewards", active: true },
+              { href: "/invest", label: "Invest" },
             ].map((item) => (
               <Link
                 key={item.href}

@@ -3694,7 +3694,8 @@ export function TerminalShell(props: { market: string }) {
 
         <div className="min-w-0 flex-1">
           {/* ── Top header row — centered search with iOS glow ── */}
-          <div className="mb-3 flex h-[68px] items-center justify-center">
+          <div className="mb-3 flex h-[68px] items-center justify-between gap-3">
+            <div className="hidden w-[72px] shrink-0 sm:block" aria-hidden />
             <div className="relative w-full max-w-md">
               {/* Ambient glow layer */}
               <div className="pointer-events-none absolute -inset-[3px] rounded-[18px] bg-[radial-gradient(ellipse_at_center,rgba(99,153,255,0.18)_0%,transparent_70%)] blur-[6px]" />
@@ -3716,6 +3717,12 @@ export function TerminalShell(props: { market: string }) {
                 </kbd>
               </button>
             </div>
+            <Link
+              href="/invest"
+              className="shrink-0 rounded-[10px] px-3 py-2 text-sm font-medium text-white/45 transition hover:text-white/75"
+            >
+              Invest
+            </Link>
           </div>
 
           <MarketInfoBar

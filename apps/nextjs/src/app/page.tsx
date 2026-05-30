@@ -85,6 +85,12 @@ export default function HomePage() {
             </span>
           </span>
         </Link>
+        <Link
+          href="/invest"
+          className="mt-2 text-sm text-[#8fb9ff] underline-offset-4 transition hover:text-[#b8d3ff] hover:underline"
+        >
+          Investor brief
+        </Link>
         <a
           href="https://rokitg.fun"
           target="_blank"

@@ -1,14 +1,16 @@
 # Cloudflare Workers Builds (root directory: apps/nextjs)
 #   Build command:  pnpm run build
-#   Deploy command: npx wrangler deploy
+#   Deploy command: npx wrangler deploy --minify
 #
-# `pnpm run build` runs OpenNext on CI; OpenNext internally calls `pnpm build`
-# again, which must run only `next build` (see scripts/build.mjs).
+# Env vars + secrets: set in Cloudflare dashboard only (Settings → Variables).
+# Do NOT commit [vars] here — deploy overwrites dashboard config with wrangler.toml.
 
 name = "blink"
 main = ".open-next/worker.js"
-compatibility_date = "2024-12-30"
+compatibility_date = "2026-05-30"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+workers_dev = false
+preview_urls = false
 
 [assets]
 directory = ".open-next/assets"
@@ -18,11 +20,8 @@ binding = "ASSETS"
 binding = "WORKER_SELF_REFERENCE"
 service = "blink"
 
-# Set secrets in the Cloudflare dashboard (Build + Production):
-#   POSTGRES_URL, BETTER_AUTH_SECRET, STRIPE_SECRET_KEY, TWITTER_CLIENT_SECRET
-[vars]
-NEXT_PUBLIC_APP_URL = "https://blink.lat"
-NEXT_PUBLIC_BUILDER_ADDRESS = "0xc7BcB2EeE9BbFbf875499960746Bc52B2E1A75C6"
-NEXT_PUBLIC_BUILDER_FEE_BPS = "100"
-NEXT_PUBLIC_PRIVY_APP_ID = "cmphrowed00j20cjuned0ftmt"
-NEXT_PUBLIC_GROWTH_MODE = "0"
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true

@@ -1,10 +1,12 @@
-# Root wrangler config for Cloudflare Workers Builds (repo root deploy command).
-# Points at the OpenNext bundle produced under apps/nextjs.
+# Monorepo root deploy config (if deploy runs from repo root).
+# Prefer deploying from apps/nextjs with apps/nextjs/wrangler.toml.
 
 name = "blink"
 main = "apps/nextjs/.open-next/worker.js"
-compatibility_date = "2024-12-30"
+compatibility_date = "2026-05-30"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
+workers_dev = false
+preview_urls = false
 
 [assets]
 directory = "apps/nextjs/.open-next/assets"
@@ -14,9 +16,8 @@ binding = "ASSETS"
 binding = "WORKER_SELF_REFERENCE"
 service = "blink"
 
-[vars]
-NEXT_PUBLIC_APP_URL = "https://blink.lat"
-NEXT_PUBLIC_BUILDER_ADDRESS = "0xc7BcB2EeE9BbFbf875499960746Bc52B2E1A75C6"
-NEXT_PUBLIC_BUILDER_FEE_BPS = "100"
-NEXT_PUBLIC_PRIVY_APP_ID = "cmphrowed00j20cjuned0ftmt"
-NEXT_PUBLIC_GROWTH_MODE = "0"
+[observability]
+enabled = true
+
+[observability.logs]
+enabled = true

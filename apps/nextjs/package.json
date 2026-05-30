@@ -7,7 +7,7 @@
     "build": "node scripts/build.mjs",
     "build:next": "next build",
     "build:cloudflare": "opennextjs-cloudflare build",
-    "deploy:cloudflare": "wrangler deploy",
+    "deploy:cloudflare": "wrangler deploy --minify",
     "preview:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "build:local": "pnpm with-env next build",
     "clean": "git clean -xdf .cache .next .turbo node_modules",

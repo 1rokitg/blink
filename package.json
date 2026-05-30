@@ -7,7 +7,7 @@
   },
   "packageManager": "pnpm@10.6.3",
   "scripts": {
-    "build": "turbo run build",
+    "build": "node scripts/workers-build.mjs",
     "build:cloudflare": "turbo run build --filter=@acme/nextjs^... && pnpm --filter @acme/nextjs build:cloudflare",
     "deploy:cloudflare": "pnpm --filter @acme/nextjs run deploy:cloudflare",
     "clean": "git clean -xdf node_modules",
@@ -29,7 +29,8 @@
     "@biomejs/biome": "^1.9.3",
     "@turbo/gen": "^2.5.6",
     "turbo": "^2.5.6",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "wrangler": "^4.95.0"
   },
   "dependencies": {
     "@xstate/store": "^3.9.3"

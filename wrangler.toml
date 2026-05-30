@@ -1,21 +1,19 @@
-# Cloudflare Workers config for @opennextjs/cloudflare (must live in the Next.js app root).
-# Workers Builds can also deploy from the monorepo root via ../../wrangler.toml.
+# Root wrangler config for Cloudflare Workers Builds (repo root deploy command).
+# Points at the OpenNext bundle produced under apps/nextjs.
 
 name = "blink"
-main = ".open-next/worker.js"
+main = "apps/nextjs/.open-next/worker.js"
 compatibility_date = "2024-12-30"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 
 [assets]
-directory = ".open-next/assets"
+directory = "apps/nextjs/.open-next/assets"
 binding = "ASSETS"
 
 [[services]]
 binding = "WORKER_SELF_REFERENCE"
 service = "blink"
 
-# Set secrets in the Cloudflare dashboard (Build + Production):
-#   POSTGRES_URL, BETTER_AUTH_SECRET, STRIPE_SECRET_KEY, TWITTER_CLIENT_SECRET
 [vars]
 NEXT_PUBLIC_APP_URL = "https://blink.lat"
 NEXT_PUBLIC_BUILDER_ADDRESS = "0xc7BcB2EeE9BbFbf875499960746Bc52B2E1A75C6"

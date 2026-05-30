@@ -1,8 +1,9 @@
 # Monorepo root deploy config (if deploy runs from repo root).
 # Prefer deploying from apps/nextjs with apps/nextjs/wrangler.toml.
 
-name = "blink"
+name = "blinkperps"
 main = "apps/nextjs/.open-next/worker.js"
+keep_names = false
 compatibility_date = "2026-05-30"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 workers_dev = false
@@ -14,7 +15,7 @@ binding = "ASSETS"
 
 [[services]]
 binding = "WORKER_SELF_REFERENCE"
-service = "blink"
+service = "blinkperps"
 
 [observability]
 enabled = true

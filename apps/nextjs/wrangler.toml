@@ -5,12 +5,18 @@
 # Env vars + secrets: set in Cloudflare dashboard only (Settings → Variables).
 # Do NOT commit [vars] here — deploy overwrites dashboard config with wrangler.toml.
 
-name = "blink"
+name = "blinkperps"
 main = ".open-next/worker.js"
+# Avoid esbuild keepNames injecting __name (breaks client eval on Workers)
+keep_names = false
 compatibility_date = "2026-05-30"
 compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 workers_dev = false
 preview_urls = false
+
+[[routes]]
+pattern = "blinkperps.xyz"
+custom_domain = true
 
 [assets]
 directory = ".open-next/assets"
@@ -18,7 +24,7 @@ binding = "ASSETS"
 
 [[services]]
 binding = "WORKER_SELF_REFERENCE"
-service = "blink"
+service = "blinkperps"
 
 [observability]
 enabled = true

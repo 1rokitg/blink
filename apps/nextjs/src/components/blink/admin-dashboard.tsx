@@ -351,7 +351,7 @@ export function AdminDashboard(props?: {
       skipInitialOverviewFetchRef.current = false;
       return;
     }
-    void fetchStats({ syncHyperliquid: true, includeAttribution: true });
+    void fetchStats({ syncHyperliquid: false, includeAttribution: true });
   }, [currentSection, fetchStats, isAllowed]);
 
   useEffect(() => {

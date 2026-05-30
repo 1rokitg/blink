@@ -51,6 +51,13 @@ type BuilderFillRow = {
 type SyncFreshness = "fresh" | "stale" | "unknown";
 type LiveActivityEventType = "signup" | "builder_approved" | "trading_enabled" | "first_trade";
 
+/** Workers time out when fanning out HL fills for hundreds of wallets per request. */
+const MAX_HYPERLIQUID_WALLETS_PER_REQUEST = 24;
+
+function capWalletsForHyperliquid(wallets: string[]) {
+  return wallets.slice(0, MAX_HYPERLIQUID_WALLETS_PER_REQUEST);
+}
+
 function toDayKey(date: Date) {
   const y = date.getUTCFullYear();
   const m = `${date.getUTCMonth() + 1}`.padStart(2, "0");
@@ -201,7 +208,7 @@ export async function syncBuilderDailyMetrics(days = 90) {
   const now = Date.now();
   const startTime = now - days * 24 * 60 * 60 * 1000;
 
-  const approvedWallets = await getApprovedWallets();
+  const approvedWallets = capWalletsForHyperliquid(await getApprovedWallets());
 
   if (approvedWallets.length === 0) {
     return { syncedDays: 0, wallets: 0 };
@@ -384,7 +391,7 @@ export async function gethyperliquidBuilderMetricsSnapshot(
 ) {
   const syncStartedAt = Date.now();
   const startTime = await resolveHyperliquidStartTime(windowDays);
-  const approvedWallets = await getApprovedWallets();
+  const approvedWallets = capWalletsForHyperliquid(await getApprovedWallets());
   if (approvedWallets.length === 0) {
     return {
       totals: {
@@ -791,7 +798,7 @@ export async function gethyperliquidLiveBuilderFillFeed(options?: {
   const limit = Math.max(10, Math.min(options?.limit ?? 200, 500));
   const startTime = Date.now() - minutes * 60 * 1000;
 
-  const approvedWallets = await getApprovedWallets();
+  const approvedWallets = capWalletsForHyperliquid(await getApprovedWallets());
   if (approvedWallets.length === 0) {
     return {
       fills: [] as BuilderFillRow[],

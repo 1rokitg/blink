@@ -227,6 +227,23 @@ export async function getAdminStats(options?: {
   liveLimit?: number;
   windowDays?: MetricsWindowDays;
 }): Promise<AdminStats> {
+  try {
+    return await loadAdminStats(options);
+  } catch (error) {
+    console.error("[admin] getAdminStats failed", error);
+    const message =
+      error instanceof Error ? error.message : "Failed to load admin stats";
+    throw new Error(message);
+  }
+}
+
+async function loadAdminStats(options?: {
+  syncHyperliquid?: boolean;
+  includeAttribution?: boolean;
+  liveWindowMinutes?: number;
+  liveLimit?: number;
+  windowDays?: MetricsWindowDays;
+}): Promise<AdminStats> {
   // Keep UI on "Today" mode but fetch 2 days so yesterday deltas remain accurate.
   const canonicalWindowDays = 2;
 

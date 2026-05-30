@@ -32,7 +32,13 @@ export const env = createEnv({
    * This way you can ensure the app isn't built with invalid env vars.
    */
   server: {
-    POSTGRES_URL: z.string().url(),
+    POSTGRES_URL: z.preprocess(
+      emptyStringToUndefined,
+      z
+        .string()
+        .url()
+        .default("postgresql://build:build@127.0.0.1:5432/blink_build"),
+    ),
     /** Twitter API v2 OAuth 2.0 Client ID (Consumer Key). */
     TWITTER_CLIENT_ID: z.string().default("SXBHdDFnRnVvbWl2M19jdm95R2Q6MTpjaQ"),
     /** Twitter API v2 OAuth 2.0 Client Secret. */

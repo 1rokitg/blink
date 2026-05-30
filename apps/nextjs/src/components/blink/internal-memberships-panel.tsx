@@ -24,6 +24,7 @@ import {
 
 import { getInternalMemberships } from "~/app/actions/get-internal-memberships";
 import type {
+  InternalMembershipRevenueForecast,
   InternalMembershipRow,
   MembershipLifecycle,
 } from "~/lib/blink/internal-memberships.server";
@@ -35,6 +36,7 @@ import {
   internalPanelClass,
   internalPanelInsetClass,
 } from "./internal-dashboard-primitives";
+import { InternalMembershipsForecast } from "./internal-memberships-forecast";
 
 type StatusFilter = "all" | "active" | "trial" | "ended" | "gift" | "paid";
 type TierFilter = "all" | "basic" | "preferred" | "premium";
@@ -173,6 +175,8 @@ export function InternalMembershipsPanel(props: {
     gifted: 0,
     mrrUsd: 0,
   });
+  const [forecast, setForecast] =
+    useState<InternalMembershipRevenueForecast | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -187,6 +191,7 @@ export function InternalMembershipsPanel(props: {
       });
       setRows(payload.rows);
       setSummary(payload.summary);
+      setForecast(payload.forecast);
       setSyncedAt(payload.syncedAt);
     } catch (error) {
       console.error("[memberships] load failed", error);
@@ -295,6 +300,24 @@ export function InternalMembershipsPanel(props: {
           hint="Paying only (excludes trials)"
         />
       </div>
+
+      {forecast || loading ? (
+        <InternalMembershipsForecast
+          forecast={
+            forecast ?? {
+              currentMrrUsd: summary.mrrUsd,
+              arrUsd: summary.mrrUsd * 12,
+              trialPipelineMrrUsd: 0,
+              trialsEndingWithin7d: 0,
+              pipelineEndingWithin7dMrrUsd: 0,
+              mrrByTier: [],
+              scenarios: [],
+              assumptions: [],
+            }
+          }
+          loading={loading && !forecast}
+        />
+      ) : null}
 
       <InternalSection
         title="All memberships"

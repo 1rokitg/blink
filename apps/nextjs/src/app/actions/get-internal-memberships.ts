@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { getWalletRoleFromDb } from "~/lib/blink/admin-roles.server";
 import {
+  type InternalMembershipRevenueForecast,
   type InternalMembershipRow,
   type InternalMembershipSummary,
   listInternalMembershipRows,
@@ -16,6 +17,7 @@ const inputSchema = z.object({
 export type InternalMembershipsPayload = {
   rows: InternalMembershipRow[];
   summary: InternalMembershipSummary;
+  forecast: InternalMembershipRevenueForecast;
   syncedAt: string;
 };
 
@@ -33,11 +35,12 @@ export async function getInternalMemberships(
     throw new Error("Unauthorized");
   }
 
-  const { rows, summary } = await listInternalMembershipRows();
+  const { rows, summary, forecast } = await listInternalMembershipRows();
 
   return {
     rows,
     summary,
+    forecast,
     syncedAt: new Date().toISOString(),
   };
 }

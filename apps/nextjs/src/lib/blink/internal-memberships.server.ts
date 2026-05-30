@@ -68,6 +68,149 @@ export type InternalMembershipSummary = {
   mrrUsd: number;
 };
 
+export type MembershipForecastScenario = {
+  id: "conservative" | "base" | "upside";
+  label: string;
+  horizonLabel: string;
+  trialConversionRate: number;
+  projectedMrrUsd: number;
+  upliftUsd: number;
+};
+
+export type MembershipForecastTierRow = {
+  tier: string;
+  label: string;
+  payingCount: number;
+  trialCount: number;
+  mrrUsd: number;
+  pipelineMrrUsd: number;
+};
+
+export type InternalMembershipRevenueForecast = {
+  currentMrrUsd: number;
+  arrUsd: number;
+  trialPipelineMrrUsd: number;
+  trialsEndingWithin7d: number;
+  pipelineEndingWithin7dMrrUsd: number;
+  mrrByTier: MembershipForecastTierRow[];
+  scenarios: MembershipForecastScenario[];
+  assumptions: string[];
+};
+
+function estimateTierListMonthlyUsd(tier: string) {
+  return PRO_MONTHLY_USD[tier.trim().toLowerCase()] ?? 0;
+}
+
+export function buildMembershipRevenueForecast(
+  rows: InternalMembershipRow[],
+  currentMrrUsd: number,
+): InternalMembershipRevenueForecast {
+  const now = Date.now();
+  const sevenDaysMs = 7 * DAY_MS;
+  const activeTrials = rows.filter((row) => row.isActive && row.isTrial);
+
+  const trialPipelineMrrUsd = activeTrials.reduce(
+    (sum, row) => sum + estimateTierListMonthlyUsd(row.tier),
+    0,
+  );
+
+  const trialsEndingWithin7d = activeTrials.filter((row) => {
+    if (!row.currentPeriodEnd) return false;
+    const endMs = new Date(row.currentPeriodEnd).getTime();
+    return endMs > now && endMs - now <= sevenDaysMs;
+  });
+
+  const pipelineEndingWithin7dMrrUsd = trialsEndingWithin7d.reduce(
+    (sum, row) => sum + estimateTierListMonthlyUsd(row.tier),
+    0,
+  );
+
+  const tierKeys = ["basic", "preferred", "premium"] as const;
+  const mrrByTier: MembershipForecastTierRow[] = tierKeys
+    .map((tier) => {
+      const tierRows = rows.filter(
+        (row) => row.isActive && row.tier.toLowerCase() === tier,
+      );
+      const payingRows = tierRows.filter(
+        (row) => !row.isTrial && row.paymentMethod !== "gift",
+      );
+      const trialRows = tierRows.filter((row) => row.isTrial);
+
+      return {
+        tier,
+        label:
+          tier === "preferred"
+            ? "Preferred"
+            : tier === "premium"
+              ? "Premium"
+              : "Basic",
+        payingCount: payingRows.length,
+        trialCount: trialRows.length,
+        mrrUsd: payingRows.reduce(
+          (sum, row) =>
+            sum +
+            estimateMembershipMonthlyUsd({
+              tier: row.tier,
+              status: row.status,
+              paymentMethod: row.paymentMethod,
+              stripeCustomerId: row.stripeCustomerId,
+              stripeSubscriptionId: row.stripeSubscriptionId,
+              createdAt: new Date(row.createdAt),
+              currentPeriodEnd: row.currentPeriodEnd
+                ? new Date(row.currentPeriodEnd)
+                : null,
+            }),
+          0,
+        ),
+        pipelineMrrUsd: trialRows.reduce(
+          (sum, row) => sum + estimateTierListMonthlyUsd(row.tier),
+          0,
+        ),
+      };
+    })
+    .filter((row) => row.payingCount > 0 || row.trialCount > 0);
+
+  const scenarioDefs: Array<{
+    id: MembershipForecastScenario["id"];
+    label: string;
+    trialConversionRate: number;
+  }> = [
+    { id: "conservative", label: "Conservative", trialConversionRate: 0.25 },
+    { id: "base", label: "Base", trialConversionRate: 0.5 },
+    { id: "upside", label: "Upside", trialConversionRate: 1 },
+  ];
+
+  const scenarios: MembershipForecastScenario[] = scenarioDefs.map(
+    (scenario) => {
+      const upliftUsd = trialPipelineMrrUsd * scenario.trialConversionRate;
+      return {
+        id: scenario.id,
+        label: scenario.label,
+        horizonLabel: "Steady-state MRR",
+        trialConversionRate: scenario.trialConversionRate,
+        projectedMrrUsd: currentMrrUsd + upliftUsd,
+        upliftUsd,
+      };
+    },
+  );
+
+  return {
+    currentMrrUsd,
+    arrUsd: currentMrrUsd * 12,
+    trialPipelineMrrUsd,
+    trialsEndingWithin7d: trialsEndingWithin7d.length,
+    pipelineEndingWithin7dMrrUsd,
+    mrrByTier,
+    scenarios,
+    assumptions: [
+      "Paying MRR excludes gifts and active trials; yearly plans are normalized to monthly.",
+      "Trial pipeline uses list monthly price per tier if every trial converts.",
+      "Scenarios apply conversion rates to the full active trial pipeline (no churn modeled).",
+      "Near-term row highlights trials ending in the next 7 days.",
+    ],
+  };
+}
+
 export function isStripeTrialMembership(membership: {
   status: string;
   paymentMethod: string;
@@ -323,6 +466,7 @@ export function describeMembershipLifecycle(membership: {
 export async function listInternalMembershipRows(): Promise<{
   rows: InternalMembershipRow[];
   summary: InternalMembershipSummary;
+  forecast: InternalMembershipRevenueForecast;
 }> {
   const [membershipRows, profileRows, codeRows, twitterRows] = await Promise.all([
     db
@@ -446,15 +590,18 @@ export async function listInternalMembershipRows(): Promise<{
     0,
   );
 
+  const summary: InternalMembershipSummary = {
+    total: rows.length,
+    active: activeRows.length,
+    paying: payingRows.length,
+    trials: trialRows.length,
+    gifted: giftedRows.length,
+    mrrUsd,
+  };
+
   return {
     rows,
-    summary: {
-      total: rows.length,
-      active: activeRows.length,
-      paying: payingRows.length,
-      trials: trialRows.length,
-      gifted: giftedRows.length,
-      mrrUsd,
-    },
+    summary,
+    forecast: buildMembershipRevenueForecast(rows, mrrUsd),
   };
 }

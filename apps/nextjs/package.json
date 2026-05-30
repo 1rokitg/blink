@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "opennextjs-cloudflare build",
+    "build": "node scripts/build.mjs",
     "build:next": "next build",
     "build:cloudflare": "opennextjs-cloudflare build",
     "deploy:cloudflare": "wrangler deploy",

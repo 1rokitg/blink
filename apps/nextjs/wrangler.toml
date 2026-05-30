@@ -1,5 +1,9 @@
-# Cloudflare Workers config for @opennextjs/cloudflare (must live in the Next.js app root).
-# Workers Builds can also deploy from the monorepo root via ../../wrangler.toml.
+# Cloudflare Workers Builds (root directory: apps/nextjs)
+#   Build command:  pnpm run build
+#   Deploy command: npx wrangler deploy
+#
+# `pnpm run build` runs OpenNext on CI; OpenNext internally calls `pnpm build`
+# again, which must run only `next build` (see scripts/build.mjs).
 
 name = "blink"
 main = ".open-next/worker.js"

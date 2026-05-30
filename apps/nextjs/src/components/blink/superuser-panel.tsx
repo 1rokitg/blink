@@ -28,7 +28,7 @@ import {
   upsertSuperuserReferralCodeAction,
 } from "~/app/actions/manage-superuser-wallet";
 import { builderMaxFeeRate } from "~/lib/blink/builder";
-import { describeGiftedMembership } from "~/lib/blink/gift-membership.server";
+import { describeGiftedMembership } from "~/lib/blink/gift-membership.shared";
 import { getInternalUserPath } from "~/lib/blink/wallet-address";
 
 function formatTimestamp(value: string | null | undefined) {

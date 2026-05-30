@@ -169,9 +169,9 @@ export function AffiliatesDashboard() {
           <section className="rounded-2xl border border-white/10 bg-[#0b0d13] p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white">
-                  Boosted referral program
-                </h1>
+            <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white">
+              Boosted referral program
+            </h1>
                 <p className="mt-2 text-sm text-foreground/60">
                   High-signal affiliates with boosted code multipliers. Rankings
                   update from live referral and funnel data.

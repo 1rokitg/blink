@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "next build",
+    "build": "opennextjs-cloudflare build",
+    "build:next": "next build",
     "build:cloudflare": "opennextjs-cloudflare build",
     "deploy:cloudflare": "wrangler deploy",
     "preview:cloudflare": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
@@ -27,6 +28,7 @@
     "@acme/ui": "workspace:*",
     "@acme/validators": "workspace:*",
     "@nktkas/hyperliquid": "^0.24.3",
+    "@opennextjs/cloudflare": "^1.19.11",
     "@orpc/openapi": "^0.54.0",
     "@orpc/server": "^0.54.0",
     "@orpc/zod": "^0.54.0",
@@ -61,7 +63,6 @@
   "devDependencies": {
     "@acme/tailwind-config": "workspace:*",
     "@acme/tsconfig": "workspace:*",
-    "@opennextjs/cloudflare": "^1.19.11",
     "@playwright/test": "^1.54.2",
     "@types/canvas-confetti": "^1.9.0",
     "@types/node": "^22.13.11",

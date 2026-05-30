@@ -131,7 +131,7 @@ async function getApprovedWallets() {
     );
     approvalRows = await db
       .select({ walletAddress: BuilderApproval.walletAddress })
-      .from(BuilderApproval);
+    .from(BuilderApproval);
   }
   return Array.from(
     new Set(
@@ -335,7 +335,7 @@ export async function getBuilderMetricsSnapshot(
             toDayKey(new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000)),
           ),
         )
-        .orderBy(BuilderDailyMetric.day);
+    .orderBy(BuilderDailyMetric.day);
 
   const totals = rows.reduce(
     (acc, row) => {

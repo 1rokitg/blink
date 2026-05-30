@@ -19,11 +19,8 @@ import { Dialog, DialogContent, DialogTitle } from "@acme/ui/dialog";
 import { Input } from "@acme/ui/input";
 import { Switch } from "@acme/ui/switch";
 
-import {
-  BUILDER_ADDRESS,
-  builderMaxFeeRate,
-  isBuilderApproved,
-} from "~/lib/blink/builder";
+import { isBuilderApproved } from "~/lib/blink/builder";
+import { ensureBuilderFeeApproved } from "~/lib/blink/ensure-trading-approvals";
 import { createExchangeClient } from "~/lib/blink/hyperliquid";
 import { usePersistSizePreference } from "~/lib/blink/order-entry-preferences";
 
@@ -74,11 +71,11 @@ function WalletApprovalCard({
     setErrMsg("");
     try {
       const client = await createExchangeClient(wallet as never);
-      await client.approveBuilderFee({
-        builder: BUILDER_ADDRESS,
-        maxFeeRate: builderMaxFeeRate(),
-      });
-      setStatus("success");
+      const { skipped } = await ensureBuilderFeeApproved(
+        client,
+        wallet.address as `0x${string}`,
+      );
+      setStatus(skipped ? "approved" : "success");
     } catch (err: unknown) {
       setErrMsg(err instanceof Error ? err.message : "Approval failed");
       setStatus("error");

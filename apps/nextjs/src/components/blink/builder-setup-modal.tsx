@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useWallets } from "@privy-io/react-auth";
 import { Check, ExternalLink, Loader2, ShieldCheck, Zap } from "lucide-react";
@@ -18,8 +18,13 @@ import { BLINK_WEB_AGENT_NAME } from "~/lib/blink/blink-agent";
 import {
   BUILDER_ADDRESS,
   builderMaxFeeRate,
-  isBlinkTradingEnabled,
+  isBuilderApproved,
 } from "~/lib/blink/builder";
+import {
+  ensureBlinkWebAgentApproved,
+  ensureBuilderFeeApproved,
+  isLocalBlinkTradingEnabled,
+} from "~/lib/blink/ensure-trading-approvals";
 import { createExchangeClient, infoClient } from "~/lib/blink/hyperliquid";
 
 function asHexAddress(address: string) {
@@ -45,31 +50,6 @@ type Step = "idle" | "step1-pending" | "step1-done" | "step2-pending" | "done";
 const MIN_HL_ACCOUNT_VALUE_USD = 20;
 const HYPERLIQUID_PORTFOLIO_URL = "https://app.hyperliquid.xyz/portfolio";
 
-function ensureExchangeActionOk(
-  result: unknown,
-  fallbackMessage: string,
-): void {
-  const maybe = result as
-    | { status?: string; response?: unknown }
-    | undefined
-    | null;
-  if (!maybe || maybe.status !== "ok") {
-    throw new Error(fallbackMessage);
-  }
-  const response = maybe.response as
-    | { type?: string; data?: { statuses?: Array<{ error?: string }> } }
-    | string
-    | undefined;
-  if (typeof response === "string") {
-    throw new Error(response || fallbackMessage);
-  }
-  const statuses = response?.data?.statuses;
-  const firstErr = statuses?.find((s) => typeof s.error === "string")?.error;
-  if (firstErr) {
-    throw new Error(firstErr);
-  }
-}
-
 export function BuilderSetupModal(props: {
   open: boolean;
   walletAddress: string;
@@ -90,6 +70,60 @@ export function BuilderSetupModal(props: {
     accountValueUsd !== null && accountValueUsd < MIN_HL_ACCOUNT_VALUE_USD;
   const shareText = `DO NOT BLINK! Just enabled builder routing on Blink for ${props.market}.`;
   const shareUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent("https://blink.lat")}`;
+
+  useEffect(() => {
+    if (!props.open || !props.walletAddress) return;
+
+    let cancelled = false;
+    void (async () => {
+      setChecking(true);
+      setError(null);
+      try {
+        const user = asHexAddress(props.walletAddress);
+        const { address: agentAddress } = getOrCreateAgentKey(
+          props.walletAddress,
+        );
+        const enabled = await isLocalBlinkTradingEnabled(
+          user,
+          agentAddress,
+          props.requiredFeeUnits,
+        );
+        if (cancelled) return;
+
+        if (enabled) {
+          void recordTradingEnabled(
+            props.walletAddress,
+            BUILDER_ADDRESS,
+            builderMaxFeeRate(),
+            agentAddress,
+          );
+          setSuccessState(true);
+          props.onApprovedAction();
+          return;
+        }
+
+        const feeApproved = await isBuilderApproved(
+          user,
+          props.requiredFeeUnits,
+        );
+        if (cancelled) return;
+
+        setSuccessState(false);
+        setStep(feeApproved ? "step1-done" : "idle");
+      } catch {
+        if (!cancelled) {
+          setSuccessState(false);
+          setStep("idle");
+        }
+      } finally {
+        if (!cancelled) setChecking(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [props.open, props.walletAddress, props.requiredFeeUnits]);
 
   if (!props.open) return null;
 
@@ -130,20 +164,21 @@ export function BuilderSetupModal(props: {
       });
       const exchClient = await createExchangeClient(wallet);
       console.info("[setup] step 1 — approving builder fee...");
-      const result = await exchClient.approveBuilderFee({
-        builder: BUILDER_ADDRESS,
-        maxFeeRate: builderMaxFeeRate(),
-      });
-      ensureExchangeActionOk(
-        result,
-        "Builder fee approval was not accepted by Hyperliquid",
+      const { skipped } = await ensureBuilderFeeApproved(
+        exchClient,
+        asHexAddress(props.walletAddress),
+        props.requiredFeeUnits,
       );
-      console.info("[setup] step 1 — builder fee approved ✓");
-      void recordBuilderFeeApproved(
-        props.walletAddress,
-        BUILDER_ADDRESS,
-        builderMaxFeeRate(),
-      );
+      if (skipped) {
+        console.info("[setup] step 1 — builder fee already approved ✓");
+      } else {
+        console.info("[setup] step 1 — builder fee approved ✓");
+        void recordBuilderFeeApproved(
+          props.walletAddress,
+          BUILDER_ADDRESS,
+          builderMaxFeeRate(),
+        );
+      }
       setStep("step1-done");
     } catch (err) {
       console.error("[setup] step 1 failed:", err);
@@ -177,16 +212,19 @@ export function BuilderSetupModal(props: {
         market: props.market,
       });
       console.info("[setup] step 2 — approving trading agent:", agentAddress);
-      const approveAgentResult = await exchClient.approveAgent({
-        agentAddress,
-        agentName: BLINK_WEB_AGENT_NAME,
-      });
-      ensureExchangeActionOk(
-        approveAgentResult,
-        "Agent approval was not accepted by Hyperliquid",
-      );
-      const tradingEnabled = await isBlinkTradingEnabled(
+      const { skipped } = await ensureBlinkWebAgentApproved(
+        exchClient,
         asHexAddress(props.walletAddress),
+        agentAddress,
+      );
+      if (skipped) {
+        console.info("[setup] step 2 — trading agent already approved ✓");
+      } else {
+        console.info("[setup] step 2 — trading agent approved ✓");
+      }
+      const tradingEnabled = await isLocalBlinkTradingEnabled(
+        asHexAddress(props.walletAddress),
+        agentAddress,
         props.requiredFeeUnits,
       );
       if (!tradingEnabled) {
@@ -200,11 +238,12 @@ export function BuilderSetupModal(props: {
         builderMaxFeeRate(),
         agentAddress,
       );
-      console.info("[setup] step 2 — trading agent approved ✓");
       setStep("done");
       setSuccessState(true);
       props.onApprovedAction();
-      toast.success("Trading enabled — one-click orders ready.");
+      toast.success(
+        skipped ? "Trading already enabled." : "Trading enabled — one-click orders ready.",
+      );
     } catch (err) {
       console.error("[setup] step 2 failed:", err);
       setError(err instanceof Error ? err.message : "Agent approval failed");
@@ -217,14 +256,16 @@ export function BuilderSetupModal(props: {
     setError(null);
     try {
       await ensureMinFunding();
-      const enabled = await isBlinkTradingEnabled(
-        asHexAddress(props.walletAddress),
+      const user = asHexAddress(props.walletAddress);
+      const { address: agentAddress } = getOrCreateAgentKey(
+        props.walletAddress,
+      );
+      const enabled = await isLocalBlinkTradingEnabled(
+        user,
+        agentAddress,
         props.requiredFeeUnits,
       );
       if (enabled) {
-        const { address: agentAddress } = getOrCreateAgentKey(
-          props.walletAddress,
-        );
         void recordTradingEnabled(
           props.walletAddress,
           BUILDER_ADDRESS,

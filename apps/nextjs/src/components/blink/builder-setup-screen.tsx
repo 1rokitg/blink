@@ -22,6 +22,7 @@ import {
   builderMaxFeeRate,
   isBuilderApproved,
 } from "~/lib/blink/builder";
+import { ensureBuilderFeeApproved } from "~/lib/blink/ensure-trading-approvals";
 import { createExchangeClient } from "~/lib/blink/hyperliquid";
 import { DEFAULT_MARKET } from "~/lib/blink/markets";
 
@@ -69,23 +70,24 @@ export function BuilderSetupScreen(props: { market: string | null }) {
   }, [walletAddress]);
 
   const handleApprove = useCallback(async () => {
-    if (!wallet) return;
+    if (!wallet || !walletAddress) return;
     setApproval({ status: "pending" });
     try {
       const exchClient = await createExchangeClient(wallet);
-      await exchClient.approveBuilderFee({
-        builder: BUILDER_ADDRESS,
-        maxFeeRate: builderMaxFeeRate(),
-      });
-      // Persist approval to DB for admin visibility (fire-and-forget, non-critical)
-      if (walletAddress) {
+      const { skipped } = await ensureBuilderFeeApproved(
+        exchClient,
+        walletAddress,
+      );
+      if (!skipped) {
         void recordBuilderApproval(
           walletAddress,
           BUILDER_ADDRESS,
           builderMaxFeeRate(),
         );
       }
-      setApproval({ status: "approved" });
+      setApproval({
+        status: skipped ? "already_approved" : "approved",
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Approval failed";
       setApproval({ status: "error", message: msg });

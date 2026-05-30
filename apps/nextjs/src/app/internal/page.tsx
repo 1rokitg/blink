@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 
-import { InternalDashboardOverviewPage } from "~/components/blink/internal-dashboard-overview-page";
+import { AdminDashboard } from "~/components/blink/admin-dashboard";
 import { InternalDashboardPageSkeleton } from "~/components/blink/internal-dashboard-page-skeleton";
 
 export const dynamic = "force-dynamic";
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default function InternalPage() {
   return (
     <Suspense fallback={<InternalDashboardPageSkeleton />}>
-      <InternalDashboardOverviewPage />
+      <AdminDashboard />
     </Suspense>
   );
 }

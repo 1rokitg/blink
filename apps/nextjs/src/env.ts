@@ -100,6 +100,7 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_GROWTH_MODE: process.env.NEXT_PUBLIC_GROWTH_MODE,
   },
-  skipValidation:
-    !!process.env.CI || process.env.npm_lifecycle_event === "lint",
+  // Do not skip validation when CI=1 (Cloudflare/Vercel builds). Skipping drops Zod
+  // defaults and leaves NEXT_PUBLIC_* undefined, which crashes module init.
+  skipValidation: process.env.npm_lifecycle_event === "lint",
 });

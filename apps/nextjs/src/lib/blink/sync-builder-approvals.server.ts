@@ -10,7 +10,9 @@ import {
   getApprovedBuilderFeeUnits,
 } from "./builder";
 
-const BUILDER_ADDRESS_LOWER = BUILDER_ADDRESS.toLowerCase();
+function builderAddressLower() {
+  return BUILDER_ADDRESS.toLowerCase();
+}
 
 export async function syncRecentBuilderApprovalsFromChain(options?: {
   lookbackDays?: number;
@@ -65,7 +67,7 @@ export async function syncRecentBuilderApprovalsFromChain(options?: {
   const existingRows = await db
     .select({ walletAddress: BuilderApproval.walletAddress })
     .from(BuilderApproval)
-    .where(eq(BuilderApproval.builderAddress, BUILDER_ADDRESS_LOWER));
+    .where(eq(BuilderApproval.builderAddress, builderAddressLower()));
 
   const existingWallets = new Set(
     existingRows.map((row) => row.walletAddress.toLowerCase()),
@@ -93,7 +95,7 @@ export async function syncRecentBuilderApprovalsFromChain(options?: {
 
       await db.insert(BuilderApproval).values({
         walletAddress,
-        builderAddress: BUILDER_ADDRESS_LOWER,
+        builderAddress: builderAddressLower(),
         maxFeeRate,
         status: "approved",
         agentName: BLINK_WEB_AGENT_NAME,

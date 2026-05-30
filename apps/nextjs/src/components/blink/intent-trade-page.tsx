@@ -40,6 +40,7 @@ import { runWalletConnect } from "~/lib/blink/wallet-connect";
 
 import { AssetIcon } from "./asset-icon";
 import { BuilderSetupModal } from "./builder-setup-modal";
+import { ProprFundedCta } from "./propr-funded-cta";
 import { IntentMiniChart } from "./intent-mini-chart";
 import { TradingIsland } from "./trading-island";
 
@@ -474,6 +475,8 @@ export function IntentTradePage(props: {
           ) : null}
         </div>
       </div>
+
+      <ProprFundedCta variant="card" source="intent-trade" className="relative z-10 mt-5 w-full max-w-lg" />
 
       <Link
         href={`/trade/${marketToSlug(props.market)}`}

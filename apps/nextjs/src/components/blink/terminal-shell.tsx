@@ -125,6 +125,7 @@ import { AssetIcon } from "./asset-icon";
 import { BlinkLeaderboardPanel } from "./blink-leaderboard";
 import { BlinkMarketChart } from "./blink-market-chart";
 import { BlinkProUpsellCard } from "./blink-pro-upsell-card";
+import { ProprFundedCta } from "./propr-funded-cta";
 import { BuilderSetupModal } from "./builder-setup-modal";
 import { MarketInfoBar } from "./market-info-bar";
 import { type PnlPositionData, PnlShareModal } from "./pnl-share-modal";
@@ -407,6 +408,8 @@ function ConnectGate() {
           </div>
         </div>
       </motion.div>
+
+      <ProprFundedCta variant="card" source="connect-gate" className="relative z-10 mt-5 w-full max-w-lg" />
 
       <Link
         href="/"
@@ -2730,6 +2733,12 @@ function AccountPanel(props: {
         </button>
       </div>
 
+      {accountValue < 500 ? (
+        <div className="border-b border-white/[0.06] px-4 py-3">
+          <ProprFundedCta variant="compact" source="account-panel" />
+        </div>
+      ) : null}
+
       {/* ── Tabs ───────────────────────────────────────────────────────── */}
       <Tabs defaultValue="positions" className="flex flex-col">
         <div className="border-b border-white/[0.06] px-4 pt-2">
@@ -4203,6 +4212,7 @@ export function TerminalShell(props: { market: string }) {
               rokitg.fun
               <ArrowUpRight className="size-3" />
             </a>
+            <ProprFundedCta variant="footer" source="terminal-footer" />
             <a
               href="https://docs.blink.lat"
               target="_blank"

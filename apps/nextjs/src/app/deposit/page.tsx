@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { DepositCard } from "~/components/blink/deposit-card";
+import { ProprFundedCta } from "~/components/blink/propr-funded-cta";
 
 export const metadata: Metadata = {
   title: "Deposit · Blink",
@@ -31,7 +32,10 @@ export default function DepositPage() {
         <div className="absolute left-1/2 top-1/2 h-[600px] w-[900px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(ellipse,rgba(44,107,255,0.13)_0%,transparent_70%)] blur-3xl" />
       </div>
 
-      <DepositCard />
+      <div className="relative z-10 flex w-full max-w-md flex-col items-center gap-5">
+        <DepositCard />
+        <ProprFundedCta variant="card" source="deposit" className="w-full" />
+      </div>
     </main>
   );
 }

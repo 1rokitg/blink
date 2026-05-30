@@ -6,6 +6,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 
 import { BLINK_TOKEN_ROUTE } from "~/lib/blink/token";
+import { ProprFundedCta } from "~/components/blink/propr-funded-cta";
 
 export default function HomePage() {
   return (
@@ -85,6 +86,7 @@ export default function HomePage() {
             </span>
           </span>
         </Link>
+        <ProprFundedCta variant="card" source="landing" className="mt-4 w-full text-left" />
         <Link
           href="/invest"
           className="mt-2 text-sm text-[#8fb9ff] underline-offset-4 transition hover:text-[#b8d3ff] hover:underline"

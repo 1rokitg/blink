@@ -3,6 +3,7 @@ import { ImageResponse } from "next/og";
 import { infoClient } from "~/lib/blink/hyperliquid";
 import { resolveProfileAddress } from "~/lib/blink/resolve-address";
 
+export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const alt = "Blink Portfolio";
 export const size = { width: 1200, height: 630 };

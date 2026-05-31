@@ -2,9 +2,10 @@ import { ImageResponse } from "next/og";
 
 import { eq } from "drizzle-orm";
 
-import { db } from "@acme/db/client";
+import { db, isDatabaseConfigured } from "@acme/db/client";
 import { ReferralCode } from "@acme/db/schema";
 
+export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 export const alt = "Join me on Blink — trade perps with zero extra fees";
 export const size = { width: 1200, height: 630 };
@@ -16,14 +17,19 @@ export default async function OGImage(props: {
   const { code } = await props.params;
   const slug = decodeURIComponent(code).toLowerCase();
 
-  // Check code exists
-  const codeRow = await db
-    .select()
-    .from(ReferralCode)
-    .where(eq(ReferralCode.code, slug))
-    .limit(1);
-
-  const handle = codeRow[0] ? slug : "someone";
+  let handle = slug;
+  if (isDatabaseConfigured()) {
+    try {
+      const codeRow = await db
+        .select()
+        .from(ReferralCode)
+        .where(eq(ReferralCode.code, slug))
+        .limit(1);
+      handle = codeRow[0] ? slug : "someone";
+    } catch {
+      handle = slug;
+    }
+  }
 
   return new ImageResponse(
     <div

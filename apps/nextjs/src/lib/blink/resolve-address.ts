@@ -13,7 +13,7 @@ import { eq } from "drizzle-orm";
 import { http, createPublicClient } from "viem";
 import { mainnet } from "viem/chains";
 
-import { db } from "@acme/db/client";
+import { db, isDatabaseConfigured } from "@acme/db/client";
 import { ReferralCode, UserProfile } from "@acme/db/schema";
 
 const ETH_RPC = process.env.ETH_RPC_URL ?? "https://cloudflare-eth.com";
@@ -44,6 +44,7 @@ export async function getProfileSlugByWalletAddress(
   walletAddress?: string | null,
 ): Promise<string | null> {
   if (!walletAddress || !isWalletAddress(walletAddress)) return null;
+  if (!isDatabaseConfigured()) return null;
 
   try {
     const rows = await db
@@ -89,17 +90,19 @@ export async function resolveProfileAddress(
     // Fall through — maybe it's also a Blink username coincidentally
   }
 
-  // 3. Blink profile code lookup in Neon
-  try {
-    const rows = await db
-      .select({ walletAddress: ReferralCode.walletAddress })
-      .from(ReferralCode)
-      .where(eq(ReferralCode.code, s.toLowerCase()))
-      .limit(1);
+  // 3. Blink profile code lookup
+  if (isDatabaseConfigured()) {
+    try {
+      const rows = await db
+        .select({ walletAddress: ReferralCode.walletAddress })
+        .from(ReferralCode)
+        .where(eq(ReferralCode.code, s.toLowerCase()))
+        .limit(1);
 
-    if (rows.length > 0 && rows[0]) return rows[0].walletAddress;
-  } catch {
-    // DB unavailable — swallow
+      if (rows.length > 0 && rows[0]) return rows[0].walletAddress;
+    } catch {
+      // DB unavailable — swallow
+    }
   }
 
   return null;

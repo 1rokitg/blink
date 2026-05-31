@@ -8,6 +8,7 @@ import { Check, Copy, Megaphone, Twitter } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@acme/ui/popover";
 
 import { BlinkSlotFigure } from "~/components/blink/blink-slot-figure";
+import { AssetIcon } from "~/components/blink/asset-icon";
 import { resolvePerpMarket } from "~/lib/blink/hyperliquid";
 import {
   formatCompactNumber,
@@ -208,19 +209,22 @@ export function MarketInfoBar(props: {
   return (
     <div className="glass-panel flex items-center gap-6 overflow-x-auto px-5 py-3">
       {/* Coin + live price */}
-      <div className="flex shrink-0 items-baseline gap-3">
-        <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/45">
-          {props.market}
-        </span>
-        <BlinkSlotFigure
-          value={displayPrice}
-          format={formatUsd}
-          hidden={props.hideBalances}
-          inactive={displayPrice <= 0}
-          fallback={ctxQuery.isLoading ? "Loading…" : "—"}
-          debounceMs={120}
-          className="text-xl font-semibold text-white"
-        />
+      <div className="flex shrink-0 items-center gap-2">
+        <AssetIcon asset={props.market} size={22} />
+        <div className="flex items-baseline gap-3">
+          <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-foreground/45">
+            {props.market}
+          </span>
+          <BlinkSlotFigure
+            value={displayPrice}
+            format={formatUsd}
+            hidden={props.hideBalances}
+            inactive={displayPrice <= 0}
+            fallback={ctxQuery.isLoading ? "Loading…" : "—"}
+            debounceMs={120}
+            className="text-xl font-semibold text-white"
+          />
+        </div>
       </div>
 
       {/* Divider */}

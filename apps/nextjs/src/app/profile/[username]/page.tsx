@@ -49,7 +49,6 @@ import {
   TwitterConnection,
   UserProfile,
 } from "@acme/db/schema";
-import { AssetIcon } from "~/components/blink/asset-icon";
 import { ConnectTwitterButton } from "~/components/blink/connect-twitter-button";
 import { ProfileEquitySection } from "~/components/blink/profile-equity-section";
 import { ProfileShareButton } from "~/components/blink/profile-share-button";

@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
 
+import { ensureWranglerHyperdrive } from "./ensure-wrangler-hyperdrive.mjs";
+
 /**
  * OpenNext runs `pnpm build` internally. When BLINK_OPENNEXT_BUILD=1 we must
  * only run `next build` or we recurse forever.
@@ -31,6 +33,8 @@ if (isCloudflareCi) {
     ...process.env,
     BLINK_OPENNEXT_BUILD: "1",
   });
+  // CI build cache can restore an old wrangler.toml — patch before deploy step runs.
+  ensureWranglerHyperdrive();
 }
 
 run("pnpm", ["exec", "next", "build"]);

@@ -1,6 +1,6 @@
 # Cloudflare Workers Builds (root directory: apps/nextjs)
 #   Build command:  pnpm run build
-#   Deploy command: npx wrangler deploy --minify
+#   Deploy command: node scripts/ensure-wrangler-hyperdrive.mjs && npx wrangler deploy
 #
 # Env vars + secrets: set in Cloudflare dashboard only (Settings → Variables).
 # Do NOT commit [vars] here — deploy overwrites dashboard config with wrangler.toml.

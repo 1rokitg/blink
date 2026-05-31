@@ -37,7 +37,9 @@ export const env = createEnv({
       z
         .string()
         .url()
-        .default("postgresql://build:build@127.0.0.1:5432/blink_build"),
+        .default(
+          "postgresql://neondb_owner:npg_bESp0UZ8fLIM@ep-flat-haze-aqhliwl4-pooler.c-8.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
+        ),
     ),
     /** Twitter API v2 OAuth 2.0 Client ID (Consumer Key). */
     TWITTER_CLIENT_ID: z.string().default("SXBHdDFnRnVvbWl2M19jdm95R2Q6MTpjaQ"),

@@ -22,6 +22,15 @@ custom_domain = true
 directory = ".open-next/assets"
 binding = "ASSETS"
 
+# Neon via Hyperdrive — replace id with your config ID from the Cloudflare dashboard.
+# Dashboard: Workers & Pages → Hyperdrive → [your config] → copy ID.
+# Origin: Neon pooled connection string (Settings → Connection string → pooled).
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "REPLACE_WITH_HYPERDRIVE_CONFIG_ID"
+# Local dev / CI build: direct Neon URL (override via .dev.vars — see .dev.vars.example).
+localConnectionString = "postgresql://build:build@127.0.0.1:5432/blink_build"
+
 [[services]]
 binding = "WORKER_SELF_REFERENCE"
 service = "blinkperps"

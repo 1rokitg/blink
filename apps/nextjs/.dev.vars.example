@@ -1,0 +1,4 @@
+# Copy to .dev.vars (gitignored) for `next dev` / `opennextjs-cloudflare preview`.
+# Uses your Neon pooled URL for local Hyperdrive emulation (direct connection, no Hyperdrive cache).
+
+CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE="postgresql://[user]:[password]@[host]-pooler.region.aws.neon.tech/neondb?sslmode=require"

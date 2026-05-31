@@ -32,14 +32,20 @@
   "dependencies": {
     "drizzle-orm": "^0.41.0",
     "drizzle-zod": "^0.7.0",
+    "pg": "^8.13.1",
     "postgres": "^3.4.4",
     "server-only": "^0.0.1",
     "zod": "catalog:"
   },
+  "peerDependencies": {
+    "react": ">=18"
+  },
   "devDependencies": {
     "@acme/tsconfig": "workspace:*",
+    "@types/pg": "^8.11.10",
     "dotenv-cli": "^8.0.0",
     "drizzle-kit": "^0.30.5",
+    "react": "19.0.0",
     "typescript": "catalog:"
   }
 }

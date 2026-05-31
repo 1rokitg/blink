@@ -10,12 +10,16 @@ function run(command, args, env = process.env) {
 }
 
 if (process.env.BLINK_OPENNEXT_BUILD === "1") {
+  const buildDbStub = "postgresql://build:build@127.0.0.1:5432/blink_build";
   run("pnpm", ["exec", "next", "build"], {
     ...process.env,
     // Align with apps/nextjs env.ts default so t3 env + OG routes skip DB at build.
-    POSTGRES_URL:
+    POSTGRES_URL: process.env.POSTGRES_URL ?? buildDbStub,
+    // Hyperdrive local emulation (wrangler.toml binding HYPERDRIVE).
+    CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE:
+      process.env.CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE ??
       process.env.POSTGRES_URL ??
-      "postgresql://build:build@127.0.0.1:5432/blink_build",
+      buildDbStub,
   });
 }
 

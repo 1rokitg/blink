@@ -9,7 +9,7 @@ createJiti(fileURLToPath(import.meta.url))("./src/env");
 /** @type {import("next").NextConfig} */
 const config = {
   /** Node Postgres driver — never bundle for client / edge chunks */
-  serverExternalPackages: ["postgres"],
+  serverExternalPackages: ["postgres", "pg"],
 
   /** Expose git commit SHA to the client for version display + deploy detection */
   env: {

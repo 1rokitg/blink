@@ -13,6 +13,11 @@ preview_urls = false
 directory = "apps/nextjs/.open-next/assets"
 binding = "ASSETS"
 
+[[hyperdrive]]
+binding = "HYPERDRIVE"
+id = "REPLACE_WITH_HYPERDRIVE_CONFIG_ID"
+localConnectionString = "postgresql://build:build@127.0.0.1:5432/blink_build"
+
 [[services]]
 binding = "WORKER_SELF_REFERENCE"
 service = "blinkperps"

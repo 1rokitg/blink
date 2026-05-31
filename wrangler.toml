@@ -15,7 +15,7 @@ binding = "ASSETS"
 
 [[hyperdrive]]
 binding = "HYPERDRIVE"
-id = "REPLACE_WITH_HYPERDRIVE_CONFIG_ID"
+id = "8a4f14782e3b4871bb83ea368b886abb"
 localConnectionString = "postgresql://build:build@127.0.0.1:5432/blink_build"
 
 [[services]]

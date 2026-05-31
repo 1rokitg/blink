@@ -27,7 +27,7 @@ binding = "ASSETS"
 # Origin: Neon pooled connection string (Settings → Connection string → pooled).
 [[hyperdrive]]
 binding = "HYPERDRIVE"
-id = "REPLACE_WITH_HYPERDRIVE_CONFIG_ID"
+id = "8a4f14782e3b4871bb83ea368b886abb"
 # Local dev / CI build: direct Neon URL (override via .dev.vars — see .dev.vars.example).
 localConnectionString = "postgresql://build:build@127.0.0.1:5432/blink_build"
 

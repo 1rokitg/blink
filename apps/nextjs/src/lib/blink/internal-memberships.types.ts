@@ -65,4 +65,41 @@ export type InternalMembershipRevenueForecast = {
   mrrByTier: MembershipForecastTierRow[];
   scenarios: MembershipForecastScenario[];
   assumptions: string[];
+  /** When set, headline MRR/ARR come from live Stripe subscription data. */
+  stripeMrrUsd?: number;
+  stripeArrUsd?: number;
+  stripeTrialMrrUsd?: number;
+};
+
+export type StripeBillingTransaction = {
+  id: string;
+  createdAt: string;
+  amountUsd: number;
+  status: string;
+  customerId: string | null;
+  description: string | null;
+};
+
+export type StripeBillingSnapshot = {
+  syncedAt: string;
+  mrrUsd: number;
+  trialMrrUsd: number;
+  arrUsd: number;
+  revenue30dUsd: number;
+  revenueLifetimeUsd: number;
+  activeSubscriptions: number;
+  trialingSubscriptions: number;
+  pastDueSubscriptions: number;
+  canceledSubscriptions: number;
+  totalCustomers: number;
+  unlinkedSubscriptions: number;
+  recentTransactions: StripeBillingTransaction[];
+};
+
+export type StripeMembershipSyncSummary = {
+  scanned: number;
+  upserted: number;
+  skippedGift: number;
+  skippedNoWallet: number;
+  errors: number;
 };

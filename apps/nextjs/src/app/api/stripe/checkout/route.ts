@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 
 import { checkBotId } from "botid/server";
-import Stripe from "stripe";
 import { z } from "zod";
 
 import { env } from "~/env";
+import { getStripeClient } from "~/lib/blink/stripe.server";
 import {
   getGrowthProDiscountRate,
   isGrowthModeEnabled,
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
       ? growthDiscountedAmount * (1 - CRYPTO_DISCOUNT_RATE)
       : growthDiscountedAmount;
   const amountCents = Math.round(amountUsd * 100);
-  const stripe = new Stripe(env.STRIPE_SECRET_KEY);
+  const stripe = getStripeClient();
   const appUrl = resolveAppUrl(request);
 
   try {

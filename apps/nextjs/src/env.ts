@@ -49,6 +49,8 @@ export const env = createEnv({
       .default("jjPyx7ARneyBc3UqdSxMMY6De86SPQwV_HXQugr9GQFvvJhBv"),
     /** Stripe secret key used to create Blink Pro checkout sessions. */
     STRIPE_SECRET_KEY: z.string().default(""),
+    /** Stripe webhook signing secret (`whsec_…`) for membership sync. */
+    STRIPE_WEBHOOK_SECRET: z.string().default(""),
     /** Blink Pro reduced builder fee in HL units (1 unit = 0.001%). e.g. 7 = 0.007%. */
     BLINK_PRO_BUILDER_FEE_BPS: z.coerce.number().int().min(0).default(7),
     /** Optional comma-separated wallet allowlist for Pro fee while webhooks are rolling out. */

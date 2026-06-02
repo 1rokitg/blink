@@ -30,6 +30,9 @@ export type {
   MembershipForecastScenario,
   MembershipForecastTierRow,
   MembershipLifecycle,
+  StripeBillingSnapshot,
+  StripeBillingTransaction,
+  StripeMembershipSyncSummary,
 } from "./internal-memberships.types";
 
 export { isMembershipEntitledStatus, isStripeTrialMembership } from "./membership-trial.server";
@@ -376,7 +379,30 @@ export function describeMembershipLifecycle(membership: {
   };
 }
 
-export async function listInternalMembershipRows(): Promise<{
+export function applyStripeSpendToMembershipRows(
+  rows: InternalMembershipRow[],
+  customerSpendUsd: Record<string, number>,
+) {
+  return rows.map((row) => {
+    if (!row.stripeCustomerId || row.paymentMethod === "gift") {
+      return row;
+    }
+
+    const stripeSpend = customerSpendUsd[row.stripeCustomerId];
+    if (stripeSpend === undefined) return row;
+
+    return {
+      ...row,
+      totalSpendUsd: Math.max(row.totalSpendUsd, stripeSpend),
+    };
+  });
+}
+
+export async function listInternalMembershipRows(options?: {
+  customerSpendUsd?: Record<string, number>;
+  stripeMrrUsd?: number;
+  stripeTrialMrrUsd?: number;
+}): Promise<{
   rows: InternalMembershipRow[];
   summary: InternalMembershipSummary;
   forecast: InternalMembershipRevenueForecast;
@@ -426,7 +452,7 @@ export async function listInternalMembershipRows(): Promise<{
     twitterRows.map((row) => [row.walletAddress, row.twitterUsername]),
   );
 
-  const rows: InternalMembershipRow[] = membershipRows.map((row) => {
+  const mappedRows: InternalMembershipRow[] = membershipRows.map((row) => {
     const createdAt = row.createdAt;
     const isTrial = isStripeTrialMembership({
       status: row.status,
@@ -480,6 +506,10 @@ export async function listInternalMembershipRows(): Promise<{
     };
   });
 
+  const rows = options?.customerSpendUsd
+    ? applyStripeSpendToMembershipRows(mappedRows, options.customerSpendUsd)
+    : mappedRows;
+
   const activeRows = rows.filter((row) => row.isActive);
   const trialRows = activeRows.filter((row) => row.isTrial);
   const payingRows = activeRows.filter(
@@ -503,18 +533,28 @@ export async function listInternalMembershipRows(): Promise<{
     0,
   );
 
+  const stripeMrrUsd = options?.stripeMrrUsd;
+  const headlineMrrUsd = stripeMrrUsd ?? mrrUsd;
+
   const summary: InternalMembershipSummary = {
     total: rows.length,
     active: activeRows.length,
     paying: payingRows.length,
     trials: trialRows.length,
     gifted: giftedRows.length,
-    mrrUsd,
+    mrrUsd: headlineMrrUsd,
   };
+
+  const forecast = buildMembershipRevenueForecast(rows, headlineMrrUsd);
+  if (stripeMrrUsd !== undefined) {
+    forecast.stripeMrrUsd = stripeMrrUsd;
+    forecast.stripeArrUsd = stripeMrrUsd * 12;
+    forecast.stripeTrialMrrUsd = options?.stripeTrialMrrUsd;
+  }
 
   return {
     rows,
     summary,
-    forecast: buildMembershipRevenueForecast(rows, mrrUsd),
+    forecast,
   };
 }

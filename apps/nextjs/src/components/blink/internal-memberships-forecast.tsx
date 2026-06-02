@@ -45,19 +45,29 @@ export function InternalMembershipsForecast(props: {
     );
   }
 
+  const usesStripeMrr = forecast.stripeMrrUsd !== undefined;
+
   return (
     <InternalSection
       title="Revenue forecast"
-      description="Subscription MRR run-rate and trial pipeline uplift. Scenarios model trial-to-paid conversion against today's active trials."
+      description={
+        usesStripeMrr
+          ? "Headline MRR/ARR from live Stripe subscriptions. Trial pipeline uses Neon entitlement rows."
+          : "Subscription MRR run-rate and trial pipeline uplift. Scenarios model trial-to-paid conversion against today's active trials."
+      }
     >
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <InternalStatCard
-          label="Current MRR"
+          label={usesStripeMrr ? "Stripe MRR" : "Current MRR"}
           value={formatMoney(forecast.currentMrrUsd)}
-          hint="Paying subscribers"
+          hint={
+            usesStripeMrr
+              ? "Active Stripe subscriptions"
+              : "Paying subscribers"
+          }
         />
         <InternalStatCard
-          label="ARR run-rate"
+          label={usesStripeMrr ? "Stripe ARR" : "ARR run-rate"}
           value={formatMoney(forecast.arrUsd)}
           hint="MRR × 12"
         />

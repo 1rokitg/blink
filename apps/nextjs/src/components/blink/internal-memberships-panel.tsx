@@ -27,6 +27,8 @@ import type {
   InternalMembershipRevenueForecast,
   InternalMembershipRow,
   MembershipLifecycle,
+  StripeBillingSnapshot,
+  StripeMembershipSyncSummary,
 } from "~/lib/blink/internal-memberships.types";
 import { getInternalUserPath } from "~/lib/blink/wallet-address";
 import {
@@ -177,6 +179,9 @@ export function InternalMembershipsPanel(props: {
   });
   const [forecast, setForecast] =
     useState<InternalMembershipRevenueForecast | null>(null);
+  const [stripe, setStripe] = useState<StripeBillingSnapshot | null>(null);
+  const [stripeSync, setStripeSync] =
+    useState<StripeMembershipSyncSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -192,6 +197,8 @@ export function InternalMembershipsPanel(props: {
       setRows(payload.rows);
       setSummary(payload.summary);
       setForecast(payload.forecast);
+      setStripe(payload.stripe);
+      setStripeSync(payload.stripeSync);
       setSyncedAt(payload.syncedAt);
     } catch (error) {
       console.error("[memberships] load failed", error);
@@ -246,9 +253,9 @@ export function InternalMembershipsPanel(props: {
               Memberships
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-white/50">
-              Blink Pro entitlements from Neon — Stripe trials (7-day checkout),
-              paid subscriptions, and superuser gifts. Search, filter, and open a
-              wallet in the user console to adjust access.
+              Blink Pro entitlements synced from Stripe into Neon on each refresh
+              (plus superuser gifts). MRR, ARR, and revenue metrics are sourced
+              live from Stripe subscriptions and charges.
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -278,11 +285,40 @@ export function InternalMembershipsPanel(props: {
         </div>
         {syncedAt ? (
           <p className="mt-3 text-xs text-white/35">
-            Synced {timeAgo(syncedAt)}
+            Stripe synced {timeAgo(syncedAt)}
+            {stripeSync
+              ? ` · ${stripeSync.upserted} membership rows updated (${stripeSync.scanned} subs scanned)`
+              : null}
             {props.canManage ? " · superuser can gift from user console" : null}
           </p>
         ) : null}
       </section>
+
+      {stripe ? (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <InternalStatCard
+            label="Stripe MRR"
+            value={formatMoney(stripe.mrrUsd)}
+            hint={`${stripe.activeSubscriptions} active subs`}
+            tone="positive"
+          />
+          <InternalStatCard
+            label="Stripe ARR"
+            value={formatMoney(stripe.arrUsd)}
+            hint="Live subscription run-rate"
+          />
+          <InternalStatCard
+            label="Revenue (30d)"
+            value={formatMoney(stripe.revenue30dUsd)}
+            hint={`${formatMoney(stripe.revenueLifetimeUsd)} lifetime`}
+          />
+          <InternalStatCard
+            label="Stripe customers"
+            value={stripe.totalCustomers}
+            hint={`${stripe.trialingSubscriptions} trialing · ${stripe.pastDueSubscriptions} past due`}
+          />
+        </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <InternalStatCard label="Total" value={summary.total} />
@@ -295,11 +331,58 @@ export function InternalMembershipsPanel(props: {
         <InternalStatCard label="Paying" value={summary.paying} />
         <InternalStatCard label="Gifted" value={summary.gifted} />
         <InternalStatCard
-          label="Est. MRR"
+          label={stripe ? "Neon MRR (gift-adjusted)" : "Est. MRR"}
           value={formatMoney(summary.mrrUsd)}
-          hint="Paying only (excludes trials)"
+          hint={
+            stripe
+              ? "Headline uses Stripe MRR above"
+              : "Paying only (excludes trials)"
+          }
         />
       </div>
+
+      {stripe && stripe.recentTransactions.length > 0 ? (
+        <InternalSection
+          title="Recent Stripe charges"
+          description="Latest successful charges from Stripe (live)."
+        >
+          <div className={`overflow-x-auto ${internalPanelInsetClass}`}>
+            <table className="min-w-[640px] w-full text-left text-sm">
+              <thead>
+                <tr className="border-b border-white/[0.06] text-xs text-white/40">
+                  <th className="px-4 py-3 font-medium">When</th>
+                  <th className="px-4 py-3 font-medium">Amount</th>
+                  <th className="px-4 py-3 font-medium">Customer</th>
+                  <th className="px-4 py-3 font-medium">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stripe.recentTransactions.map((tx) => (
+                  <tr
+                    key={tx.id}
+                    className="border-b border-white/[0.04] text-white/75"
+                  >
+                    <td className="px-4 py-3 text-white/55">
+                      {timeAgo(tx.createdAt)}
+                    </td>
+                    <td className="px-4 py-3 font-medium text-white">
+                      {formatMoney(tx.amountUsd)}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-xs text-white/45">
+                      {tx.customerId
+                        ? `${tx.customerId.slice(0, 10)}…`
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-white/55">
+                      {tx.description ?? "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </InternalSection>
+      ) : null}
 
       {forecast || loading ? (
         <InternalMembershipsForecast

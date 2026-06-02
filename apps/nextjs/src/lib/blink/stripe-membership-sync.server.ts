@@ -104,7 +104,9 @@ export async function upsertMembershipFromStripeSubscription(
 
   if (
     existing?.paymentMethod === "gift" &&
-    isLifetimeGiftPeriodEnd(existing.currentPeriodEnd)
+    isLifetimeGiftPeriodEnd(existing.currentPeriodEnd) &&
+    subscription.status !== "active" &&
+    subscription.status !== "trialing"
   ) {
     return { ok: false as const, reason: "lifetime_gift" as const };
   }

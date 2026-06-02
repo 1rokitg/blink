@@ -4,10 +4,16 @@ Blink Pro checkout creates Stripe subscriptions. The internal **Memberships** da
 
 ## Environment
 
+Production runs on **Cloudflare Workers** (`blinkperps`). Set secrets in:
+
+**Workers & Pages → blinkperps → Settings → Variables and secrets**
+
 | Variable | Purpose |
 |----------|---------|
 | `STRIPE_SECRET_KEY` | `sk_live_…` or restricted `rk_live_…` with read access to Customers, Subscriptions, Charges; write for Customers metadata (optional) |
-| `STRIPE_WEBHOOK_SECRET` | `whsec_…` from the webhook endpoint |
+| `STRIPE_WEBHOOK_SECRET` | `whsec_…` from the webhook endpoint (`https://blinkperps.xyz/api/stripe/webhook`) |
+
+Redeploy after adding secrets. The memberships dashboard shows an amber banner when `STRIPE_SECRET_KEY` is missing.
 
 ## Webhook endpoint
 

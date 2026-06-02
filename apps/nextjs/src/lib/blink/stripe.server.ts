@@ -1,20 +1,24 @@
 import Stripe from "stripe";
 
-import { env } from "~/env";
+/** Read at runtime so Cloudflare Worker secrets apply without a rebuild. */
+export function getStripeSecretKey() {
+  return process.env.STRIPE_SECRET_KEY?.trim() ?? "";
+}
+
+export function isStripeConfigured() {
+  return Boolean(getStripeSecretKey());
+}
 
 let stripeClient: Stripe | null = null;
 
-export function isStripeConfigured() {
-  return Boolean(env.STRIPE_SECRET_KEY.trim());
-}
-
 export function getStripeClient() {
-  if (!isStripeConfigured()) {
+  const secretKey = getStripeSecretKey();
+  if (!secretKey) {
     throw new Error("Stripe is not configured.");
   }
 
   if (!stripeClient) {
-    stripeClient = new Stripe(env.STRIPE_SECRET_KEY);
+    stripeClient = new Stripe(secretKey);
   }
 
   return stripeClient;

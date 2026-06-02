@@ -182,6 +182,10 @@ export function InternalMembershipsPanel(props: {
   const [stripe, setStripe] = useState<StripeBillingSnapshot | null>(null);
   const [stripeSync, setStripeSync] =
     useState<StripeMembershipSyncSummary | null>(null);
+  const [stripeConnection, setStripeConnection] = useState<{
+    configured: boolean;
+    error: string | null;
+  }>({ configured: false, error: null });
   const [loading, setLoading] = useState(true);
   const [syncedAt, setSyncedAt] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -199,6 +203,7 @@ export function InternalMembershipsPanel(props: {
       setForecast(payload.forecast);
       setStripe(payload.stripe);
       setStripeSync(payload.stripeSync);
+      setStripeConnection(payload.stripeConnection);
       setSyncedAt(payload.syncedAt);
     } catch (error) {
       console.error("[memberships] load failed", error);
@@ -283,13 +288,22 @@ export function InternalMembershipsPanel(props: {
             </button>
           </div>
         </div>
-        {syncedAt ? (
+        {stripeConnection.error ? (
+          <p className="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs leading-5 text-amber-100">
+            {stripeConnection.error}
+          </p>
+        ) : null}
+        {syncedAt && stripe ? (
           <p className="mt-3 text-xs text-white/35">
-            Stripe synced {timeAgo(syncedAt)}
+            Stripe live {timeAgo(syncedAt)}
             {stripeSync
-              ? ` · ${stripeSync.upserted} membership rows updated (${stripeSync.scanned} subs scanned)`
+              ? ` · ${stripeSync.upserted} Neon rows updated (${stripeSync.scanned} subs, ${stripeSync.skippedNoWallet} without wallet metadata)`
               : null}
             {props.canManage ? " · superuser can gift from user console" : null}
+          </p>
+        ) : syncedAt && !stripeConnection.configured ? (
+          <p className="mt-3 text-xs text-white/35">
+            Neon only — Stripe is not connected on this deployment.
           </p>
         ) : null}
       </section>

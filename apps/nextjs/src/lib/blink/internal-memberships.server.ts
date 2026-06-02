@@ -163,7 +163,7 @@ export function buildMembershipRevenueForecast(
   };
 }
 
-function tierProductLabel(tier: string) {
+export function tierProductLabel(tier: string) {
   const normalized = tier.trim().toLowerCase();
   if (normalized === "preferred") return "Blink Pro · Preferred";
   if (normalized === "premium") return "Blink Pro · Premium";

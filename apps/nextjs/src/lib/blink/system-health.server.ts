@@ -127,7 +127,7 @@ async function checkHyperliquidWebSocket() {
 
 async function checkBlinkApi() {
   if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL is not configured");
+    throw new Error("Blink API configuration is incomplete");
   }
 
   const resolved = await getBuilderFeeUnitsForWallet(BUILDER_ADDRESS, "BTC");

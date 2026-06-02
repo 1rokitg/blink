@@ -76,7 +76,7 @@ export const env = createEnv({
     DISCORD_STATUS_WEBHOOK_URL: optionalWebhookUrl(
       "https://discord.com/api/webhooks/1509388057114050641/yzegOaVzCMn2nMFMXdbrK5077Nge89xFYWxmklgDpm3rybFm_k4uro1VfFKMRkK9gUqu",
     ),
-    /** Optional Discord role id to mention on outage/recovery alerts. */
+    /** @deprecated Status alerts mention @everyone; kept for backwards-compatible env parsing. */
     DISCORD_STATUS_PING_ROLE_ID: z.string().default(""),
   },
 

@@ -3,9 +3,17 @@ import { desc, inArray } from "drizzle-orm";
 import { db } from "@acme/db/client";
 import { MetricEvent } from "@acme/db/schema";
 
-import { env } from "~/env";
-
-import { postDiscordWebhook, getDiscordStatusWebhookUrl } from "./discord-webhook.server";
+import {
+  getDiscordStatusWebhookUrl,
+  postDiscordWebhook,
+} from "./discord-webhook.server";
+import {
+  buildStatusAlertContext,
+  formatBtcMid,
+  formatFailingChecks,
+  formatUsd,
+  getDeployRegion,
+} from "./status-alert-format.server";
 import { getDeploymentSha, type SystemHealthReport } from "./system-health.server";
 
 type StatusState = SystemHealthReport["status"];
@@ -28,6 +36,12 @@ const STATUS_EMBED_COLORS: Record<StatusState, number> = {
   outage: 0xef4444,
 };
 
+const STATUS_EMOJI: Record<StatusState, string> = {
+  degraded: "🟡",
+  ok: "🟢",
+  outage: "🔴",
+};
+
 function humanizeStatus(value: StatusState) {
   if (value === "ok") return "Operational";
   if (value === "degraded") return "Degraded";
@@ -43,12 +57,8 @@ function classifyTransition(previous: StatusState | null, current: StatusState) 
 }
 
 function mentionPrefix(kind: ReturnType<typeof classifyTransition>) {
-  const roleId = env.DISCORD_STATUS_PING_ROLE_ID.trim();
-  if (!roleId) return "";
-  if (kind === "downtime" || kind === "recovery") {
-    return `<@&${roleId}> `;
-  }
-  return "";
+  if (kind === "uptime" || kind === "noop") return "";
+  return "@everyone ";
 }
 
 export async function maybeSendStatusAlert(report: SystemHealthReport) {
@@ -79,17 +89,15 @@ export async function maybeSendStatusAlert(report: SystemHealthReport) {
   const transition = classifyTransition(previousStatus, report.status);
   if (transition === "noop") return;
 
-  const failingChecks = Object.entries(report.checks)
-    .filter(([, check]) => check.status === "error")
-    .map(([name, check]) => `${name}: ${check.detail ?? "error"}`);
+  const context = await buildStatusAlertContext(report);
   const description =
     transition === "uptime"
       ? "Blink status monitor is live. All systems are currently operational."
       : transition === "recovery"
-        ? `Recovered from ${previousStatus ?? "unknown"} state.`
+        ? `Service recovered from **${humanizeStatus(previousStatus ?? "unknown")}** to **${humanizeStatus(report.status)}**.`
         : transition === "downtime"
-          ? `Service has entered ${report.status} state.`
-          : `Status changed from ${previousStatus ?? "unknown"} to ${report.status}.`;
+          ? `Service entered **${humanizeStatus(report.status)}** from **${humanizeStatus(previousStatus ?? "unknown")}**.`
+          : `Status moved from **${humanizeStatus(previousStatus ?? "unknown")}** to **${humanizeStatus(report.status)}**.`;
 
   await db.insert(MetricEvent).values({
     eventType: currentEvent,
@@ -112,7 +120,16 @@ export async function maybeSendStatusAlert(report: SystemHealthReport) {
         : transition === "uptime"
           ? "UPTIME"
           : "STATUS CHANGE";
-  const content = `${mentionPrefix(transition)}**Blink ${titlePrefix}: ${humanizeStatus(report.status)}**`;
+  const emoji = STATUS_EMOJI[report.status];
+  const content = `${mentionPrefix(transition)}**${emoji} Blink ${titlePrefix} · ${humanizeStatus(report.status)}**`;
+
+  const region = context.region ?? getDeployRegion() ?? "—";
+  const btcValue =
+    context.btcMid !== null ? `$${formatBtcMid(context.btcMid)}` : "—";
+  const builderBalanceValue =
+    context.builderBalanceUsd !== null
+      ? formatUsd(context.builderBalanceUsd)
+      : "—";
 
   await postDiscordWebhook(webhookUrl, {
     content,
@@ -134,25 +151,59 @@ export async function maybeSendStatusAlert(report: SystemHealthReport) {
           {
             inline: true,
             name: "Deploy",
-            value: getDeploymentSha(),
+            value: `\`${getDeploymentSha()}\``,
+          },
+          {
+            inline: true,
+            name: "Region",
+            value: region,
+          },
+          {
+            inline: true,
+            name: "BTC mid",
+            value: btcValue,
+          },
+          {
+            inline: true,
+            name: "Builder balance",
+            value: builderBalanceValue,
+          },
+          {
+            inline: true,
+            name: "90d uptime",
+            value: `${context.uptimePct.toFixed(2)}%`,
+          },
+          {
+            inline: true,
+            name: "90d incidents",
+            value: String(context.incidentCount),
+          },
+          ...(context.blinkApiSummary
+            ? [
+                {
+                  inline: false,
+                  name: "Builder routing",
+                  value: context.blinkApiSummary,
+                },
+              ]
+            : []),
+          {
+            inline: false,
+            name: "Issues",
+            value: formatFailingChecks(report).slice(0, 1000),
           },
           {
             inline: false,
-            name: "Failing checks",
-            value:
-              failingChecks.length > 0
-                ? failingChecks.join("\n").slice(0, 1000)
-                : "None",
-          },
-          {
-            inline: false,
-            name: "Checked at",
-            value: new Date(report.checkedAt).toISOString(),
+            name: "Check latency",
+            value: context.latencies || "—",
           },
         ],
+        footer: {
+          text: "Blink status monitor",
+        },
+        timestamp: report.checkedAt,
         title: "Blink system status",
       },
     ],
   });
 }
-

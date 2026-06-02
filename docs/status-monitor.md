@@ -33,8 +33,9 @@ Set these values in the GitHub repository before enabling the monitor:
 
 - Healthy runs do not post to Discord.
 - Degraded or outage runs do post to Discord.
-- This version does not deduplicate or send recovery messages.
-- It is intentionally simple and favors easy setup over alert-state tracking.
+- App-originated alerts (from `/api/health`) dedupe state transitions and send recovery pings.
+- Discord alerts mention `@everyone` on incidents and never include environment variable names.
+- Non-sensitive context (deploy region, BTC mid, builder balance, uptime) is attached when available.
 
 ## Operator smoke test
 

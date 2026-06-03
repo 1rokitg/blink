@@ -5,6 +5,13 @@ import { z } from "zod";
 
 import { env as authEnv } from "@acme/auth/env";
 
+import {
+  BLINK_PRIVY_APP_ID_DEFAULT,
+  BLINK_PRIVY_CLIENT_ID_DEFAULT,
+  resolvePrivyAppId,
+  resolvePrivyClientId,
+} from "./lib/blink/privy-config";
+
 /** Treat `""` as unset so Zod `.default()` applies (Vercel often sets empty strings). */
 function emptyStringToUndefined(value: unknown) {
   if (typeof value !== "string") return value;
@@ -99,23 +106,23 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_URL: z.string().url().default("http://localhost:3000"),
     /** Growth campaign mode toggle. When enabled, activates growth-specific perks. */
     NEXT_PUBLIC_GROWTH_MODE: z.enum(["0", "1"]).default("0"),
-    /** Public Privy App ID used by the web client for wallet auth. */
+    /** Public Privy App ID (`cm…`) — not the web Client ID. */
     NEXT_PUBLIC_PRIVY_APP_ID: z.preprocess(
       emptyStringToUndefined,
       z
         .string()
-        .min(12)
-        .regex(/^[^\s"'`]+$/)
-        .default("cmphrowed00j20cjuned0ftmt"),
+        .optional()
+        .transform((value) => resolvePrivyAppId(value))
+        .default(BLINK_PRIVY_APP_ID_DEFAULT),
     ),
-    /** Public Privy Client ID used by the web client for wallet auth. */
+    /** Public Privy web Client ID (`client-…`) from Privy dashboard → Web. */
     NEXT_PUBLIC_PRIVY_CLIENT_ID: z.preprocess(
       emptyStringToUndefined,
       z
         .string()
-        .min(12)
-        .regex(/^[^\s"'`]+$/)
-        .default("client-WY6ZYq2Ve9d4cAN4A4kvRV26jJwsodGMA8JrAk7XriopW"),
+        .optional()
+        .transform((value) => resolvePrivyClientId(value))
+        .default(BLINK_PRIVY_CLIENT_ID_DEFAULT),
     ),
   },
   /**

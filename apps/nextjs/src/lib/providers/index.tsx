@@ -7,7 +7,29 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
 import { ORPCContext } from "../context/orpc";
+import {
+  BLINK_PRIVY_CLIENT_ID_DEFAULT,
+  resolvePrivyAppId,
+  resolvePrivyClientId,
+} from "~/lib/blink/privy-config";
 import { env } from "~/env";
+
+const privyAppId = resolvePrivyAppId(
+  env.NEXT_PUBLIC_PRIVY_APP_ID || process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+);
+const privyClientId = resolvePrivyClientId(
+  env.NEXT_PUBLIC_PRIVY_CLIENT_ID || process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID,
+);
+
+if (
+  process.env.NODE_ENV === "production" &&
+  privyClientId === BLINK_PRIVY_CLIENT_ID_DEFAULT &&
+  !process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID?.startsWith("client-")
+) {
+  console.warn(
+    "[privy] NEXT_PUBLIC_PRIVY_CLIENT_ID missing or invalid at build — using Blink default web client id.",
+  );
+}
 
 export function ContextProviders({ children }: { children: React.ReactNode }) {
   const isE2EMode = process.env.NEXT_PUBLIC_E2E_MODE === "1";
@@ -60,8 +82,8 @@ export function ContextProviders({ children }: { children: React.ReactNode }) {
           children
         ) : (
           <PrivyProvider
-            appId={env.NEXT_PUBLIC_PRIVY_APP_ID}
-            clientId={env.NEXT_PUBLIC_PRIVY_CLIENT_ID}
+            appId={privyAppId}
+            clientId={privyClientId}
             config={{
               appearance: {
                 theme: "dark",

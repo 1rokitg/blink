@@ -61,6 +61,7 @@ export function ContextProviders({ children }: { children: React.ReactNode }) {
         ) : (
           <PrivyProvider
             appId={env.NEXT_PUBLIC_PRIVY_APP_ID}
+            clientId="client-WY6ZYq2Ve9d4cAN4A4kvRV26jJwsodGMA8JrAk7XriopW"
             config={{
               appearance: {
                 theme: "dark",

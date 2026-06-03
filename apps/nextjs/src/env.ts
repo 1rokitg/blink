@@ -108,6 +108,15 @@ export const env = createEnv({
         .regex(/^[^\s"'`]+$/)
         .default("cmphrowed00j20cjuned0ftmt"),
     ),
+    /** Public Privy Client ID used by the web client for wallet auth. */
+    NEXT_PUBLIC_PRIVY_CLIENT_ID: z.preprocess(
+      emptyStringToUndefined,
+      z
+        .string()
+        .min(12)
+        .regex(/^[^\s"'`]+$/)
+        .default("client-WY6ZYq2Ve9d4cAN4A4kvRV26jJwsodGMA8JrAk7XriopW"),
+    ),
   },
   /**
    * Destructure all variables from `process.env` to make sure they aren't tree-shaken away.
@@ -119,6 +128,7 @@ export const env = createEnv({
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_GROWTH_MODE: process.env.NEXT_PUBLIC_GROWTH_MODE,
     NEXT_PUBLIC_PRIVY_APP_ID: process.env.NEXT_PUBLIC_PRIVY_APP_ID,
+    NEXT_PUBLIC_PRIVY_CLIENT_ID: process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID,
   },
   // Do not skip validation when CI=1 (Cloudflare/Vercel builds). Skipping drops Zod
   // defaults and leaves NEXT_PUBLIC_* undefined, which crashes module init.

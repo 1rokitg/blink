@@ -1,6 +1,7 @@
 "use server";
 
 import {
+  canAccessInternalTools,
   getRoleFromIdentities,
   type BlinkRole,
 } from "~/lib/blink/admin-roles.server";
@@ -19,7 +20,7 @@ export async function getAdminAccess(
     walletAddresses,
     emailAddresses,
   });
-  if (role === "admin" || role === "superuser") {
+  if (canAccessInternalTools(role)) {
     return { allowed: true, role, walletAddress };
   }
 

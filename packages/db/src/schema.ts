@@ -303,3 +303,21 @@ export const InternalRole = pgTable("internal_role", (t) => ({
     .timestamp({ mode: "date", withTimezone: true })
     .$onUpdateFn(() => sql`now()`),
 }));
+
+/** Privy email grants for internal tools (read-only viewer, etc.). */
+export const InternalEmailGrant = pgTable(
+  "internal_email_grant",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    email: t.varchar({ length: 255 }).notNull(),
+    role: t.varchar({ length: 24 }).notNull().default("viewer"),
+    note: t.varchar({ length: 255 }),
+    grantedBy: t.varchar({ length: 42 }),
+    inviteSentAt: t.timestamp({ mode: "date", withTimezone: true }),
+    createdAt: t.timestamp().defaultNow().notNull(),
+    updatedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .$onUpdateFn(() => sql`now()`),
+  }),
+  (t) => [uniqueIndex("internal_email_grant_email_unique").on(t.email)],
+);

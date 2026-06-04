@@ -13,6 +13,7 @@ import {
   Radio,
   RefreshCw,
   Search,
+  Shield,
   Wrench,
 } from "lucide-react";
 import {
@@ -63,6 +64,7 @@ import {
 } from "./internal-dashboard-primitives";
 import { InternalLiveActivityFeed } from "./internal-live-activity-feed";
 import { InternalMembershipsPanel } from "./internal-memberships-panel";
+import { InternalTeamAccessPanel } from "./internal-team-access-panel";
 import { SuperuserPanel } from "./superuser-panel";
 
 const TODAY_KPI_LABELS = new Set([
@@ -193,7 +195,7 @@ function getRangeConfig(range: AdminRange) {
 }
 
 export function AdminDashboard(props?: {
-  section?: "overview" | "users" | "feed" | "memberships";
+  section?: "overview" | "users" | "feed" | "memberships" | "team";
   initialUserAddress?: string;
   /** SSR overview payload from InternalDashboardOverviewPage. */
   initialOverviewStats?: AdminStats;
@@ -277,16 +279,31 @@ export function AdminDashboard(props?: {
       `https://www.flowscan.xyz/builders/${encodeURIComponent(BUILDER_ADDRESS)}?range=7d`,
     [],
   );
-  const navItems = useMemo(
-    () =>
-      INTERNAL_NAV_ITEMS.map((item) => ({
-        ...item,
-        active:
-          item.href === "/internal"
-            ? currentSection === "overview"
-            : item.href === "/internal/users"
-              ? currentSection === "users" &&
-                pathname.startsWith("/internal/users")
+  const navItems = useMemo(() => {
+    const items =
+      role === "superuser"
+        ? [
+            ...INTERNAL_NAV_ITEMS.slice(0, 6),
+            {
+              label: "Team access",
+              href: "/internal/team",
+              icon: Shield,
+            },
+            ...INTERNAL_NAV_ITEMS.slice(6),
+          ]
+        : INTERNAL_NAV_ITEMS;
+
+    return items.map((item) => ({
+      ...item,
+      active:
+        item.href === "/internal"
+          ? currentSection === "overview"
+          : item.href === "/internal/users"
+            ? currentSection === "users" &&
+              pathname.startsWith("/internal/users")
+            : item.href === "/internal/team"
+              ? currentSection === "team" ||
+                pathname.startsWith("/internal/team")
               : item.href === "/internal/feed"
                 ? currentSection === "feed" ||
                   pathname.startsWith("/internal/feed")
@@ -294,9 +311,8 @@ export function AdminDashboard(props?: {
                   ? currentSection === "memberships" ||
                     pathname.startsWith("/internal/memberships")
                   : item.href !== "#" && pathname === item.href,
-      })),
-    [currentSection, pathname],
-  );
+    }));
+  }, [currentSection, pathname, role]);
 
   const fetchStats = useCallback(
     async (options?: {
@@ -310,6 +326,8 @@ export function AdminDashboard(props?: {
       try {
         const rangeConfig = getRangeConfig(selectedRange);
         const data = await getAdminStats({
+          actingWalletAddress: walletAddress || connectedWallets[0],
+          emailAddresses: identityEmails,
           syncHyperliquid: options?.syncHyperliquid,
           includeAttribution: options?.includeAttribution ?? true,
           liveWindowMinutes: rangeConfig.liveMinutes,
@@ -342,7 +360,7 @@ export function AdminDashboard(props?: {
         }
       }
     },
-    [selectedRange],
+    [selectedRange, walletAddress, connectedWallets, identityEmails],
   );
 
   useEffect(() => {
@@ -468,8 +486,9 @@ export function AdminDashboard(props?: {
               Admin role required.
             </h1>
             <p className="mt-3 text-base leading-7 text-foreground/58">
-              Blink internal tools now use Neon-backed RBAC. Ask a superuser to
-              grant your connected wallet an admin or superuser role.
+              Connect with a wallet or Privy email that has internal access.
+              Ask a superuser to grant your wallet, or use an approved team
+              email (read-only viewer).
             </p>
             {connectedWallets.length > 0 && (
               <p className="mt-3 font-mono text-sm text-foreground/45">
@@ -498,6 +517,59 @@ export function AdminDashboard(props?: {
       : rec?.status === "warning"
         ? "text-amber-300 border-amber-400/30 bg-amber-400/10"
         : "text-emerald-300 border-emerald-400/30 bg-emerald-400/10";
+
+  if (currentSection === "team") {
+    if (role !== "superuser") {
+      return (
+        <main className="min-h-screen bg-[#09090b] px-6 py-8 text-foreground">
+          <div className="mx-auto max-w-3xl">
+            <section className={`${internalPanelClass} p-8`}>
+              <h1 className="text-2xl font-semibold tracking-tight text-white">
+                Superuser access required
+              </h1>
+              <p className="mt-3 text-sm leading-6 text-white/50">
+                Only superusers can manage team email grants.
+              </p>
+              <Link
+                href="/internal"
+                className="mt-6 inline-flex text-sm text-foreground/60 transition hover:text-foreground/82"
+              >
+                ← Back to dashboard
+              </Link>
+            </section>
+          </div>
+        </main>
+      );
+    }
+
+    return (
+      <InternalDashboardShell
+        navItems={shellNavItems}
+        header={
+          <>
+            <div className="flex items-center gap-2">
+              <Badge className="rounded-full border border-white/10 bg-white/8 px-3 py-1 text-xs font-medium text-white/55">
+                Team access
+              </Badge>
+              <Badge className="rounded-full border border-amber-400/35 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-200">
+                Superuser
+              </Badge>
+            </div>
+            <p className="text-xs text-white/45">
+              {truncateAddress(walletAddress)}
+            </p>
+          </>
+        }
+      >
+        {walletAddress ? (
+          <InternalTeamAccessPanel
+            actingWalletAddress={walletAddress}
+            emailAddresses={identityEmails}
+          />
+        ) : null}
+      </InternalDashboardShell>
+    );
+  }
 
   if (currentSection === "users") {
     return (
@@ -580,6 +652,7 @@ export function AdminDashboard(props?: {
       >
         <InternalMembershipsPanel
           actingWalletAddress={walletAddress}
+          emailAddresses={identityEmails}
           canManage={role === "superuser"}
         />
       </InternalDashboardShell>
@@ -610,6 +683,7 @@ export function AdminDashboard(props?: {
       >
         <InternalLiveActivityFeed
           actingWalletAddress={walletAddress}
+          emailAddresses={identityEmails}
           canGift={role === "superuser"}
         />
       </InternalDashboardShell>
@@ -628,6 +702,11 @@ export function AdminDashboard(props?: {
             {role === "superuser" ? (
               <Badge className="rounded-full border border-amber-400/35 bg-amber-400/10 px-3 py-1 text-xs font-medium text-amber-200">
                 Superuser
+              </Badge>
+            ) : null}
+            {role === "viewer" ? (
+              <Badge className="rounded-full border border-sky-400/35 bg-sky-400/10 px-3 py-1 text-xs font-medium text-sky-200">
+                Read-only
               </Badge>
             ) : null}
           </div>
@@ -1292,7 +1371,11 @@ export function AdminDashboard(props?: {
                     </div>
                     <Switch
                       checked={flag.enabled}
-                      disabled={flagSaving === flag.key || !walletAddress}
+                      disabled={
+                        flagSaving === flag.key ||
+                        !walletAddress ||
+                        role === "viewer"
+                      }
                       onCheckedChange={async (nextValue) => {
                         try {
                           setFlagSaving(flag.key);
@@ -1300,6 +1383,7 @@ export function AdminDashboard(props?: {
                             key: flag.key,
                             enabled: nextValue,
                             walletAddress,
+                            emailAddresses: identityEmails,
                           });
                           setStats((prev) =>
                             prev

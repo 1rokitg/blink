@@ -15,6 +15,11 @@ const FOUNDER_EMAIL_BOOTSTRAP: Record<string, BlinkRole> = {
   "pintosdsgn@gmail.com": "superuser",
 };
 
+/** Read-only internal access via Privy email (no wallet grant required). */
+const INTERNAL_EMAIL_BOOTSTRAP: Record<string, BlinkRole> = {
+  "breixobingx@gmail.com": "viewer",
+};
+
 function normalize(address: string) {
   return address.trim().toLowerCase();
 }
@@ -23,9 +28,36 @@ function getBootstrapRole(walletAddress: string): BlinkRole {
   return FOUNDER_BOOTSTRAP[normalize(walletAddress)] ?? "viewer";
 }
 
-function getBootstrapRoleFromEmail(emailAddress?: string | null): BlinkRole {
-  if (!emailAddress) return "viewer";
-  return FOUNDER_EMAIL_BOOTSTRAP[emailAddress.trim().toLowerCase()] ?? "viewer";
+export function normalizeEmailForGrant(emailAddress: string) {
+  return emailAddress.trim().toLowerCase();
+}
+
+function getBootstrapEmailRole(emailAddress: string): BlinkRole | null {
+  const email = normalizeEmailForGrant(emailAddress);
+  if (FOUNDER_EMAIL_BOOTSTRAP[email]) return FOUNDER_EMAIL_BOOTSTRAP[email];
+  if (INTERNAL_EMAIL_BOOTSTRAP[email]) return INTERNAL_EMAIL_BOOTSTRAP[email];
+  return null;
+}
+
+async function getGrantedEmailRole(emailAddress: string): Promise<BlinkRole | null> {
+  const bootstrap = getBootstrapEmailRole(emailAddress);
+  if (bootstrap === "superuser" || bootstrap === "admin") {
+    return bootstrap;
+  }
+
+  const { getEmailRoleFromDb } = await import("./internal-email-grants.server");
+  const dbRole = await getEmailRoleFromDb(emailAddress);
+  if (dbRole) return dbRole;
+
+  return bootstrap;
+}
+
+export function canAccessInternalTools(role: BlinkRole) {
+  return role === "viewer" || role === "admin" || role === "superuser";
+}
+
+export function canWriteInternalTools(role: BlinkRole) {
+  return role === "admin" || role === "superuser";
 }
 
 function toLevel(role: BlinkRole) {
@@ -120,13 +152,62 @@ export async function getRoleFromIdentities(params: {
 
   const emails = (params.emailAddresses ?? []).filter(Boolean);
   for (const email of emails) {
-    const role = getBootstrapRoleFromEmail(email);
-    if (role === "admin" || role === "superuser") {
+    const role = await getGrantedEmailRole(email);
+    if (role && canAccessInternalTools(role)) {
       return { role, walletAddress: normalize(wallets[0] ?? "") };
     }
   }
 
   return { role: "viewer", walletAddress: normalize(wallets[0] ?? "") };
+}
+
+export async function assertSuperuserAccess(params: {
+  actingWalletAddress: string;
+  emailAddresses?: string[];
+}): Promise<BlinkRole> {
+  const { role } = await resolveInternalRole({
+    walletAddresses: [params.actingWalletAddress],
+    emailAddresses: params.emailAddresses ?? [],
+  });
+  if (role !== "superuser") {
+    throw new Error("Superuser access required");
+  }
+  return role;
+}
+
+export async function resolveInternalRole(params: {
+  walletAddresses?: string[];
+  emailAddresses?: string[];
+}) {
+  return getRoleFromIdentities(params);
+}
+
+export async function assertInternalReadAccess(params: {
+  actingWalletAddress: string;
+  emailAddresses?: string[];
+}): Promise<BlinkRole> {
+  const { role } = await resolveInternalRole({
+    walletAddresses: [params.actingWalletAddress],
+    emailAddresses: params.emailAddresses ?? [],
+  });
+  if (!canAccessInternalTools(role)) {
+    throw new Error("Unauthorized");
+  }
+  return role;
+}
+
+export async function assertInternalWriteAccess(params: {
+  actingWalletAddress: string;
+  emailAddresses?: string[];
+}): Promise<BlinkRole> {
+  const { role } = await resolveInternalRole({
+    walletAddresses: [params.actingWalletAddress],
+    emailAddresses: params.emailAddresses ?? [],
+  });
+  if (!canWriteInternalTools(role)) {
+    throw new Error("Unauthorized");
+  }
+  return role;
 }
 
 export async function grantInternalRole(params: {

@@ -87,6 +87,7 @@ function timeAgo(value: string) {
 
 export function InternalLiveActivityFeed(props: {
   actingWalletAddress: string;
+  emailAddresses?: string[];
   canGift: boolean;
 }) {
   const [filter, setFilter] = useState<LiveFilter>("all");
@@ -100,6 +101,7 @@ export function InternalLiveActivityFeed(props: {
     try {
       const next = await getLiveActivityFeed({
         actingWalletAddress: props.actingWalletAddress,
+        emailAddresses: props.emailAddresses,
         page,
         pageSize: 25,
       });
@@ -111,7 +113,7 @@ export function InternalLiveActivityFeed(props: {
     } finally {
       setLoading(false);
     }
-  }, [page, props.actingWalletAddress]);
+  }, [page, props.actingWalletAddress, props.emailAddresses]);
 
   useEffect(() => {
     void fetchPage();

@@ -3,7 +3,7 @@
 import { z } from "zod";
 
 import { setFeatureFlag, type BlinkFeatureFlagKey } from "~/lib/blink/feature-flags.server";
-import { isAdminWalletDb } from "~/lib/blink/admin-roles.server";
+import { assertInternalWriteAccess } from "~/lib/blink/admin-roles.server";
 
 const schema = z.object({
   key: z.enum([
@@ -14,6 +14,7 @@ const schema = z.object({
   ]),
   enabled: z.boolean(),
   walletAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  emailAddresses: z.array(z.string().email()).optional(),
 });
 
 export async function setFeatureFlagAction(input: unknown) {
@@ -23,9 +24,10 @@ export async function setFeatureFlagAction(input: unknown) {
   }
 
   const wallet = parsed.data.walletAddress.toLowerCase();
-  if (!(await isAdminWalletDb(wallet))) {
-    throw new Error("Unauthorized");
-  }
+  await assertInternalWriteAccess({
+    actingWalletAddress: wallet,
+    emailAddresses: parsed.data.emailAddresses,
+  });
 
   await setFeatureFlag(
     parsed.data.key as BlinkFeatureFlagKey,

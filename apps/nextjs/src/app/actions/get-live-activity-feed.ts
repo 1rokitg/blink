@@ -6,11 +6,12 @@ import { z } from "zod";
 import { db } from "@acme/db/client";
 import { MetricEvent } from "@acme/db/schema";
 
-import { getWalletRoleFromDb } from "~/lib/blink/admin-roles.server";
+import { assertInternalReadAccess } from "~/lib/blink/admin-roles.server";
 import { LIVE_ACTIVITY_EVENT_TYPES } from "~/lib/blink/activity-alerts.server";
 
 const inputSchema = z.object({
   actingWalletAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  emailAddresses: z.array(z.string().email()).optional(),
   page: z.number().int().min(1).default(1),
   pageSize: z.number().int().min(10).max(100).default(25),
 });
@@ -81,10 +82,10 @@ export async function getLiveActivityFeed(
   }
 
   const actingWalletAddress = parsed.data.actingWalletAddress.toLowerCase();
-  const role = await getWalletRoleFromDb(actingWalletAddress);
-  if (role !== "admin" && role !== "superuser") {
-    throw new Error("Unauthorized");
-  }
+  await assertInternalReadAccess({
+    actingWalletAddress,
+    emailAddresses: parsed.data.emailAddresses,
+  });
 
   const offset = (parsed.data.page - 1) * parsed.data.pageSize;
   const eventTypes = [...LIVE_ACTIVITY_EVENT_TYPES] as LiveActivityEventType[];

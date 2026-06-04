@@ -166,6 +166,7 @@ function exportMembershipsCsv(rows: InternalMembershipRow[]) {
 
 export function InternalMembershipsPanel(props: {
   actingWalletAddress: string;
+  emailAddresses?: string[];
   canManage: boolean;
 }) {
   const [rows, setRows] = useState<InternalMembershipRow[]>([]);
@@ -197,6 +198,7 @@ export function InternalMembershipsPanel(props: {
     try {
       const payload = await getInternalMemberships({
         actingWalletAddress: props.actingWalletAddress,
+        emailAddresses: props.emailAddresses,
       });
       setRows(payload.rows);
       setSummary(payload.summary);
@@ -213,7 +215,7 @@ export function InternalMembershipsPanel(props: {
     } finally {
       setLoading(false);
     }
-  }, [props.actingWalletAddress]);
+  }, [props.actingWalletAddress, props.emailAddresses]);
 
   useEffect(() => {
     void load();

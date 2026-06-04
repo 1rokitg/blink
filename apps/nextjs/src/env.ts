@@ -87,6 +87,13 @@ export const env = createEnv({
     ),
     /** @deprecated Status alerts mention @everyone; kept for backwards-compatible env parsing. */
     DISCORD_STATUS_PING_ROLE_ID: z.string().default(""),
+    /** Resend API key for internal team invite emails. */
+    RESEND_API_KEY: z.preprocess(emptyStringToUndefined, z.string().optional()),
+    /** From address for Resend (must match a verified domain). */
+    RESEND_FROM_EMAIL: z.preprocess(
+      emptyStringToUndefined,
+      z.string().optional().default("no-reply@blink.lat"),
+    ),
   },
 
   /**

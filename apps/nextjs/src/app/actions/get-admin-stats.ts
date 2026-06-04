@@ -10,6 +10,7 @@ import {
   Referral,
 } from "@acme/db/schema";
 
+import { assertInternalReadAccess } from "~/lib/blink/admin-roles.server";
 import { LIVE_ACTIVITY_EVENT_TYPES } from "~/lib/blink/activity-alerts.server";
 import { dedupeBuilderApprovalsByWallet } from "~/lib/blink/builder-approval-rows";
 import { getFeatureFlags } from "~/lib/blink/feature-flags.server";
@@ -221,6 +222,8 @@ export interface AdminStats {
 }
 
 export async function getAdminStats(options?: {
+  actingWalletAddress?: string;
+  emailAddresses?: string[];
   syncHyperliquid?: boolean;
   includeAttribution?: boolean;
   liveWindowMinutes?: number;
@@ -228,6 +231,12 @@ export async function getAdminStats(options?: {
   windowDays?: MetricsWindowDays;
 }): Promise<AdminStats> {
   try {
+    if (options?.actingWalletAddress) {
+      await assertInternalReadAccess({
+        actingWalletAddress: options.actingWalletAddress,
+        emailAddresses: options.emailAddresses,
+      });
+    }
     return await loadAdminStats(options);
   } catch (error) {
     console.error("[admin] getAdminStats failed", error);

@@ -2,7 +2,10 @@
 
 import { z } from "zod";
 
-import { getWalletRoleFromDb } from "~/lib/blink/admin-roles.server";
+import {
+  assertInternalReadAccess,
+  canWriteInternalTools,
+} from "~/lib/blink/admin-roles.server";
 import {
   type InternalMembershipRevenueForecast,
   type InternalMembershipRow,
@@ -22,6 +25,7 @@ import { isStripeConfigured } from "~/lib/blink/stripe.server";
 
 const inputSchema = z.object({
   actingWalletAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
+  emailAddresses: z.array(z.string().email()).optional(),
 });
 
 export type StripeConnectionStatus = {
@@ -69,10 +73,11 @@ export async function getInternalMemberships(
   }
 
   const actingWalletAddress = parsed.data.actingWalletAddress.toLowerCase();
-  const role = await getWalletRoleFromDb(actingWalletAddress);
-  if (role !== "admin" && role !== "superuser") {
-    throw new Error("Unauthorized");
-  }
+  const role = await assertInternalReadAccess({
+    actingWalletAddress,
+    emailAddresses: parsed.data.emailAddresses,
+  });
+  const allowStripeSync = canWriteInternalTools(role);
 
   const stripeConnection: StripeConnectionStatus = {
     configured: isStripeConfigured(),
@@ -84,12 +89,14 @@ export async function getInternalMemberships(
     null;
 
   if (stripeConnection.configured) {
-    try {
-      stripeSync = await syncStripeSubscriptionsToDatabase();
-    } catch (error) {
-      console.error("[memberships] Stripe subscription sync failed", error);
-      stripeConnection.error =
-        error instanceof Error ? error.message : "Stripe sync failed.";
+    if (allowStripeSync) {
+      try {
+        stripeSync = await syncStripeSubscriptionsToDatabase();
+      } catch (error) {
+        console.error("[memberships] Stripe subscription sync failed", error);
+        stripeConnection.error =
+          error instanceof Error ? error.message : "Stripe sync failed.";
+      }
     }
 
     try {

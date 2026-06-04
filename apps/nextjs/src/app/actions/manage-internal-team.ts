@@ -67,16 +67,20 @@ export async function grantInternalTeamMemberAction(
     throw new Error(parsed.error.issues[0]?.message ?? "Invalid request");
   }
 
-  const row = await grantInternalEmailAccess({
-    actingWalletAddress: parsed.data.actingWalletAddress,
-    emailAddresses: parsed.data.emailAddresses,
-    email: parsed.data.email,
-    role: parsed.data.role as BlinkRole,
-    note: parsed.data.note,
-    sendInvite: parsed.data.sendInvite,
-  });
-
-  return row;
+  try {
+    return await grantInternalEmailAccess({
+      actingWalletAddress: parsed.data.actingWalletAddress,
+      emailAddresses: parsed.data.emailAddresses,
+      email: parsed.data.email,
+      role: parsed.data.role as BlinkRole,
+      note: parsed.data.note,
+      sendInvite: parsed.data.sendInvite,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to grant team access";
+    throw new Error(message);
+  }
 }
 
 export async function resendInternalTeamInviteAction(

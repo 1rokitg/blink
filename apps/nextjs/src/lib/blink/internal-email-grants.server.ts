@@ -2,9 +2,9 @@ import "server-only";
 
 import { desc, eq } from "drizzle-orm";
 
-import { db } from "@acme/db/client";
+import { getDbAsync } from "@acme/db/client";
 import { InternalEmailGrant } from "@acme/db/schema";
-import { toIsoTimestamp } from "@acme/db/serialize-timestamp";
+import { toIsoTimestamp, toJsonSafe } from "@acme/db/serialize-timestamp";
 
 import {
   type BlinkRole,
@@ -25,26 +25,28 @@ export type InternalEmailGrantRow = {
 };
 
 function toRow(record: typeof InternalEmailGrant.$inferSelect): InternalEmailGrantRow {
-  return {
-    id: record.id,
-    email: record.email,
+  return toJsonSafe({
+    id: String(record.id),
+    email: String(record.email),
     role: record.role as BlinkRole,
-    note: record.note,
-    grantedBy: record.grantedBy,
+    note: record.note ?? null,
+    grantedBy: record.grantedBy ?? null,
     inviteSentAt: toIsoTimestamp(record.inviteSentAt),
     createdAt: toIsoTimestamp(record.createdAt) ?? new Date().toISOString(),
     updatedAt: toIsoTimestamp(record.updatedAt),
-  };
+  });
 }
 
 export async function listInternalEmailGrants(): Promise<InternalEmailGrantRow[]> {
   try {
-    const rows = await db
+    const database = await getDbAsync();
+    const rows = await database
       .select()
       .from(InternalEmailGrant)
       .orderBy(desc(InternalEmailGrant.createdAt));
     return rows.map(toRow);
-  } catch {
+  } catch (error) {
+    console.warn("[internal-team] list grants failed", error);
     return [];
   }
 }
@@ -56,7 +58,7 @@ export async function grantInternalEmailAccess(params: {
   role: BlinkRole;
   note?: string;
   sendInvite?: boolean;
-}) {
+}): Promise<InternalEmailGrantRow | null> {
   await assertSuperuserAccess({
     actingWalletAddress: params.actingWalletAddress,
     emailAddresses: params.emailAddresses,
@@ -69,8 +71,9 @@ export async function grantInternalEmailAccess(params: {
   const email = normalizeEmailForGrant(params.email);
   const grantedBy = params.actingWalletAddress.toLowerCase();
   const sendInvite = params.sendInvite !== false;
+  const database = await getDbAsync();
 
-  await db
+  await database
     .insert(InternalEmailGrant)
     .values({
       email,
@@ -88,7 +91,6 @@ export async function grantInternalEmailAccess(params: {
       },
     });
 
-  let inviteSentAt: Date | null = null;
   if (sendInvite) {
     if (!isResendConfigured()) {
       throw new Error(
@@ -101,10 +103,9 @@ export async function grantInternalEmailAccess(params: {
         role: params.role,
         note: params.note,
       });
-      inviteSentAt = new Date();
-      await db
+      await database
         .update(InternalEmailGrant)
-        .set({ inviteSentAt })
+        .set({ inviteSentAt: new Date() })
         .where(eq(InternalEmailGrant.email, email));
     } catch (error) {
       const detail =
@@ -115,7 +116,7 @@ export async function grantInternalEmailAccess(params: {
     }
   }
 
-  const row = await db
+  const row = await database
     .select()
     .from(InternalEmailGrant)
     .where(eq(InternalEmailGrant.email, email))
@@ -138,7 +139,8 @@ export async function resendInternalTeamInvite(params: {
     throw new Error("RESEND_API_KEY is not configured.");
   }
 
-  const row = await db
+  const database = await getDbAsync();
+  const row = await database
     .select()
     .from(InternalEmailGrant)
     .where(eq(InternalEmailGrant.id, params.grantId))
@@ -156,7 +158,7 @@ export async function resendInternalTeamInvite(params: {
   });
 
   const inviteSentAt = new Date();
-  await db
+  await database
     .update(InternalEmailGrant)
     .set({ inviteSentAt })
     .where(eq(InternalEmailGrant.id, params.grantId));
@@ -174,5 +176,8 @@ export async function revokeInternalEmailGrant(params: {
     emailAddresses: params.emailAddresses,
   });
 
-  await db.delete(InternalEmailGrant).where(eq(InternalEmailGrant.id, params.grantId));
+  const database = await getDbAsync();
+  await database
+    .delete(InternalEmailGrant)
+    .where(eq(InternalEmailGrant.id, params.grantId));
 }

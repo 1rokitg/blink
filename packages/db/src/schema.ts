@@ -314,7 +314,10 @@ export const InternalEmailGrant = pgTable(
     note: t.varchar({ length: 255 }),
     grantedBy: t.varchar({ length: 42 }),
     inviteSentAt: t.timestamp({ mode: "date", withTimezone: true }),
-    createdAt: t.timestamp().defaultNow().notNull(),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
     updatedAt: t
       .timestamp({ mode: "date", withTimezone: true })
       .$onUpdateFn(() => sql`now()`),

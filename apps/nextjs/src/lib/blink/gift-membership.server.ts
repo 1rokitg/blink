@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
+import { toIsoTimestamp } from "@acme/db/serialize-timestamp";
 import { BlinkMembership, UserProfile } from "@acme/db/schema";
 
 export const LIFETIME_MEMBERSHIP_END = new Date("2099-12-31T23:59:59.999Z");
@@ -150,10 +151,11 @@ export async function upsertGiftBlinkMembership(input: {
       walletAddress,
       tier: membershipRow.tier as GiftMembershipTier,
       createdAt:
-        membershipRow.createdAt?.toISOString() ?? new Date().toISOString(),
+        toIsoTimestamp(membershipRow.createdAt) ?? new Date().toISOString(),
       currentPeriodEnd:
-        membershipRow.currentPeriodEnd?.toISOString() ??
-        currentPeriodEnd.toISOString(),
+        toIsoTimestamp(membershipRow.currentPeriodEnd) ??
+        toIsoTimestamp(currentPeriodEnd) ??
+        new Date().toISOString(),
       paymentMethod: "gift",
       status: "active",
     };

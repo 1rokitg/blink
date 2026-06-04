@@ -1,6 +1,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
+import { toDate, toIsoTimestamp } from "@acme/db/serialize-timestamp";
 import {
   MetricEvent,
   Referral,
@@ -131,11 +132,13 @@ function buildEntry(
 
   const lastReferralAt =
     matched.length > 0
-      ? matched
-          .reduce((latest, row) =>
-            row.createdAt.getTime() > latest.createdAt.getTime() ? row : latest,
-          )
-          .createdAt.toISOString()
+      ? toIsoTimestamp(
+          matched.reduce((latest, row) => {
+            const rowAt = toDate(row.createdAt)?.getTime() ?? 0;
+            const latestAt = toDate(latest.createdAt)?.getTime() ?? 0;
+            return rowAt > latestAt ? row : latest;
+          }).createdAt,
+        )
       : null;
 
   return {

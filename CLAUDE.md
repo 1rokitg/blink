@@ -69,6 +69,12 @@ This frontend uses Hyperliquid builder codes to route trades and earn referral f
 - **Monorepo:** Turborepo + pnpm workspaces
 - **Linting:** Biome
 
+## Cloudflare + database (production)
+
+- Timestamps from Hyperdrive may be **strings**, not `Date` — use `toIsoTimestamp()` from `@acme/db/serialize-timestamp` before server actions / JSON (never raw `.toISOString()` on row fields).
+- `*.server.ts` uses `import "server-only"`; `"use server"` only in `src/app/actions/`.
+- See `.cursor/rules/cloudflare-db.mdc` for internal tools + Resend patterns.
+
 ## Development
 
 ```bash

@@ -2,7 +2,10 @@
 
 import { z } from "zod";
 
-import type { BlinkRole } from "~/lib/blink/admin-roles.server";
+import {
+  type BlinkRole,
+  assertSuperuserAccess,
+} from "~/lib/blink/admin-roles.server";
 import {
   grantInternalEmailAccess,
   listInternalEmailGrants,
@@ -47,9 +50,6 @@ export async function getInternalTeamPanelState(
     throw new Error("Invalid request");
   }
 
-  const { assertSuperuserAccess } = await import(
-    "~/lib/blink/admin-roles.server"
-  );
   await assertSuperuserAccess(parsed.data);
 
   const grants = await listInternalEmailGrants();

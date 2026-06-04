@@ -4,6 +4,7 @@ import { desc, eq } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
 import { InternalEmailGrant } from "@acme/db/schema";
+import { toIsoTimestamp } from "@acme/db/serialize-timestamp";
 
 import {
   type BlinkRole,
@@ -30,31 +31,10 @@ function toRow(record: typeof InternalEmailGrant.$inferSelect): InternalEmailGra
     role: record.role as BlinkRole,
     note: record.note,
     grantedBy: record.grantedBy,
-    inviteSentAt: record.inviteSentAt?.toISOString() ?? null,
-    createdAt: record.createdAt.toISOString(),
-    updatedAt: record.updatedAt?.toISOString() ?? null,
+    inviteSentAt: toIsoTimestamp(record.inviteSentAt),
+    createdAt: toIsoTimestamp(record.createdAt) ?? new Date().toISOString(),
+    updatedAt: toIsoTimestamp(record.updatedAt),
   };
-}
-
-export async function getEmailRoleFromDb(
-  emailAddress: string,
-): Promise<BlinkRole | null> {
-  const email = normalizeEmailForGrant(emailAddress);
-  try {
-    const row = await db
-      .select({ role: InternalEmailGrant.role })
-      .from(InternalEmailGrant)
-      .where(eq(InternalEmailGrant.email, email))
-      .limit(1);
-
-    const role = row[0]?.role;
-    if (role === "viewer" || role === "admin" || role === "superuser") {
-      return role;
-    }
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 export async function listInternalEmailGrants(): Promise<InternalEmailGrantRow[]> {
@@ -181,7 +161,7 @@ export async function resendInternalTeamInvite(params: {
     .set({ inviteSentAt })
     .where(eq(InternalEmailGrant.id, params.grantId));
 
-  return inviteSentAt.toISOString();
+  return toIsoTimestamp(inviteSentAt) ?? new Date().toISOString();
 }
 
 export async function revokeInternalEmailGrant(params: {

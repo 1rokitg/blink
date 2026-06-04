@@ -1,5 +1,7 @@
 import type Stripe from "stripe";
 
+import { toIsoTimestamp } from "@acme/db/serialize-timestamp";
+
 import {
   describeMembershipLifecycle,
   estimateMembershipTotalSpendUsd,
@@ -128,12 +130,12 @@ export function stripeSubscriptionToMembershipRow(
           currentPeriodEnd,
           status,
         }),
-    createdAt: createdAt.toISOString(),
-    currentPeriodEnd: currentPeriodEnd?.toISOString() ?? null,
+    createdAt: toIsoTimestamp(createdAt) ?? new Date().toISOString(),
+    currentPeriodEnd: toIsoTimestamp(currentPeriodEnd),
     updatedAt: null,
     canceledAt:
       !lifecycle.isActive && currentPeriodEnd
-        ? currentPeriodEnd.toISOString()
+        ? toIsoTimestamp(currentPeriodEnd)
         : null,
     isActive: lifecycle.isActive,
     isTrial,

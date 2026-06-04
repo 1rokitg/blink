@@ -1,6 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
+import { toIsoTimestamp } from "@acme/db/serialize-timestamp";
 import { FeatureFlag } from "@acme/db/schema";
 
 const DEFAULT_FLAGS = {
@@ -39,7 +40,7 @@ export async function getFeatureFlags() {
             ? "Apply discounted Blink Pro pricing."
             : "Increase referral reward multipliers."),
     updatedBy: byKey.get(key)?.updatedBy ?? null,
-    updatedAt: byKey.get(key)?.updatedAt?.toISOString() ?? null,
+    updatedAt: toIsoTimestamp(byKey.get(key)?.updatedAt),
   }));
 }
 

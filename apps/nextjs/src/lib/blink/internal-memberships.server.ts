@@ -1,6 +1,7 @@
 import { desc } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
+import { toIsoTimestamp } from "@acme/db/serialize-timestamp";
 import {
   BlinkMembership,
   ReferralCode,
@@ -497,10 +498,10 @@ export async function listInternalMembershipRows(options?: {
             currentPeriodEnd: row.currentPeriodEnd,
             status: row.status,
           }),
-      createdAt: createdAt.toISOString(),
-      currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
-      updatedAt: row.updatedAt?.toISOString() ?? null,
-      canceledAt: isEnded ? (row.updatedAt?.toISOString() ?? null) : null,
+      createdAt: toIsoTimestamp(createdAt) ?? new Date().toISOString(),
+      currentPeriodEnd: toIsoTimestamp(row.currentPeriodEnd),
+      updatedAt: toIsoTimestamp(row.updatedAt),
+      canceledAt: isEnded ? toIsoTimestamp(row.updatedAt) : null,
       isActive: lifecycle.isActive,
       isTrial,
     };

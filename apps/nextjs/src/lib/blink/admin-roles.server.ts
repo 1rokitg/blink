@@ -3,7 +3,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@acme/db/client";
-import { InternalRole } from "@acme/db/schema";
+import { InternalEmailGrant, InternalRole } from "@acme/db/schema";
 
 export type BlinkRole = "viewer" | "admin" | "superuser";
 
@@ -39,13 +39,31 @@ function getBootstrapEmailRole(emailAddress: string): BlinkRole | null {
   return null;
 }
 
+async function getEmailRoleFromDb(emailAddress: string): Promise<BlinkRole | null> {
+  const email = normalizeEmailForGrant(emailAddress);
+  try {
+    const row = await db
+      .select({ role: InternalEmailGrant.role })
+      .from(InternalEmailGrant)
+      .where(eq(InternalEmailGrant.email, email))
+      .limit(1);
+
+    const role = row[0]?.role;
+    if (role === "viewer" || role === "admin" || role === "superuser") {
+      return role;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 async function getGrantedEmailRole(emailAddress: string): Promise<BlinkRole | null> {
   const bootstrap = getBootstrapEmailRole(emailAddress);
   if (bootstrap === "superuser" || bootstrap === "admin") {
     return bootstrap;
   }
 
-  const { getEmailRoleFromDb } = await import("./internal-email-grants.server");
   const dbRole = await getEmailRoleFromDb(emailAddress);
   if (dbRole) return dbRole;
 

@@ -1,0 +1,32 @@
+---
+description: Database and server-action patterns for Cloudflare Workers + Hyperdrive
+globs:
+  - packages/db/**/*
+  - apps/nextjs/src/lib/blink/**/*.server.ts
+  - apps/nextjs/src/app/actions/**
+---
+
+# Cloudflare DB + server actions
+
+## Timestamps
+
+Hyperdrive / `node-postgres` may return timestamp columns as **strings**, not `Date`.
+
+- **Never** call `.toISOString()` directly on values from Drizzle `select()` when serializing for server actions, RSC props, or JSON responses.
+- **Always** use `toIsoTimestamp()` / `toDate()` from `@acme/db/serialize-timestamp`.
+- In Drizzle schema, prefer `t.timestamp({ mode: "date", withTimezone: true })` for columns read in production server code.
+
+## Server-only modules
+
+- Use `import "server-only"` in `*.server.ts` under `lib/blink/`, **not** `"use server"`.
+- `"use server"` belongs only in `src/app/actions/*.ts`. Putting it on shared libs forces every export to be an async server action.
+
+## DB client on Workers
+
+- Prefer `getDbAsync()` from `@acme/db/client` in server actions when sync `getCloudflareContext()` fails.
+- Avoid circular imports between `admin-roles.server.ts` and `internal-email-grants.server.ts` (keep role lookup in one direction).
+
+## Internal team grants
+
+- Persist DB grant **before** sending Resend email so access is not lost when email fails.
+- `RESEND_FROM_EMAIL` must use a domain verified in Resend (e.g. `Blink <no-reply@blinkperps.xyz>`).

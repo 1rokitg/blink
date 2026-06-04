@@ -1,10 +1,9 @@
 import "server-only";
 
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 
 import { getDbAsync } from "@acme/db/client";
 import { InternalEmailGrant } from "@acme/db/schema";
-import { toIsoTimestamp, toJsonSafe } from "@acme/db/serialize-timestamp";
 
 import {
   type BlinkRole,
@@ -24,27 +23,51 @@ export type InternalEmailGrantRow = {
   updatedAt: string | null;
 };
 
-function toRow(record: typeof InternalEmailGrant.$inferSelect): InternalEmailGrantRow {
-  return toJsonSafe({
+/** Cast timestamps to text in SQL — Hyperdrive never returns Date objects. */
+const grantRowSelect = {
+  id: InternalEmailGrant.id,
+  email: InternalEmailGrant.email,
+  role: InternalEmailGrant.role,
+  note: InternalEmailGrant.note,
+  grantedBy: InternalEmailGrant.grantedBy,
+  inviteSentAt: sql<string | null>`${InternalEmailGrant.inviteSentAt}::text`,
+  createdAt: sql<string>`${InternalEmailGrant.createdAt}::text`,
+  updatedAt: sql<string | null>`${InternalEmailGrant.updatedAt}::text`,
+};
+
+type GrantRowQuery = {
+  id: string;
+  email: string;
+  role: string;
+  note: string | null;
+  grantedBy: string | null;
+  inviteSentAt: string | null;
+  createdAt: string;
+  updatedAt: string | null;
+};
+
+function toRow(record: GrantRowQuery): InternalEmailGrantRow {
+  return {
     id: String(record.id),
     email: String(record.email),
     role: record.role as BlinkRole,
-    note: record.note ?? null,
-    grantedBy: record.grantedBy ?? null,
-    inviteSentAt: toIsoTimestamp(record.inviteSentAt),
-    createdAt: toIsoTimestamp(record.createdAt) ?? new Date().toISOString(),
-    updatedAt: toIsoTimestamp(record.updatedAt),
-  });
+    note: record.note,
+    grantedBy: record.grantedBy,
+    inviteSentAt: record.inviteSentAt,
+    createdAt: record.createdAt || new Date().toISOString(),
+    updatedAt: record.updatedAt,
+  };
 }
 
 export async function listInternalEmailGrants(): Promise<InternalEmailGrantRow[]> {
   try {
     const database = await getDbAsync();
     const rows = await database
-      .select()
+      .select(grantRowSelect)
       .from(InternalEmailGrant)
       .orderBy(desc(InternalEmailGrant.createdAt));
-    return rows.map(toRow);
+
+    return rows.map(toRow).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   } catch (error) {
     console.warn("[internal-team] list grants failed", error);
     return [];
@@ -58,7 +81,7 @@ export async function grantInternalEmailAccess(params: {
   role: BlinkRole;
   note?: string;
   sendInvite?: boolean;
-}): Promise<InternalEmailGrantRow | null> {
+}): Promise<void> {
   await assertSuperuserAccess({
     actingWalletAddress: params.actingWalletAddress,
     emailAddresses: params.emailAddresses,
@@ -91,45 +114,38 @@ export async function grantInternalEmailAccess(params: {
       },
     });
 
-  if (sendInvite) {
-    if (!isResendConfigured()) {
-      throw new Error(
-        "Access saved in database, but RESEND_API_KEY is not configured — cannot send invite email.",
-      );
-    }
-    try {
-      await sendInternalTeamInviteEmail({
-        toEmail: email,
-        role: params.role,
-        note: params.note,
-      });
-      await database
-        .update(InternalEmailGrant)
-        .set({ inviteSentAt: new Date() })
-        .where(eq(InternalEmailGrant.email, email));
-    } catch (error) {
-      const detail =
-        error instanceof Error ? error.message : "Resend failed to send invite email";
-      throw new Error(
-        `Access granted for ${email}, but the invite email could not be sent: ${detail}`,
-      );
-    }
+  if (!sendInvite) return;
+
+  if (!isResendConfigured()) {
+    throw new Error(
+      "Access saved in database, but RESEND_API_KEY is not configured — cannot send invite email.",
+    );
   }
 
-  const row = await database
-    .select()
-    .from(InternalEmailGrant)
-    .where(eq(InternalEmailGrant.email, email))
-    .limit(1);
-
-  return row[0] ? toRow(row[0]) : null;
+  try {
+    await sendInternalTeamInviteEmail({
+      toEmail: email,
+      role: params.role,
+      note: params.note,
+    });
+    await database
+      .update(InternalEmailGrant)
+      .set({ inviteSentAt: sql`now()` })
+      .where(eq(InternalEmailGrant.email, email));
+  } catch (error) {
+    const detail =
+      error instanceof Error ? error.message : "Resend failed to send invite email";
+    throw new Error(
+      `Access granted for ${email}, but the invite email could not be sent: ${detail}`,
+    );
+  }
 }
 
 export async function resendInternalTeamInvite(params: {
   actingWalletAddress: string;
   emailAddresses?: string[];
   grantId: string;
-}) {
+}): Promise<string> {
   await assertSuperuserAccess({
     actingWalletAddress: params.actingWalletAddress,
     emailAddresses: params.emailAddresses,
@@ -141,7 +157,7 @@ export async function resendInternalTeamInvite(params: {
 
   const database = await getDbAsync();
   const row = await database
-    .select()
+    .select({ email: InternalEmailGrant.email, role: InternalEmailGrant.role, note: InternalEmailGrant.note })
     .from(InternalEmailGrant)
     .where(eq(InternalEmailGrant.id, params.grantId))
     .limit(1);
@@ -157,20 +173,19 @@ export async function resendInternalTeamInvite(params: {
     note: grant.note,
   });
 
-  const inviteSentAt = new Date();
   await database
     .update(InternalEmailGrant)
-    .set({ inviteSentAt })
+    .set({ inviteSentAt: sql`now()` })
     .where(eq(InternalEmailGrant.id, params.grantId));
 
-  return toIsoTimestamp(inviteSentAt) ?? new Date().toISOString();
+  return new Date().toISOString();
 }
 
 export async function revokeInternalEmailGrant(params: {
   actingWalletAddress: string;
   emailAddresses?: string[];
   grantId: string;
-}) {
+}): Promise<void> {
   await assertSuperuserAccess({
     actingWalletAddress: params.actingWalletAddress,
     emailAddresses: params.emailAddresses,

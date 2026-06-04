@@ -38,49 +38,67 @@ export type InternalTeamPanelState = {
   resendConfigured: boolean;
 };
 
+export type GrantTeamMemberResult = {
+  ok: true;
+  email: string;
+  inviteSent: boolean;
+};
+
 export async function getInternalTeamPanelState(
   actingWalletAddress: string,
   emailAddresses: string[] = [],
 ): Promise<InternalTeamPanelState> {
-  const parsed = actingSchema.safeParse({
-    actingWalletAddress,
-    emailAddresses,
-  });
-  if (!parsed.success) {
-    throw new Error("Invalid request");
+  try {
+    const parsed = actingSchema.safeParse({
+      actingWalletAddress,
+      emailAddresses,
+    });
+    if (!parsed.success) {
+      return { grants: [], resendConfigured: isResendConfigured() };
+    }
+
+    await assertSuperuserAccess(parsed.data);
+    const grants = await listInternalEmailGrants();
+    return {
+      grants,
+      resendConfigured: isResendConfigured(),
+    };
+  } catch (error) {
+    console.error("[internal-team] panel state failed", error);
+    return { grants: [], resendConfigured: isResendConfigured() };
   }
-
-  await assertSuperuserAccess(parsed.data);
-
-  const grants = await listInternalEmailGrants();
-  return {
-    grants,
-    resendConfigured: isResendConfigured(),
-  };
 }
 
 export async function grantInternalTeamMemberAction(
   input: z.infer<typeof grantSchema>,
-) {
+): Promise<GrantTeamMemberResult> {
   const parsed = grantSchema.safeParse(input);
   if (!parsed.success) {
     throw new Error(parsed.error.issues[0]?.message ?? "Invalid request");
   }
 
+  const sendInvite = parsed.data.sendInvite !== false;
+
   try {
-    return await grantInternalEmailAccess({
+    await grantInternalEmailAccess({
       actingWalletAddress: parsed.data.actingWalletAddress,
       emailAddresses: parsed.data.emailAddresses,
       email: parsed.data.email,
       role: parsed.data.role as BlinkRole,
       note: parsed.data.note,
-      sendInvite: parsed.data.sendInvite,
+      sendInvite,
     });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to grant team access";
     throw new Error(message);
   }
+
+  return {
+    ok: true,
+    email: parsed.data.email.toLowerCase(),
+    inviteSent: sendInvite,
+  };
 }
 
 export async function resendInternalTeamInviteAction(
@@ -113,4 +131,6 @@ export async function revokeInternalTeamMemberAction(
     emailAddresses: parsed.data.emailAddresses,
     grantId: parsed.data.grantId,
   });
+
+  return { ok: true as const };
 }

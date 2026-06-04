@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, eq } from "drizzle-orm";
 
-import { db, getDbAsync } from "@acme/db/client";
+import { getDbAsync } from "@acme/db/client";
 import { InternalEmailGrant, InternalRole } from "@acme/db/schema";
 
 export type BlinkRole = "viewer" | "admin" | "superuser";
@@ -91,7 +91,8 @@ export async function ensureBootstrapRole(walletAddress: string) {
   if (bootstrapRole === "viewer") return;
 
   try {
-    const existing = await db
+    const database = await getDbAsync();
+    const existing = await database
       .select({ role: InternalRole.role })
       .from(InternalRole)
       .where(eq(InternalRole.walletAddress, wallet))
@@ -101,7 +102,7 @@ export async function ensureBootstrapRole(walletAddress: string) {
       (existing[0]?.role as BlinkRole | undefined) ?? "viewer";
     if (toLevel(currentRole) >= toLevel(bootstrapRole)) return;
 
-    await db
+    await database
       .insert(InternalRole)
       .values({
         walletAddress: wallet,
@@ -134,7 +135,8 @@ export async function getWalletRoleFromDb(
   try {
     await ensureBootstrapRole(wallet);
 
-    const row = await db
+    const database = await getDbAsync();
+    const row = await database
       .select({ role: InternalRole.role })
       .from(InternalRole)
       .where(eq(InternalRole.walletAddress, wallet))
@@ -246,7 +248,8 @@ export async function grantInternalRole(params: {
     throw new Error("Only superuser can grant superuser role");
   }
 
-  await db
+  const database = await getDbAsync();
+  await database
     .insert(InternalRole)
     .values({
       walletAddress,

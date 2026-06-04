@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { Loader2, Mail, RefreshCw, Shield, Trash2, UserPlus } from "lucide-react";
+import {
+  Loader2,
+  Mail,
+  RefreshCw,
+  Shield,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@acme/ui/badge";
@@ -106,7 +113,9 @@ export function InternalTeamAccessPanel(props: {
       setNote("");
       await refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to grant access");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to grant access",
+      );
     } finally {
       setSaving(null);
     }
@@ -123,7 +132,9 @@ export function InternalTeamAccessPanel(props: {
       toast.success("Invite email resent");
       await refresh();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to resend invite");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to resend invite",
+      );
     } finally {
       setSaving(null);
     }
@@ -176,7 +187,13 @@ export function InternalTeamAccessPanel(props: {
                 RESEND_API_KEY is not set — you can grant access without email,
                 but invites will fail until configured in Cloudflare secrets.
               </p>
-            ) : null}
+            ) : (
+              <p className="mt-3 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-white/45">
+                Invites send from{" "}
+                <span className="text-white/65">no-reply@blinkperps.xyz</span>.
+                Access is saved even if the invite email fails.
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -200,9 +217,7 @@ export function InternalTeamAccessPanel(props: {
               <span className="text-xs text-white/45">Role</span>
               <select
                 value={role}
-                onChange={(e) =>
-                  setRole(e.target.value as "viewer" | "admin")
-                }
+                onChange={(e) => setRole(e.target.value as "viewer" | "admin")}
                 className="h-10 w-full rounded-xl border border-white/10 bg-white/5 px-3 text-sm text-white outline-none focus:border-white/20"
               >
                 <option value="viewer">Viewer (read-only)</option>
@@ -254,9 +269,7 @@ export function InternalTeamAccessPanel(props: {
             className="inline-flex size-8 items-center justify-center rounded-lg border border-white/10 text-white/50 transition hover:text-white/80"
             aria-label="Refresh grants"
           >
-            <RefreshCw
-              className={`size-4 ${loading ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
 
@@ -279,9 +292,7 @@ export function InternalTeamAccessPanel(props: {
                   <th className="px-5 py-3 font-medium">Role</th>
                   <th className="px-5 py-3 font-medium">Invite sent</th>
                   <th className="px-5 py-3 font-medium">Note</th>
-                  <th className="px-5 py-3 font-medium text-right">
-                    Actions
-                  </th>
+                  <th className="px-5 py-3 font-medium text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>

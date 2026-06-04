@@ -2,7 +2,11 @@ import "server-only";
 
 import { Resend } from "resend";
 
+import { env } from "~/env";
 import type { BlinkRole } from "./admin-roles.server";
+
+/** Fallback when RESEND_FROM_EMAIL is unset — must match a domain verified in Resend. */
+const RESEND_FROM_DEFAULT = "Blink <no-reply@blinkperps.xyz>";
 
 function getResendClient() {
   const apiKey = process.env.RESEND_API_KEY?.trim();
@@ -15,10 +19,18 @@ function getResendClient() {
 }
 
 function getFromAddress() {
-  return (
-    process.env.RESEND_FROM_EMAIL?.trim() ||
-    "Blink <onboarding@resend.dev>"
-  );
+  const configured =
+    process.env.RESEND_FROM_EMAIL?.trim() || env.RESEND_FROM_EMAIL?.trim();
+  if (!configured) return RESEND_FROM_DEFAULT;
+  if (configured.includes("<")) return configured;
+  return `Blink <${configured}>`;
+}
+
+function formatResendError(message: string) {
+  if (/domain is not verified/i.test(message)) {
+    return `${message} Update RESEND_FROM_EMAIL to an address on a verified Resend domain (e.g. Blink <no-reply@blinkperps.xyz>).`;
+  }
+  return message;
 }
 
 function getInternalToolsUrl() {
@@ -99,7 +111,9 @@ export async function sendInternalTeamInviteEmail(params: {
   });
 
   if (error) {
-    throw new Error(error.message || "Resend failed to send invite email");
+    throw new Error(
+      formatResendError(error.message || "Resend failed to send invite email"),
+    );
   }
 
   return { id: data?.id ?? null };

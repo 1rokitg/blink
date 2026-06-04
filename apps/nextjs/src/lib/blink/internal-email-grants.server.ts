@@ -90,19 +90,6 @@ export async function grantInternalEmailAccess(params: {
   const grantedBy = params.actingWalletAddress.toLowerCase();
   const sendInvite = params.sendInvite !== false;
 
-  let inviteSentAt: Date | null = null;
-  if (sendInvite) {
-    if (!isResendConfigured()) {
-      throw new Error("RESEND_API_KEY is not configured — cannot send invite email.");
-    }
-    await sendInternalTeamInviteEmail({
-      toEmail: email,
-      role: params.role,
-      note: params.note,
-    });
-    inviteSentAt = new Date();
-  }
-
   await db
     .insert(InternalEmailGrant)
     .values({
@@ -110,7 +97,7 @@ export async function grantInternalEmailAccess(params: {
       role: params.role,
       note: params.note,
       grantedBy,
-      inviteSentAt,
+      inviteSentAt: null,
     })
     .onConflictDoUpdate({
       target: InternalEmailGrant.email,
@@ -118,9 +105,35 @@ export async function grantInternalEmailAccess(params: {
         role: params.role,
         note: params.note,
         grantedBy,
-        ...(inviteSentAt ? { inviteSentAt } : {}),
       },
     });
+
+  let inviteSentAt: Date | null = null;
+  if (sendInvite) {
+    if (!isResendConfigured()) {
+      throw new Error(
+        "Access saved in database, but RESEND_API_KEY is not configured — cannot send invite email.",
+      );
+    }
+    try {
+      await sendInternalTeamInviteEmail({
+        toEmail: email,
+        role: params.role,
+        note: params.note,
+      });
+      inviteSentAt = new Date();
+      await db
+        .update(InternalEmailGrant)
+        .set({ inviteSentAt })
+        .where(eq(InternalEmailGrant.email, email));
+    } catch (error) {
+      const detail =
+        error instanceof Error ? error.message : "Resend failed to send invite email";
+      throw new Error(
+        `Access granted for ${email}, but the invite email could not be sent: ${detail}`,
+      );
+    }
+  }
 
   const row = await db
     .select()

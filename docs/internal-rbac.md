@@ -18,7 +18,7 @@ Resolved from **Privy login email** (`user.email` or Google email). User must st
 | Env | Purpose |
 |-----|---------|
 | `RESEND_API_KEY` | Send invite emails |
-| `RESEND_FROM_EMAIL` | Verified sender (e.g. `Blink <notifications@blinkperps.xyz>`) |
+| `RESEND_FROM_EMAIL` | Verified sender in [Resend Domains](https://resend.com/domains) — `Blink <no-reply@blinkperps.xyz>` |
 
 ## Wallet bootstrap
 

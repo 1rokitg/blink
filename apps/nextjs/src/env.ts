@@ -92,7 +92,7 @@ export const env = createEnv({
     /** From address for Resend (must match a verified domain). */
     RESEND_FROM_EMAIL: z.preprocess(
       emptyStringToUndefined,
-      z.string().optional().default("no-reply@blink.lat"),
+      z.string().optional().default("Blink <no-reply@blinkperps.xyz>"),
     ),
   },
 

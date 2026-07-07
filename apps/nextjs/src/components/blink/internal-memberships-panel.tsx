@@ -30,7 +30,7 @@ import type {
   StripeBillingSnapshot,
   StripeMembershipSyncSummary,
 } from "~/lib/blink/internal-memberships.types";
-import { getInternalUserPath } from "~/lib/blink/wallet-address";
+import { getInternalUserPath, isWalletAddress } from "~/lib/blink/wallet-address";
 import {
   InternalSection,
   InternalStatCard,
@@ -193,7 +193,12 @@ export function InternalMembershipsPanel(props: {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [tierFilter, setTierFilter] = useState<TierFilter>("all");
 
+  const canQuery =
+    isWalletAddress(props.actingWalletAddress) ||
+    (props.emailAddresses?.length ?? 0) > 0;
+
   const load = useCallback(async () => {
+    if (!canQuery) return;
     setLoading(true);
     try {
       const payload = await getInternalMemberships({
@@ -215,11 +220,15 @@ export function InternalMembershipsPanel(props: {
     } finally {
       setLoading(false);
     }
-  }, [props.actingWalletAddress, props.emailAddresses]);
+  }, [canQuery, props.actingWalletAddress, props.emailAddresses]);
 
   useEffect(() => {
+    if (!canQuery) {
+      setLoading(false);
+      return;
+    }
     void load();
-  }, [load]);
+  }, [canQuery, load]);
 
   const filteredRows = useMemo(() => {
     const query = search.trim().toLowerCase();

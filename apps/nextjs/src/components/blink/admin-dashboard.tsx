@@ -45,7 +45,7 @@ import { type AdminStats, getAdminStats } from "~/app/actions/get-admin-stats";
 import { setFeatureFlagAction } from "~/app/actions/set-feature-flag";
 import { DEFAULT_ADMIN_OVERVIEW_RANGE } from "~/lib/blink/admin-dashboard-defaults";
 import { BUILDER_ADDRESS } from "~/lib/blink/builder";
-import { getInternalUserPath } from "~/lib/blink/wallet-address";
+import { getInternalUserPath, isWalletAddress } from "~/lib/blink/wallet-address";
 import type { AdminMetricsWindow, AdminRange } from "./admin-dashboard-types";
 import { InternalAccessCheckpoint } from "./internal-access-checkpoint";
 import { InternalAttributionPanel } from "./internal-attribution-panel";
@@ -206,15 +206,18 @@ export function AdminDashboard(props?: {
   const connectedWallets = useMemo(
     () =>
       wallets
-        .map((wallet) => wallet.address?.toLowerCase())
-        .filter((address): address is string => Boolean(address)),
+        .map((wallet) => wallet.address?.trim().toLowerCase())
+        .filter(
+          (address): address is string =>
+            Boolean(address && isWalletAddress(address)),
+        ),
     [wallets],
   );
   const identityEmails = useMemo(
     () =>
-      [user?.email?.address, user?.google?.email].filter(
-        (email): email is string => Boolean(email),
-      ),
+      [user?.email?.address, user?.google?.email]
+        .filter((email): email is string => Boolean(email))
+        .map((email) => email.trim().toLowerCase()),
     [user],
   );
   const [adminAccess, setAdminAccess] = useState<AdminAccessResult>({

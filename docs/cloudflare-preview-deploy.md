@@ -1,5 +1,7 @@
 # Cloudflare preview deployments (blinkperps)
 
+Production deploy (size limits, paid plan, dashboard deploy command): **[cloudflare-workers-deploy.md](./cloudflare-workers-deploy.md)**.
+
 ## Privy wallet connect
 
 Set **both** in Workers → blinkperps → Settings → **Variables** (for builds):
@@ -19,7 +21,7 @@ Use the **Web Client ID** (`client-…`), not the App ID (`cm…`). In Privy →
    - **Builds for non-production branches:** ON
    - Non-production deploy:
      ```bash
-     npx wrangler versions upload --preview-alias $WORKERS_CI_BRANCH
+     node scripts/ensure-wrangler-hyperdrive.mjs && npx wrangler versions upload --preview-alias $WORKERS_CI_BRANCH --minify
      ```
 2. Push your branch → Cloudflare builds automatically.
 3. Open **Deployments** → branch build → copy **preview URL**.
@@ -59,5 +61,5 @@ Preview URL pattern:
 
 | Branch | Deploy command |
 |--------|----------------|
-| `main` | `node scripts/ensure-wrangler-hyperdrive.mjs && npx wrangler deploy` |
-| Feature branches | `npx wrangler versions upload --preview-alias $WORKERS_CI_BRANCH` |
+| `main` | `pnpm run deploy:cloudflare` — or — `node scripts/ensure-wrangler-hyperdrive.mjs && npx wrangler deploy --minify` |
+| Feature branches | `node scripts/ensure-wrangler-hyperdrive.mjs && npx wrangler versions upload --preview-alias $WORKERS_CI_BRANCH --minify` |

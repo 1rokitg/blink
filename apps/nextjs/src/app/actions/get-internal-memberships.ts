@@ -1,7 +1,5 @@
 "use server";
 
-import { z } from "zod";
-
 import {
   assertInternalReadAccess,
   canWriteInternalTools,
@@ -21,12 +19,8 @@ import {
   mergeNeonAndStripeMembershipRows,
 } from "~/lib/blink/stripe-membership-rows.server";
 import { syncStripeSubscriptionsToDatabase } from "~/lib/blink/stripe-membership-sync.server";
+import { internalReadActionInputSchema } from "~/lib/blink/internal-read-action-input";
 import { isStripeConfigured } from "~/lib/blink/stripe.server";
-
-const inputSchema = z.object({
-  actingWalletAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
-  emailAddresses: z.array(z.string().email()).optional(),
-});
 
 export type StripeConnectionStatus = {
   configured: boolean;
@@ -67,8 +61,12 @@ function buildSummaryFromRows(
 export async function getInternalMemberships(
   input: unknown,
 ): Promise<InternalMembershipsPayload> {
-  const parsed = inputSchema.safeParse(input);
+  const parsed = internalReadActionInputSchema.safeParse(input);
   if (!parsed.success) {
+    console.error(
+      "[memberships] invalid query",
+      parsed.error.flatten(),
+    );
     throw new Error("Invalid memberships query.");
   }
 

@@ -1,12 +1,22 @@
 # Cloudflare Workers Builds (root directory: apps/nextjs)
 #   Build command:  pnpm run build
-#   Deploy command: node scripts/ensure-wrangler-hyperdrive.mjs && npx wrangler deploy
+#   Deploy command (production / main):
+#     node scripts/ensure-wrangler-hyperdrive.mjs && npx wrangler deploy --minify
+#     — or — pnpm run deploy:cloudflare
+#   Non-production deploy:
+#     node scripts/ensure-wrangler-hyperdrive.mjs && npx wrangler versions upload --preview-alias $WORKERS_CI_BRANCH --minify
+#
+# OpenNext handler.mjs is ~18 MiB unminified; minify is required on the free 3 MiB plan.
+# Even minified, this app typically needs Cloudflare Workers Paid ($5/mo, 10 MiB limit).
+# See docs/cloudflare-workers-deploy.md
 #
 # Env vars + secrets: set in Cloudflare dashboard only (Settings → Variables).
 # Do NOT commit [vars] here — deploy overwrites dashboard config with wrangler.toml.
 
 name = "blinkperps"
 main = ".open-next/worker.js"
+# Minify bundled worker (also set via `wrangler deploy --minify` / deploy:cloudflare script).
+minify = true
 # Avoid esbuild keepNames injecting __name (breaks client eval on Workers)
 keep_names = false
 compatibility_date = "2026-05-30"

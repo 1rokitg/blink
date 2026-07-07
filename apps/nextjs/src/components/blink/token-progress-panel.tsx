@@ -68,13 +68,19 @@ export function TokenProgressPanel(props: {
             {formatPercent(snapshot.progressPct)} of the creator-fee goal
           </p>
         </div>
-        <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-300">
+        <div
+          className={
+            snapshot.isLive
+              ? "inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs text-emerald-300"
+              : "inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-xs text-amber-200"
+          }
+        >
           {progressQuery.isFetching ? (
             <Loader2 className="size-3 animate-spin" />
           ) : (
             <CheckCircle2 className="size-3" />
           )}
-          Live
+          {snapshot.isLive ? "Live" : "Delayed"}
         </div>
       </div>
 
@@ -115,8 +121,9 @@ export function TokenProgressPanel(props: {
       <div className="mt-5 space-y-2 text-sm text-white/52">
         <p>{formatUpdatedAt(snapshot.lastUpdated)}</p>
         <p>
-          Live WETH creator fees are read from Clanker&apos;s fee locker and
-          mapped to Blink&apos;s 100 ETH budget goal.
+          {snapshot.isLive
+            ? "Live WETH creator fees are read from Clanker's fee locker and mapped to Blink's 100 ETH budget goal."
+            : "On-chain fee reads are temporarily unavailable. Progress will refresh automatically when Base RPC recovers."}
         </p>
       </div>
 

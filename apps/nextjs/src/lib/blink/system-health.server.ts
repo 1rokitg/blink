@@ -1,7 +1,7 @@
 import * as hl from "@nktkas/hyperliquid";
 import { and, asc, desc, gte, inArray, lt, lte, sql } from "drizzle-orm";
 
-import { db } from "@acme/db/client";
+import { db, isDatabaseConfigured } from "@acme/db/client";
 import { MetricEvent } from "@acme/db/schema";
 
 import { BUILDER_ADDRESS } from "./builder";
@@ -126,7 +126,7 @@ async function checkHyperliquidWebSocket() {
 }
 
 async function checkBlinkApi() {
-  if (!process.env.DATABASE_URL) {
+  if (!isDatabaseConfigured()) {
     throw new Error("Blink API configuration is incomplete");
   }
 

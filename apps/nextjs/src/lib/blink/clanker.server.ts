@@ -17,9 +17,15 @@ const clankerFeeLockerAbi = parseAbi([
   "event ClaimTokensPermissioned(address indexed feeOwner, address indexed token, address recipient, uint256 amountClaimed)",
 ]);
 
+function resolveBaseRpcUrl() {
+  const configured = process.env.BASE_RPC_URL?.trim();
+  if (configured) return configured;
+  return base.rpcUrls.default.http[0] ?? "https://mainnet.base.org";
+}
+
 const baseClient = createPublicClient({
   chain: base,
-  transport: http(base.rpcUrls.default.http[0]),
+  transport: http(resolveBaseRpcUrl()),
 });
 
 export type BlinkTokenProgressSnapshot = {
@@ -71,38 +77,65 @@ async function readClaimedRewardsWei() {
   }, 0n);
 }
 
-export async function getBlinkTokenProgress(): Promise<BlinkTokenProgressSnapshot> {
-  const claimableResult = await baseClient.readContract({
-    address: CLANKER_FEE_LOCKER_ADDRESS,
-    abi: clankerFeeLockerAbi,
-    functionName: "availableFees",
-    args: [BLINK_TOKEN_CREATOR_ADDRESS, BASE_WETH_ADDRESS],
-  });
-
-  const claimableWei = claimableResult as bigint;
-
-  const claimedWei = await readClaimedRewardsWei().catch(() => 0n);
-  const rewardedWei = claimedWei + claimableWei;
-
-  const claimableEth = Number(formatEther(claimableWei));
-  const rewardedEth = Number(formatEther(rewardedWei));
-  const remainingEth = Math.max(BLINK_TOKEN_GOAL_ETH - rewardedEth, 0);
-  const progressPct = Math.min((rewardedEth / BLINK_TOKEN_GOAL_ETH) * 100, 100);
-
+function buildFallbackSnapshot(): BlinkTokenProgressSnapshot {
   return {
-    claimableEth: roundMetric(claimableEth),
-    claimableWei: claimableWei.toString(),
+    claimableEth: 0,
+    claimableWei: "0",
     clankerUrl: BLINK_TOKEN_CLANKER_URL,
     creatorAddress: getAddress(BLINK_TOKEN_CREATOR_ADDRESS),
     feeLockerAddress: getAddress(CLANKER_FEE_LOCKER_ADDRESS),
     goalEth: BLINK_TOKEN_GOAL_ETH,
-    isLive: true,
+    isLive: false,
     lastUpdated: new Date().toISOString(),
-    progressPct: roundMetric(progressPct, 2),
-    remainingEth: roundMetric(remainingEth),
-    rewardedEth: roundMetric(rewardedEth),
-    rewardedWei: rewardedWei.toString(),
+    progressPct: 0,
+    remainingEth: BLINK_TOKEN_GOAL_ETH,
+    rewardedEth: 0,
+    rewardedWei: "0",
     tokenAddress: getAddress(BLINK_TOKEN_ADDRESS),
     wethAddress: getAddress(BASE_WETH_ADDRESS),
   };
+}
+
+export async function getBlinkTokenProgress(): Promise<BlinkTokenProgressSnapshot> {
+  try {
+    const claimableResult = await baseClient.readContract({
+      address: CLANKER_FEE_LOCKER_ADDRESS,
+      abi: clankerFeeLockerAbi,
+      functionName: "availableFees",
+      args: [BLINK_TOKEN_CREATOR_ADDRESS, BASE_WETH_ADDRESS],
+    });
+
+    const claimableWei = claimableResult as bigint;
+
+    const claimedWei = await readClaimedRewardsWei().catch(() => 0n);
+    const rewardedWei = claimedWei + claimableWei;
+
+    const claimableEth = Number(formatEther(claimableWei));
+    const rewardedEth = Number(formatEther(rewardedWei));
+    const remainingEth = Math.max(BLINK_TOKEN_GOAL_ETH - rewardedEth, 0);
+    const progressPct = Math.min(
+      (rewardedEth / BLINK_TOKEN_GOAL_ETH) * 100,
+      100,
+    );
+
+    return {
+      claimableEth: roundMetric(claimableEth),
+      claimableWei: claimableWei.toString(),
+      clankerUrl: BLINK_TOKEN_CLANKER_URL,
+      creatorAddress: getAddress(BLINK_TOKEN_CREATOR_ADDRESS),
+      feeLockerAddress: getAddress(CLANKER_FEE_LOCKER_ADDRESS),
+      goalEth: BLINK_TOKEN_GOAL_ETH,
+      isLive: true,
+      lastUpdated: new Date().toISOString(),
+      progressPct: roundMetric(progressPct, 2),
+      remainingEth: roundMetric(remainingEth),
+      rewardedEth: roundMetric(rewardedEth),
+      rewardedWei: rewardedWei.toString(),
+      tokenAddress: getAddress(BLINK_TOKEN_ADDRESS),
+      wethAddress: getAddress(BASE_WETH_ADDRESS),
+    };
+  } catch (error) {
+    console.warn("[token-progress] Base RPC read failed", error);
+    return buildFallbackSnapshot();
+  }
 }

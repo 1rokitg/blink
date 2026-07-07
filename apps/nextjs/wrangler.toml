@@ -18,6 +18,14 @@ preview_urls = false
 pattern = "blinkperps.xyz"
 custom_domain = true
 
+[[routes]]
+pattern = "blink.lat"
+custom_domain = true
+
+[[routes]]
+pattern = "www.blink.lat"
+custom_domain = true
+
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"

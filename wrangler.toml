@@ -9,6 +9,18 @@ compatibility_flags = ["nodejs_compat", "global_fetch_strictly_public"]
 workers_dev = false
 preview_urls = false
 
+[[routes]]
+pattern = "blinkperps.xyz"
+custom_domain = true
+
+[[routes]]
+pattern = "blink.lat"
+custom_domain = true
+
+[[routes]]
+pattern = "www.blink.lat"
+custom_domain = true
+
 [assets]
 directory = "apps/nextjs/.open-next/assets"
 binding = "ASSETS"

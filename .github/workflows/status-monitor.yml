@@ -9,8 +9,8 @@ jobs:
   monitor_blink_status:
     runs-on: ubuntu-latest
     env:
-      # Configure this repo variable to your production Blink origin,
-      # for example: https://blink.lat
+      # Configure this repo variable to your production Blink origin.
+      # Canonical: https://blink.lat — interim fallback: https://blinkperps.xyz
       BLINK_STATUS_CHECK_URL: ${{ vars.BLINK_STATUS_CHECK_URL }}
       # Configure this secret with the Discord webhook for your status channel.
       DISCORD_STATUS_WEBHOOK_URL: ${{ secrets.DISCORD_STATUS_WEBHOOK_URL }}

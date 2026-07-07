@@ -14,7 +14,8 @@ fails or reports a degraded state.
 Set these values in the GitHub repository before enabling the monitor:
 
 - Repository variable: `BLINK_STATUS_CHECK_URL`
-  - Example: `https://blink.lat`
+  - Production: `https://blink.lat` (canonical user domain)
+  - Interim fallback while DNS migrates off Vercel: `https://blinkperps.xyz`
 - Repository secret: `DISCORD_STATUS_WEBHOOK_URL`
   - Discord webhook for the status channel
 

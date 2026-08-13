@@ -80,6 +80,20 @@ const upsertSchema = z.object({
   paymentMethods: z.string().trim().max(400).optional().nullable(),
   wallets: z.union([z.string(), z.array(z.string())]).optional().nullable(),
   note: z.string().trim().max(2000).optional().nullable(),
+  tags: z
+    .union([z.array(z.string()), z.string()])
+    .optional()
+    .nullable(),
+  qualification: z
+    .enum([
+      "unqualified",
+      "lead",
+      "qualified",
+      "nurture",
+      "disqualified",
+    ])
+    .optional()
+    .nullable(),
   linkedMemberId: z.string().trim().max(120).optional().nullable(),
   linkedVisitorId: z.string().trim().max(120).optional().nullable(),
 });
@@ -115,6 +129,8 @@ export async function POST(request: Request) {
       paymentMethods: parsed.data.paymentMethods,
       wallets: parsed.data.wallets,
       note: parsed.data.note,
+      tags: parsed.data.tags,
+      qualification: parsed.data.qualification,
       linkedMemberId: parsed.data.linkedMemberId,
       linkedVisitorId: parsed.data.linkedVisitorId,
       updatedBy: session.username,

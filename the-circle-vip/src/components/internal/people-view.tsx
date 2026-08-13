@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CountryFlag } from "@/components/internal/country-flag";
 import { MemberTagChips } from "@/components/internal/member-tag-chips";
@@ -20,6 +20,14 @@ import {
   type CryptoPaymentLike,
   type StripePaymentLike,
 } from "@/lib/payment-people";
+import {
+  isCrmLeadQualification,
+  PERSON_CRM_TAG_CATALOG,
+  personCrmTagTone,
+  personQualificationTone,
+  PERSON_QUALIFICATION_LABELS,
+  type PersonQualification,
+} from "@/lib/person-crm";
 import type { PersonEnrichment, PersonKind } from "@/lib/people-types";
 import { personEnrichmentId } from "@/lib/people-types";
 
@@ -55,53 +63,11 @@ export function PeopleView({
   const [selected, setSelected] = useState<SelectedPerson | null>(null);
   const [stripePayments, setStripePayments] = useState<StripePaymentLike[]>([]);
   const [cryptoPayments, setCryptoPayments] = useState<CryptoPaymentLike[]>([]);
-  const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [syncError, setSyncError] = useState<string | null>(null);
-  const [syncPending, startSync] = useTransition();
+  const [tagFilter, setTagFilter] = useState<string>("all");
+  const [qualificationFilter, setQualificationFilter] = useState<
+    "all" | PersonQualification
+  >("all");
   const q = search.trim().toLowerCase();
-
-  function syncWhopPersons(dryRun: boolean) {
-    setSyncError(null);
-    setSyncMessage(null);
-    startSync(async () => {
-      try {
-        const res = await fetch("/api/internal/whop-import", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "sync_persons", dryRun }),
-        });
-        const data = (await res.json()) as {
-          error?: string;
-          result?: {
-            dryRun?: boolean;
-            totals?: {
-              identified?: number;
-              matched?: number;
-              enriched?: number;
-              createdLeads?: number;
-              updatedLeads?: number;
-              anonymousSkipped?: number;
-              skipped?: number;
-            };
-          };
-        };
-        if (!res.ok) {
-          setSyncError(data.error ?? "Whop persons sync failed.");
-          return;
-        }
-        const t = data.result?.totals;
-        setSyncMessage(
-          `${data.result?.dryRun ? "Dry run · " : ""}identified ${t?.identified ?? 0} · matched ${t?.matched ?? 0} · enriched ${t?.enriched ?? 0} · leads +${t?.createdLeads ?? 0}/~${t?.updatedLeads ?? 0} · skipped anon ${t?.anonymousSkipped ?? 0}`,
-        );
-        if (!dryRun) {
-          window.setTimeout(() => window.location.reload(), 900);
-        }
-      } catch {
-        setSyncError("Network error syncing Whop persons.");
-      }
-    });
-  }
 
   // Deep-link from Leads: /internal/people?kind=member&id=…&tab=leads
   useEffect(() => {
@@ -129,10 +95,6 @@ export function PeopleView({
     }
   }, [members, people]);
 
-  const leadMembers = useMemo(
-    () => members.filter((m) => isMemberConversionLead(m)),
-    [members],
-  );
   const payingMembers = useMemo(
     () =>
       members.filter(
@@ -198,6 +160,18 @@ export function PeopleView({
     return map;
   }, [enrichments]);
 
+  const leadMembers = useMemo(() => {
+    return members.filter((m) => {
+      const enrichment = enrichmentById.get(personEnrichmentId("member", m.id));
+      return (
+        isMemberConversionLead(m) ||
+        (enrichment
+          ? isCrmLeadQualification(enrichment.qualification)
+          : false)
+      );
+    });
+  }, [members, enrichmentById]);
+
   function enrichmentFor(kind: PersonKind, entityId: string) {
     return enrichmentById.get(personEnrichmentId(kind, entityId)) ?? null;
   }
@@ -246,6 +220,8 @@ export function PeopleView({
       m.source,
       m.id,
       ...(m.tags ?? []),
+      ...(enrichment?.tags ?? []),
+      enrichment?.qualification,
       enrichment?.phone,
       enrichment?.discordUsername,
       enrichment?.xUsername,
@@ -257,21 +233,50 @@ export function PeopleView({
       .includes(q);
   }
 
+  function matchesCrmFilters(enrichment: PersonEnrichment | null) {
+    if (
+      qualificationFilter !== "all" &&
+      (enrichment?.qualification ?? "unqualified") !== qualificationFilter
+    ) {
+      return false;
+    }
+    if (tagFilter !== "all") {
+      const tags = enrichment?.tags ?? [];
+      if (
+        !tags.some((tag) => tag.toLowerCase() === tagFilter.toLowerCase())
+      ) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   const filteredLeads = useMemo(
-    () => leadMembers.filter(memberMatchesQuery),
-    [leadMembers, q, enrichmentById],
+    () =>
+      leadMembers.filter(
+        (m) =>
+          memberMatchesQuery(m) &&
+          matchesCrmFilters(enrichmentFor("member", m.id)),
+      ),
+    [leadMembers, q, enrichmentById, tagFilter, qualificationFilter],
   );
 
   const filteredMembers = useMemo(
-    () => members.filter(memberMatchesQuery),
-    [members, q, enrichmentById],
+    () =>
+      members.filter(
+        (m) =>
+          memberMatchesQuery(m) &&
+          matchesCrmFilters(enrichmentFor("member", m.id)),
+      ),
+    [members, q, enrichmentById, tagFilter, qualificationFilter],
   );
 
   const filteredPeople = useMemo(
     () =>
       people.filter((p) => {
-        if (!q) return true;
         const enrichment = enrichmentFor("visitor", p.id);
+        if (!matchesCrmFilters(enrichment)) return false;
+        if (!q) return true;
         return [
           p.ip,
           p.country,
@@ -285,13 +290,15 @@ export function PeopleView({
           enrichment?.phone,
           enrichment?.telegramUsername,
           enrichment?.note,
+          ...(enrichment?.tags ?? []),
+          enrichment?.qualification,
         ]
           .filter(Boolean)
           .join(" ")
           .toLowerCase()
           .includes(q);
       }),
-    [people, q, enrichmentById],
+    [people, q, enrichmentById, tagFilter, qualificationFilter],
   );
 
   const selectedEnrichment = selected
@@ -313,27 +320,11 @@ export function PeopleView({
         <div>
           <h1 className="text-3xl font-semibold tracking-tight">People</h1>
           <p className="mt-1 max-w-2xl text-sm text-[#a1a1aa]">
-            Leads = trialing members (Whop unpaid included). Members and visitors
-            stay available for full profiling.
+            Open any profile to WhatsApp, email, tag as lead, add CRM tags, and
+            notes. Leads include trialing members plus anyone you qualify.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={syncPending}
-            onClick={() => syncWhopPersons(true)}
-            className="rounded-full border border-[#262626] bg-[#141414] px-3 py-2 text-sm font-medium text-[#a1a1aa] hover:bg-[#0f0f0f] disabled:opacity-60"
-          >
-            {syncPending ? "Syncing…" : "Whop dry run"}
-          </button>
-          <button
-            type="button"
-            disabled={syncPending}
-            onClick={() => syncWhopPersons(false)}
-            className="rounded-full border border-[#262626] bg-[#141414] px-3 py-2 text-sm font-medium text-[#e4e4e7] hover:bg-[#0f0f0f] disabled:opacity-60"
-          >
-            Sync Whop people
-          </button>
           {(
             [
               ["leads", `Leads (${leadMembers.length})`],
@@ -357,24 +348,15 @@ export function PeopleView({
         </div>
       </div>
 
-      {syncError ? (
-        <div className="rounded-2xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-[13px] text-red-400">
-          {syncError}
-        </div>
-      ) : null}
-      {syncMessage ? (
-        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-[13px] text-emerald-300">
-          {syncMessage}
-        </div>
-      ) : null}
-
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3">
-          <p className="text-[12px] text-amber-200/80">Conversion leads</p>
+          <p className="text-[12px] text-amber-200/80">Leads</p>
           <p className="mt-1 text-2xl font-semibold text-amber-100">
             {leadMembers.length}
           </p>
-          <p className="text-[11px] text-amber-100/60">Trialing · unpaid</p>
+          <p className="text-[11px] text-amber-100/60">
+            Trialing · CRM qualified
+          </p>
         </div>
         <div className="rounded-2xl border border-[#262626] bg-[#141414] px-4 py-3">
           <p className="text-[12px] text-[#a1a1aa]">Paying members</p>
@@ -393,16 +375,48 @@ export function PeopleView({
         </div>
       </div>
 
-      <input
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder={
-          tab === "visitors"
-            ? "Search IP, country, wallet, enriched contact…"
-            : "Search name, email, telegram, phone, notes…"
-        }
-        className="w-full rounded-xl border border-[#262626] bg-[#141414] px-3 py-2.5 text-sm outline-none focus:border-[#52525b]"
-      />
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={
+            tab === "visitors"
+              ? "Search IP, country, wallet, tags, notes…"
+              : "Search name, email, telegram, tags, notes…"
+          }
+          className="w-full rounded-xl border border-[#262626] bg-[#141414] px-3 py-2.5 text-sm outline-none focus:border-[#52525b]"
+        />
+        <select
+          value={qualificationFilter}
+          onChange={(e) =>
+            setQualificationFilter(
+              e.target.value as "all" | PersonQualification,
+            )
+          }
+          className="rounded-xl border border-[#262626] bg-[#141414] px-3 py-2.5 text-sm text-[#fafafa] outline-none sm:w-44"
+        >
+          <option value="all">All qualifications</option>
+          {(
+            Object.keys(PERSON_QUALIFICATION_LABELS) as PersonQualification[]
+          ).map((value) => (
+            <option key={value} value={value}>
+              {PERSON_QUALIFICATION_LABELS[value]}
+            </option>
+          ))}
+        </select>
+        <select
+          value={tagFilter}
+          onChange={(e) => setTagFilter(e.target.value)}
+          className="rounded-xl border border-[#262626] bg-[#141414] px-3 py-2.5 text-sm text-[#fafafa] outline-none sm:w-44"
+        >
+          <option value="all">All tags</option>
+          {PERSON_CRM_TAG_CATALOG.map((tag) => (
+            <option key={tag} value={tag}>
+              {tag}
+            </option>
+          ))}
+        </select>
+      </div>
 
       <div className="overflow-hidden rounded-2xl border border-[#262626] bg-[#141414] shadow-sm">
         <div className="overflow-x-auto">
@@ -459,16 +473,34 @@ export function PeopleView({
                                   Circle
                                 </span>
                               ) : null}
-                              {isLead ? (
+                              {enrichment?.qualification &&
+                              enrichment.qualification !== "unqualified" ? (
+                                <span
+                                  className={`rounded-md border px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${personQualificationTone(enrichment.qualification)}`}
+                                >
+                                  {
+                                    PERSON_QUALIFICATION_LABELS[
+                                      enrichment.qualification
+                                    ]
+                                  }
+                                </span>
+                              ) : isLead ? (
                                 <span className="rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-amber-300 uppercase">
                                   Lead
                                 </span>
                               ) : null}
                             </div>
-                            <MemberTagChips
-                              tags={member.tags}
-                              className="mt-1"
-                            />
+                            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                              <MemberTagChips tags={member.tags} />
+                              {(enrichment?.tags ?? []).slice(0, 4).map((tag) => (
+                                <span
+                                  key={tag}
+                                  className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${personCrmTagTone(tag)}`}
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
                             <p className="text-xs text-[#71717a]">
                               {enrichment?.note
                                 ? enrichment.note.slice(0, 48)
@@ -584,7 +616,33 @@ export function PeopleView({
                             size={36}
                           />
                           <div>
-                            <p className="font-medium text-[#fafafa]">{label}</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium text-[#fafafa]">{label}</p>
+                              {enrichment?.qualification &&
+                              enrichment.qualification !== "unqualified" ? (
+                                <span
+                                  className={`rounded-md border px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${personQualificationTone(enrichment.qualification)}`}
+                                >
+                                  {
+                                    PERSON_QUALIFICATION_LABELS[
+                                      enrichment.qualification
+                                    ]
+                                  }
+                                </span>
+                              ) : null}
+                            </div>
+                            {(enrichment?.tags?.length ?? 0) > 0 ? (
+                              <div className="mt-1 flex flex-wrap gap-1">
+                                {enrichment!.tags.slice(0, 3).map((tag) => (
+                                  <span
+                                    key={tag}
+                                    className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${personCrmTagTone(tag)}`}
+                                  >
+                                    {tag}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
                             <p className="max-w-[220px] truncate font-mono text-[11px] text-[#71717a]">
                               {enrichment?.email || person.id}
                             </p>

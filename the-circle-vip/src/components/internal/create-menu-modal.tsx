@@ -3,14 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition, type ReactNode } from "react";
 
-type Panel = "menu" | "lead" | "whop";
+type Panel = "menu" | "lead";
 
 type CreateOption = {
   id: string;
   title: string;
   description: string;
   badge?: string;
-  kind: "href" | "comp" | "lead" | "whop";
+  kind: "href" | "comp" | "lead";
   href?: string;
 };
 
@@ -73,14 +73,6 @@ const GROUPS: CreateGroup[] = [
         description: "Browse and update your captured leads pipeline.",
         kind: "href",
         href: "/internal/leads",
-      },
-      {
-        id: "whop",
-        title: "Whop → Stripe",
-        description:
-          "One-time migrate into Stripe (source of truth). Dashboard always reads Stripe.",
-        badge: "Migrate",
-        kind: "whop",
       },
     ],
   },
@@ -145,7 +137,7 @@ function OptionIcon({ id }: { id: string }) {
       </svg>
     );
   }
-  if (id === "lead" || id === "waitlist" || id === "whop") {
+  if (id === "lead" || id === "waitlist") {
     return (
       <svg className={common} viewBox="0 0 24 24" fill="none" aria-hidden>
         <path
@@ -269,152 +261,10 @@ export function CreateMenuModal({
       setMessage(null);
       return;
     }
-    if (option.kind === "whop") {
-      setPanel("whop");
-      setError(null);
-      setMessage(null);
-      loadWhopStripeStatus();
-      return;
-    }
     if (option.href) {
       onClose();
       router.push(option.href);
     }
-  }
-
-  function loadWhopStripeStatus() {
-    startTransition(async () => {
-      try {
-        const res = await fetch("/api/internal/whop-import", {
-          credentials: "include",
-        });
-        const data = (await res.json()) as {
-          error?: string;
-          counts?: {
-            members: number;
-            payments: number;
-            grossUsd: number;
-            activeMembers: number;
-          };
-        };
-        if (!res.ok) throw new Error(data.error ?? "Failed to read Stripe");
-        const c = data.counts;
-        if (!c) return;
-        setMessage(
-          `Stripe SoT: ${c.members} customers (${c.activeMembers} active) · ${c.payments} paid Whop invoices · $${c.grossUsd.toFixed(2)}`,
-        );
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to read Stripe");
-      }
-    });
-  }
-
-  function runWhopImport(dryRun: boolean) {
-    setError(null);
-    setMessage(null);
-    startTransition(async () => {
-      try {
-        const res = await fetch("/api/internal/whop-import", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "import_stripe",
-            dryRun,
-            syncStripe: true,
-          }),
-        });
-        const data = (await res.json()) as {
-          error?: string;
-          stripe?: {
-            members: number;
-            payments: number;
-            grossUsd: number;
-          };
-          result?: {
-            ok: boolean;
-            members: {
-              upserted: number;
-              stripeCustomersCreated: number;
-              stripeCustomersUpdated: number;
-            };
-            payments: {
-              upserted: number;
-              stripeInvoicesCreated: number;
-              stripeInvoicesSkipped: number;
-            };
-            grossUsd: number;
-            errors: string[];
-          };
-        };
-        if (!res.ok) throw new Error(data.error ?? "Whop import failed");
-        const result = data.result;
-        if (!result) throw new Error("Empty import result");
-        setMessage(
-          [
-            dryRun ? "Dry run OK." : "Stripe migration complete.",
-            `${result.members.upserted} customers`,
-            `${result.payments.upserted} paid invoices ($${result.grossUsd.toFixed(2)})`,
-            dryRun
-              ? null
-              : `+${result.members.stripeCustomersCreated} new / ${result.members.stripeCustomersUpdated} updated · invoices +${result.payments.stripeInvoicesCreated} (skipped ${result.payments.stripeInvoicesSkipped})`,
-            data.stripe
-              ? `Live Stripe: ${data.stripe.members} cus · ${data.stripe.payments} inv · $${data.stripe.grossUsd.toFixed(2)}`
-              : null,
-            result.errors.length
-              ? `${result.errors.length} warnings — check server logs`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(" · "),
-        );
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Whop import failed");
-      }
-    });
-  }
-
-  function runWhopPersonsSync(dryRun: boolean) {
-    setError(null);
-    setMessage(null);
-    startTransition(async () => {
-      try {
-        const res = await fetch("/api/internal/whop-import", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "sync_persons", dryRun }),
-        });
-        const data = (await res.json()) as {
-          error?: string;
-          result?: {
-            dryRun?: boolean;
-            totals?: {
-              identified?: number;
-              matched?: number;
-              enriched?: number;
-              createdLeads?: number;
-              updatedLeads?: number;
-              anonymousSkipped?: number;
-            };
-          };
-        };
-        if (!res.ok) throw new Error(data.error ?? "Persons sync failed");
-        const t = data.result?.totals;
-        setMessage(
-          [
-            dryRun ? "People dry run." : "People sync complete.",
-            `identified ${t?.identified ?? 0}`,
-            `matched ${t?.matched ?? 0}`,
-            `enriched ${t?.enriched ?? 0}`,
-            `leads +${t?.createdLeads ?? 0}/~${t?.updatedLeads ?? 0}`,
-            `skipped anon ${t?.anonymousSkipped ?? 0}`,
-          ].join(" · "),
-        );
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Persons sync failed");
-      }
-    });
   }
 
   function createLead(e: React.FormEvent) {
@@ -567,94 +417,6 @@ export function CreateMenuModal({
             </button>
           </div>
         </form>
-      </div>
-    );
-  } else if (panel === "whop") {
-    body = (
-      <div className="space-y-4">
-        <button
-          type="button"
-          onClick={() => setPanel("menu")}
-          className="text-[13px] font-medium text-[#70a7ff] hover:underline"
-        >
-          ← Back to Create
-        </button>
-        <div>
-          <h3 className="text-lg font-semibold text-[#fafafa]">
-            Whop → Stripe + People
-          </h3>
-          <p className="mt-1 text-[13px] text-[#a1a1aa]">
-            Stripe is the source of truth for customers and payments. Migration
-            writes Whop members as customers (
-            <span className="text-[#d4d4d8]">source=whop_member</span>) and paid
-            history as out-of-band invoices.{" "}
-            <span className="text-[#d4d4d8]">People sync</span> enriches
-            profiles from the persons export (identified users only) and creates
-            missing lead stubs — anonymous storefront hits are skipped.
-          </p>
-        </div>
-        {error ? (
-          <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-[13px] text-red-400">
-            {error}
-          </p>
-        ) : null}
-        {message ? (
-          <p className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[13px] text-emerald-300">
-            {message}
-          </p>
-        ) : null}
-        <div className="flex flex-wrap gap-2 pt-1">
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => loadWhopStripeStatus()}
-            className="rounded-full border border-[#262626] px-4 py-2.5 text-[13px] font-medium text-[#a1a1aa] hover:bg-[#1c1c1c] disabled:opacity-50"
-          >
-            {pending ? "Reading…" : "Refresh from Stripe"}
-          </button>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => runWhopImport(true)}
-            className="rounded-full border border-[#262626] px-4 py-2.5 text-[13px] font-medium text-[#a1a1aa] hover:bg-[#1c1c1c] disabled:opacity-50"
-          >
-            Migrate dry run
-          </button>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => runWhopImport(false)}
-            className="rounded-full bg-white px-4 py-2.5 text-[13px] font-semibold text-black hover:bg-zinc-200 disabled:opacity-50"
-          >
-            {pending ? "Writing…" : "Re-run migrate → Stripe"}
-          </button>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => runWhopPersonsSync(true)}
-            className="rounded-full border border-[#262626] px-4 py-2.5 text-[13px] font-medium text-[#a1a1aa] hover:bg-[#1c1c1c] disabled:opacity-50"
-          >
-            People dry run
-          </button>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => runWhopPersonsSync(false)}
-            className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2.5 text-[13px] font-semibold text-emerald-200 hover:bg-emerald-500/15 disabled:opacity-50"
-          >
-            Sync → People
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              router.push("/internal/people?tab=leads");
-            }}
-            className="rounded-full border border-[#262626] px-4 py-2.5 text-[13px] font-medium text-[#a1a1aa] hover:bg-[#1c1c1c]"
-          >
-            Open People
-          </button>
-        </div>
       </div>
     );
   } else {

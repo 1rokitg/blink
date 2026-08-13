@@ -1,3 +1,5 @@
+import type { PersonQualification } from "@/lib/person-crm";
+
 /**
  * CRM overlay for People — members (Stripe) and unpaid site visitors.
  * Billing remains on Stripe; this stores operator-enriched profiling fields.
@@ -30,6 +32,10 @@ export type PersonEnrichment = {
   /** Extra wallets beyond visitor auto-detect (comma or newline separated in UI). */
   wallets: string[];
   note: string | null;
+  /** Operator CRM tags (Hot, VIP, Crypto, …). */
+  tags: string[];
+  /** Pipeline qualification — independent of Stripe trialing status. */
+  qualification: PersonQualification;
   /** Manual link to the other side of the identity. */
   linkedMemberId: string | null;
   linkedVisitorId: string | null;

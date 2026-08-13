@@ -4,6 +4,11 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
+  normalizePersonCrmTags,
+  normalizePersonQualification,
+  type PersonQualification,
+} from "@/lib/person-crm";
+import {
   type PersonEnrichment,
   type PersonKind,
   personEnrichmentId,
@@ -120,6 +125,8 @@ function hydrateEnrichment(row: PersonEnrichment): PersonEnrichment {
   return {
     ...row,
     photoUrls: Array.isArray(row.photoUrls) ? row.photoUrls : [],
+    tags: normalizePersonCrmTags(row.tags),
+    qualification: normalizePersonQualification(row.qualification),
   };
 }
 
@@ -147,6 +154,8 @@ function emptyEnrichment(
     paymentMethods: null,
     wallets: [],
     note: null,
+    tags: [],
+    qualification: "unqualified",
     linkedMemberId: null,
     linkedVisitorId: null,
     createdAt: now,
@@ -259,6 +268,8 @@ export async function upsertPersonEnrichment(input: {
   paymentMethods?: string | null;
   wallets?: string[] | string | null;
   note?: string | null;
+  tags?: string[] | string | null;
+  qualification?: PersonQualification | string | null;
   linkedMemberId?: string | null;
   linkedVisitorId?: string | null;
   updatedBy: string;
@@ -320,6 +331,14 @@ export async function upsertPersonEnrichment(input: {
         : existing.wallets,
     note:
       input.note !== undefined ? input.note?.trim() || null : existing.note,
+    tags:
+      input.tags !== undefined
+        ? normalizePersonCrmTags(input.tags)
+        : normalizePersonCrmTags(existing.tags),
+    qualification:
+      input.qualification !== undefined
+        ? normalizePersonQualification(input.qualification)
+        : normalizePersonQualification(existing.qualification),
     linkedMemberId:
       input.linkedMemberId !== undefined
         ? input.linkedMemberId?.trim() || null

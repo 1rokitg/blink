@@ -11,6 +11,7 @@ import {
 } from "@/components/internal/command-search";
 import { CompGiftModal } from "@/components/internal/comp-gift-modal";
 import { CreateMenuModal } from "@/components/internal/create-menu-modal";
+import { InternalToastProvider } from "@/components/internal/toast";
 
 type Props = {
   username: string;
@@ -396,6 +397,7 @@ export function MonetiseShell({ username, children }: Props) {
   }
 
   return (
+    <InternalToastProvider>
     <div className="monetise min-h-screen bg-[#0a0a0a] text-[#fafafa]">
       <div className="flex min-h-screen">
         <div className="hidden w-14 shrink-0 flex-col items-center border-r border-[#262626] bg-[#0a0a0a] py-4 lg:flex">
@@ -527,5 +529,6 @@ export function MonetiseShell({ username, children }: Props) {
       <CompGiftModal open={compOpen} onClose={() => setCompOpen(false)} />
       <CommandSearch open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
+    </InternalToastProvider>
   );
 }

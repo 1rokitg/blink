@@ -1,0 +1,152 @@
+name: Deploy Circle (Doorfee apex)
+
+# Deploys the-circle-vip, detaches apex from the Worker, points DNS at Doorfee,
+# and updates Stripe webhook when secrets are present.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "the-circle-vip/**"
+      - ".github/workflows/deploy-circle-doorfee.yml"
+
+concurrency:
+  group: deploy-circle-doorfee
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: the-circle-vip
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: the-circle-vip/pnpm-lock.yaml
+
+      - name: Require Cloudflare token
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::Missing repo secret CLOUDFLARE_API_TOKEN (Zone.DNS + Workers edit)."
+            exit 1
+          fi
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy Worker (drops apex custom domain)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: "72265998f8cf66e3ab4d88575895dd0d"
+          NEXT_PUBLIC_APP_URL: https://www.rokitg.com
+          NEXT_PUBLIC_TELEGRAM_INVITE_URL: https://t.me/rokitgg
+        run: pnpm deploy
+
+      - name: Apex CNAME → doorfee.io
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: "72265998f8cf66e3ab4d88575895dd0d"
+          CF_ZONE_ID: "f285c305e0e75ad3c8f385e8e3e6273f"
+        run: pnpm doorfee:apex-dns
+
+      - name: Set NEXT_PUBLIC_APP_URL on Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: "72265998f8cf66e3ab4d88575895dd0d"
+        run: |
+          # Plaintext var (NEXT_PUBLIC_* is not a secret).
+          echo "https://www.rokitg.com" | pnpm exec wrangler secret put NEXT_PUBLIC_APP_URL || true
+          # Also patch vars via API so builds/runtime both see it when possible.
+          curl -sS -X PATCH \
+            "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/workers/scripts/the-circle-vip/settings" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"bindings":[{"type":"plain_text","name":"NEXT_PUBLIC_APP_URL","text":"https://www.rokitg.com"}]}' \
+            | tee /tmp/cf-settings.json || true
+
+      - name: Stripe webhook → www
+        env:
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        run: |
+          if [ -z "$STRIPE_SECRET_KEY" ]; then
+            echo "::warning::No STRIPE_SECRET_KEY secret — skip webhook URL update."
+            exit 0
+          fi
+          node <<'NODE'
+          const key = process.env.STRIPE_SECRET_KEY;
+          const target = "https://www.rokitg.com/api/webhooks/stripe";
+          const list = await fetch("https://api.stripe.com/v1/webhook_endpoints?limit=100", {
+            headers: { Authorization: `Bearer ${key}` },
+          }).then((r) => r.json());
+          if (list.error) throw new Error(JSON.stringify(list.error));
+          const endpoints = list.data || [];
+          const match = endpoints.find((e) =>
+            String(e.url || "").includes("rokitg.com/api/webhooks/stripe"),
+          );
+          if (!match) {
+            console.log("No existing rokitg.com Stripe webhook found; creating…");
+            const body = new URLSearchParams();
+            body.set("url", target);
+            for (const ev of [
+              "checkout.session.completed",
+              "customer.subscription.created",
+              "customer.subscription.updated",
+              "customer.subscription.deleted",
+              "invoice.paid",
+              "invoice.payment_failed",
+            ]) {
+              body.append("enabled_events[]", ev);
+            }
+            const created = await fetch("https://api.stripe.com/v1/webhook_endpoints", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${key}`,
+                "Content-Type": "application/x-www-form-urlencoded",
+              },
+              body,
+            }).then((r) => r.json());
+            if (created.error) throw new Error(JSON.stringify(created.error));
+            console.log("Created webhook", created.id, created.url);
+            console.log("Update STRIPE_WEBHOOK_SECRET on the Worker to:", created.secret);
+            process.exit(0);
+          }
+          if (match.url === target) {
+            console.log("Webhook already on www:", match.id);
+            process.exit(0);
+          }
+          const body = new URLSearchParams({ url: target });
+          const updated = await fetch(
+            `https://api.stripe.com/v1/webhook_endpoints/${match.id}`,
+            {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${key}`,
+                "Content-Type": "application/x-www-form-urlencoded",
+              },
+              body,
+            },
+          ).then((r) => r.json());
+          if (updated.error) throw new Error(JSON.stringify(updated.error));
+          console.log("Updated webhook", updated.id, "→", updated.url);
+          NODE
+
+      - name: Verify apex
+        run: |
+          sleep 5
+          echo "== dig =="
+          dig +short rokitg.com A | head -5 || true
+          echo "== curl apex =="
+          curl -sI https://rokitg.com | head -20
+          echo "== curl www =="
+          curl -sI https://www.rokitg.com | head -15

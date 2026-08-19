@@ -40,7 +40,7 @@ elif [[ -f "$ROOT/.env.local" ]]; then
   set +a
 fi
 
-: "${NEXT_PUBLIC_APP_URL:=https://rokitg.com}"
+: "${NEXT_PUBLIC_APP_URL:=https://www.rokitg.com}"
 : "${NEXT_PUBLIC_TELEGRAM_INVITE_URL:=https://t.me/rokitgg}"
 export NEXT_PUBLIC_APP_URL NEXT_PUBLIC_TELEGRAM_INVITE_URL
 
@@ -48,4 +48,4 @@ echo "Deploy build env: APP_URL=$NEXT_PUBLIC_APP_URL INVITE=$NEXT_PUBLIC_TELEGRA
 
 pnpm build:cloudflare
 pnpm exec wrangler deploy --minify
-echo "Live: https://rokitg.com (www.rokitg.com · workers.dev backup)"
+echo "Live: https://www.rokitg.com (apex rokitg.com → Doorfee · workers.dev backup)"

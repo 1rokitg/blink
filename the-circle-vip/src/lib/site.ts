@@ -52,6 +52,17 @@ export const SITE = {
   shopifyMyshopifyDomain:
     process.env.NEXT_PUBLIC_SHOPIFY_MYSHOPIFY_DOMAIN?.trim() ||
     "tfrdn9-ku.myshopify.com",
+  /**
+   * Public marketing apex — Doorfee (https://doorfee.io/p/rokitg) via Cloudflare
+   * CNAME flatten `@` → `doorfee.io`. App / Stripe / join live on `www`.
+   */
+  doorfeeLandingUrl:
+    process.env.NEXT_PUBLIC_DOORFEE_LANDING_URL?.trim() ||
+    "https://doorfee.io/p/rokitg",
+  /** Circle app host (Worker). Prefer www once apex is Doorfee-only. */
+  appUrl:
+    process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") ||
+    "https://www.rokitg.com",
   partners: [
     {
       id: "propr",

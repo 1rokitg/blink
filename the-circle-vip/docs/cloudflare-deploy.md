@@ -2,8 +2,9 @@
 
 Runs on **your main Cloudflare account** (`pintosdsgn`, same account as Blink) via `@opennextjs/cloudflare`.
 
-**Stable URL:** https://rokitg.com  
-**Also:** https://www.rokitg.com · backup https://the-circle-vip.pintosdsgn.workers.dev  
+**Stable marketing URL (apex):** https://rokitg.com → **Doorfee** ([setup](./doorfee-apex.md))  
+**App / checkout:** https://www.rokitg.com · backup https://the-circle-vip.pintosdsgn.workers.dev  
+**Also:** https://internal.rokitg.com · https://indicators.rokitg.com  
 **Worker name:** `the-circle-vip`  
 **Account ID:** `72265998f8cf66e3ab4d88575895dd0d`  
 **Zone:** `rokitg.com`
@@ -40,7 +41,7 @@ Dashboard → Workers → `the-circle-vip` → Settings → Variables, or:
 pnpm exec wrangler secret bulk .dev.vars.json
 ```
 
-Required: Stripe keys/prices, `SESSION_SECRET`, `NEXT_PUBLIC_APP_URL` (set to the stable URL or your custom domain), interim `NEXT_PUBLIC_TELEGRAM_INVITE_URL=https://t.me/rokitgg`.
+Required: Stripe keys/prices, `SESSION_SECRET`, `NEXT_PUBLIC_APP_URL=https://www.rokitg.com`, interim `NEXT_PUBLIC_TELEGRAM_INVITE_URL=https://t.me/rokitgg`.
 
 Optional: `PROPR_BEARER_TOKEN` — short-lived Propr app session JWT for live referral sync. Prefer pasting a fresh token in **Earnings → Referrals → Sync now** (stored in KV until JWT expiry). CSV seed remains the offline fallback.
 
@@ -48,12 +49,14 @@ Optional: `PROPR_BEARER_TOKEN` — short-lived Propr app session JWT for live re
 
 ## Domain
 
-Already attached on zone **rokitg.com**:
+| Host | Origin |
+|------|--------|
+| `rokitg.com` (apex) | **Doorfee** — CNAME `@` → `doorfee.io` (see [doorfee-apex.md](./doorfee-apex.md)) |
+| `www.rokitg.com` | Worker custom domain |
+| `internal.rokitg.com` | Worker custom domain |
+| `indicators.rokitg.com` | Worker custom domain |
 
-- https://rokitg.com
-- https://www.rokitg.com
-
-Configured in `wrangler.jsonc` `routes`. Set Stripe webhook to `https://rokitg.com/api/webhooks/stripe`.
+Configured in `wrangler.jsonc` `routes` (apex is intentionally **not** a Worker custom domain). Set Stripe webhook to `https://www.rokitg.com/api/webhooks/stripe`.
 
 ## Workers Builds (optional Git CI)
 

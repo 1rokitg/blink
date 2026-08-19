@@ -18,9 +18,16 @@ import {
   readInternalSession,
 } from "@/lib/internal-auth";
 import { isIndicatorsHost } from "@/lib/indicators-site";
+import { SITE } from "@/lib/site";
 
 function isInternalHost(host: string) {
   return host.startsWith("internal.");
+}
+
+/** Bare apex only — www / internal / indicators stay on this Worker. */
+function isApexRokitgHost(host: string) {
+  const bare = host.split(":")[0]?.toLowerCase() ?? "";
+  return bare === "rokitg.com";
 }
 
 function persistLocale(response: NextResponse, locale: Locale) {
@@ -93,6 +100,24 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(INTERNAL_SESSION_COOKIE)?.value;
   const session = await readInternalSession(token);
+
+  // Apex marketing is Doorfee. If DNS/Worker still delivers apex here (cutover
+  // gap), send visitors to the Doorfee page instead of our Next landing.
+  if (isApexRokitgHost(host)) {
+    if (
+      pathname.startsWith("/_next") ||
+      pathname.startsWith("/api/") ||
+      pathname.startsWith("/favicon") ||
+      pathname.startsWith("/logo")
+    ) {
+      // Keep API/assets on www via explicit host — apex should not serve app.
+      const www = request.nextUrl.clone();
+      www.protocol = "https:";
+      www.host = "www.rokitg.com";
+      return NextResponse.redirect(www, 308);
+    }
+    return NextResponse.redirect(SITE.doorfeeLandingUrl, 308);
+  }
 
   if (isIndicatorsHost(host)) {
     if (

@@ -35,7 +35,7 @@ Dashboard → Settings → Billing → Customer portal:
 
 ## 4. Webhooks
 
-Endpoint: `https://rokitg.com/api/webhooks/stripe`
+Endpoint: `https://www.rokitg.com/api/webhooks/stripe`
 
 Subscribe at minimum:
 

@@ -47,7 +47,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
   const { locale, dictionary } = await getRequestDictionary();
   const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") || "https://rokitg.com";
+    process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+    "https://www.rokitg.com";
 
   return {
     title: dictionary.meta.title,

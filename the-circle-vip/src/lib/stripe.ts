@@ -31,7 +31,7 @@ export function getStripe(): Stripe {
 export function getAppUrl() {
   return (
     process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/$/, "") ||
-    "https://rokitg.com"
+    "https://www.rokitg.com"
   );
 }
 

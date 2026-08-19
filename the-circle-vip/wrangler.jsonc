@@ -10,7 +10,8 @@
   "workers_dev": true,
   "preview_urls": true,
   "routes": [
-    { "pattern": "rokitg.com", "custom_domain": true },
+    // Apex `rokitg.com` is Doorfee (CNAME flatten → doorfee.io). Do not attach
+    // the Worker custom domain there or it steals DNS from Doorfee.
     { "pattern": "www.rokitg.com", "custom_domain": true },
     { "pattern": "internal.rokitg.com", "custom_domain": true },
     { "pattern": "indicators.rokitg.com", "custom_domain": true }

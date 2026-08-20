@@ -1,26 +1,12 @@
-import { ImageResponse } from "next/og";
+import {
+  APPLE_ICON_IMAGE_URL,
+  redirectToStaticMetadataImage,
+} from "~/lib/blink/metadata-images";
 
 export const runtime = "nodejs";
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
 export default function AppleIcon() {
-  return new ImageResponse(
-    (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 140,
-          background: "#060510",
-        }}
-      >
-        👀
-      </div>
-    ),
-    size,
-  );
+  return redirectToStaticMetadataImage(APPLE_ICON_IMAGE_URL);
 }

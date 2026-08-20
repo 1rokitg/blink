@@ -5,6 +5,9 @@
     },
     "stripe": {
       "enabled": true
+    },
+    "shopify-plugin": {
+      "enabled": true
     }
   }
 }

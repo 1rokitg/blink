@@ -10,6 +10,12 @@ import { Toaster } from "@acme/ui/toast";
 import "~/app/globals.css";
 
 import { env } from "~/env";
+import {
+  APPLE_ICON_IMAGE_URL,
+  ICON_IMAGE_URL,
+  SOCIAL_CARD_IMAGE,
+  SOCIAL_CARD_IMAGE_URL,
+} from "~/lib/blink/metadata-images";
 import { ContextProviders } from "~/lib/providers";
 
 export const metadata: Metadata = {
@@ -17,12 +23,17 @@ export const metadata: Metadata = {
   title: "Blink — Hyperliquid Terminal",
   description:
     "All-in-one Hyperliquid terminal for serious traders. Live order book, real execution, routed through Blink.",
+  icons: {
+    apple: APPLE_ICON_IMAGE_URL,
+    icon: ICON_IMAGE_URL,
+  },
   openGraph: {
     type: "website",
     title: "Blink — Hyperliquid Terminal",
     description: "All-in-one Hyperliquid terminal for serious traders.",
     url: "https://blink.lat",
     siteName: "Blink",
+    images: [SOCIAL_CARD_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
@@ -30,6 +41,7 @@ export const metadata: Metadata = {
     creator: "@rokitdotgg",
     title: "Blink — Hyperliquid Terminal",
     description: "All-in-one Hyperliquid terminal for serious traders.",
+    images: [SOCIAL_CARD_IMAGE_URL],
   },
 };
 

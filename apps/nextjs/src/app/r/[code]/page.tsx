@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import {
+  SOCIAL_CARD_IMAGE,
+  SOCIAL_CARD_IMAGE_URL,
+} from "~/lib/blink/metadata-images";
+
 /**
  * /r/[code] — Referral landing page.
  *
@@ -25,11 +30,13 @@ export async function generateMetadata(props: {
       url: `https://blink.lat/r/${slug}`,
       siteName: "Blink",
       type: "website",
+      images: [SOCIAL_CARD_IMAGE],
     },
     twitter: {
       card: "summary_large_image",
       title: `${slug} invited you to Blink`,
       description: "Trade perps with zero maker fees on Hyperliquid.",
+      images: [SOCIAL_CARD_IMAGE_URL],
     },
   };
 }

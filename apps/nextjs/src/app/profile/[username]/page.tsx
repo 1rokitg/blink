@@ -3,6 +3,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { permanentRedirect } from "next/navigation";
 
+import {
+  SOCIAL_CARD_IMAGE,
+  SOCIAL_CARD_IMAGE_URL,
+} from "~/lib/blink/metadata-images";
+
 export async function generateMetadata(props: {
   params: Promise<{ username: string }>;
 }): Promise<Metadata> {
@@ -23,11 +28,13 @@ export async function generateMetadata(props: {
       title: `${profileSlug} on Blink`,
       description: `Check out ${profileSlug}'s trades and performance on Hyperliquid.`,
       url: `https://blink.lat${profilePath}`,
+      images: [SOCIAL_CARD_IMAGE],
     },
     twitter: {
       card: "summary_large_image",
       title: `${profileSlug} on Blink`,
       description: `Check out ${profileSlug}'s trades and performance on Hyperliquid.`,
+      images: [SOCIAL_CARD_IMAGE_URL],
     },
   };
 }

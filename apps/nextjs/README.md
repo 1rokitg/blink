@@ -25,4 +25,8 @@ You can check out the [create-t3-app GitHub repository](https://github.com/t3-os
 
 ## How do I deploy this?
 
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+**Production (Cloudflare Workers):** see [docs/cloudflare-workers-deploy.md](../../docs/cloudflare-workers-deploy.md). Dashboard deploy command must use `pnpm run deploy:cloudflare` (minify + Hyperdrive patch). Workers Paid ($5/mo) is usually required for OpenNext bundle size.
+
+**Preview branches:** [docs/cloudflare-preview-deploy.md](../../docs/cloudflare-preview-deploy.md).
+
+Other hosts: [Vercel](https://create.t3.gg/en/deployment/vercel), [Docker](https://create.t3.gg/en/deployment/docker).

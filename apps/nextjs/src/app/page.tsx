@@ -1,6 +1,5 @@
 "use client";
 
-import { BadgeCheck, Disc } from "lucide-react";
 import Link from "next/link";
 
 import { motion } from "motion/react";
@@ -52,55 +51,7 @@ export default function HomePage() {
         >
           Continue with free terminal
         </Link>
-        <Link
-          href="/profile/verify"
-          className="mt-5 flex w-full items-start gap-3 rounded-2xl border border-[#6cc6ff33] bg-[linear-gradient(180deg,rgba(10,23,42,0.92),rgba(6,16,30,0.96))] px-4 py-4 text-left shadow-[0_18px_50px_rgba(0,0,0,0.25)] transition hover:border-[#6cc6ff66] hover:bg-[linear-gradient(180deg,rgba(12,28,50,0.96),rgba(7,20,36,0.98))]"
-        >
-          <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#38bdf8]/12 text-[#8ad9ff]">
-            <BadgeCheck className="size-5" />
-          </span>
-          <span className="block">
-            <span className="block text-sm font-semibold text-white">
-              Verify your X profile
-            </span>
-            <span className="mt-1 block text-sm leading-6 text-foreground/60">
-              Build a public Blink identity, unlock the verified badge, and make
-              your profile easier to share.
-            </span>
-          </span>
-        </Link>
-        <Link
-          href={BLINK_TOKEN_ROUTE}
-          className="mt-4 flex w-full items-start gap-3 rounded-2xl border border-[#8fbaff44] bg-[linear-gradient(180deg,rgba(14,25,44,0.94),rgba(7,14,28,0.98))] px-4 py-4 text-left shadow-[0_18px_50px_rgba(0,0,0,0.28)] transition hover:border-[#8fbaff80] hover:bg-[linear-gradient(180deg,rgba(16,29,51,0.98),rgba(8,17,33,1))]"
-        >
-          <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-2xl bg-[#3b82f6]/12 text-[#9bddff]">
-            <Disc className="size-5" />
-          </span>
-          <span className="block">
-            <span className="block text-sm font-semibold text-white">
-              BLINK token
-            </span>
-            <span className="mt-1 block text-sm leading-6 text-foreground/60">
-              Support Blink&apos;s bootstrap budget and give the token a
-              permanent home inside the app.
-            </span>
-          </span>
-        </Link>
-        <ProprFundedCta variant="card" source="landing" className="mt-4 w-full text-left" />
-        <Link
-          href="/invest"
-          className="mt-2 text-sm text-[#8fb9ff] underline-offset-4 transition hover:text-[#b8d3ff] hover:underline"
-        >
-          Investor brief
-        </Link>
-        <a
-          href="https://rokitg.fun"
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2 text-sm text-[#8fb9ff] underline-offset-4 transition hover:text-[#b8d3ff] hover:underline"
-        >
-          rokitg.fun
-        </a>
+        
         <p className="mt-6 text-xs text-foreground/45">
           Blink is not available to U.S. persons. U.S. will be dropped off.
           <a

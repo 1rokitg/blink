@@ -23,11 +23,11 @@ import { BLINK_TOKEN_ROUTE } from "~/lib/blink/token";
 export const metadata: Metadata = {
   title: "Invest | Blink",
   description:
-    "Blink is the social-first Hyperliquid terminal — builder-code revenue, consumer distribution, and onchain perps execution at blink.lat.",
+    "Blink is the social-first terminal — builder-code revenue, consumer distribution, and onchain perps execution.",
   openGraph: {
     title: "Invest in Blink",
     description:
-      "Social-first Hyperliquid perps frontend. Live on DeFiLlama. Own the flow. Monetize the audience.",
+      "Social-first terminal. Live on DeFiLlama. Own the flow. Monetize the audience.",
     url: "https://blink.lat/invest",
   },
 };
@@ -36,7 +36,7 @@ const revenueStreams = [
   {
     title: "Builder fees",
     detail:
-      "Hyperliquid builder codes earn on every routed perp fill — onchain, revocable, no custody.",
+      "Builder codes earn on every routed perp fill — onchain, revocable, no custody.",
     icon: Zap,
   },
   {
@@ -63,7 +63,7 @@ const roadmap = [
   {
     phase: "Now",
     items: [
-      "Live terminal at blink.lat on Hyperliquid L1",
+      "Live terminal on L1",
       "DeFiLlama-listed as Blink Perps",
       "Screen-based onboarding + builder routing",
       "Affiliate leaderboard + public KOL stats",
@@ -75,7 +75,6 @@ const roadmap = [
       "Embedded wallet + Google onboarding (ROK-9)",
       "Mobile companion + push alerts",
       "Copy-trading and follow-feed discovery",
-      "HIP-4 outcome markets inside Blink",
     ],
   },
   {
@@ -121,13 +120,13 @@ export default async function InvestPage() {
             01 — Cover
           </p>
           <h1 className="mt-3 max-w-4xl text-4xl font-semibold tracking-[-0.05em] text-white sm:text-6xl">
-            The social-first Hyperliquid terminal.
+              The social-first terminal.
           </h1>
           <p className="mt-5 max-w-3xl text-lg leading-8 text-white/68 sm:text-xl">
             Crypto moves in the blink of an eye. Blink turns creator attention,
             KOL distribution, and consumer-grade UX into{" "}
             <span className="text-[#8ad9ff]">onchain perp revenue</span> via
-            Hyperliquid builder codes — without custody, without reinventing the
+            builder codes — without custody, without reinventing the
             exchange.
           </p>
 
@@ -217,7 +216,7 @@ export default async function InvestPage() {
             {[
               "Draggable terminal + intent trade flows",
               "Public profiles, X verification, leaderboards",
-              "Builder-code routing on Hyperliquid L1",
+              "Builder-code routing on L1",
               "Affiliate KOL gamification + live stats",
             ].map((item) => (
               <div
@@ -244,7 +243,7 @@ export default async function InvestPage() {
               </h2>
               <p className="mt-3 max-w-2xl text-sm leading-6 text-white/58">
                 {metrics.description} Builder fees and perp volume are tracked
-                on-chain via Hyperliquid builder codes at blink.lat.
+                on-chain via builder codes.
               </p>
             </div>
             <a
@@ -343,7 +342,7 @@ export default async function InvestPage() {
               </li>
               <li>
                 <strong className="text-white">Onchain revenue rail</strong> —
-                Hyperliquid builder codes mean fees settle on L1 without Blink
+                builder codes mean fees settle on L1 without Blink
                 custodying user funds.
               </li>
               <li>
@@ -362,20 +361,20 @@ export default async function InvestPage() {
           <div className="rounded-[28px] border border-[#38bdf8]/20 bg-[linear-gradient(180deg,rgba(12,28,50,0.96),rgba(7,20,36,0.98))] p-7 sm:p-8">
             <Target className="size-5 text-[#8ad9ff]" />
             <h3 className="mt-4 text-xl font-semibold text-white">
-              Why Hyperliquid now
+              Why now
             </h3>
             <p className="mt-3 text-sm leading-6 text-white/58">
-              HL is the fastest-growing onchain perps venue. Builder codes let
+              Builder codes let
               frontends capture flow without launching a new chain or matching
               engine — the strategic bet is owning UX and distribution, not
               reinventing clearing.
             </p>
             <div className="mt-6 space-y-3">
               {[
-                "Category: Hyperliquid Builder (DeFiLlama)",
-                "Chain: Hyperliquid L1",
+                "Category: Builder (DeFiLlama)",
+                "Chain: L1",
                 "Product: Perpetuals via builder code",
-                "Site: blink.lat",
+                "Site: blinkperps.xyz",
               ].map((line) => (
                 <div
                   key={line}
@@ -479,18 +478,18 @@ export default async function InvestPage() {
         </section>
 
         <footer className="rounded-2xl border border-white/8 bg-white/[0.02] px-5 py-4 text-center text-xs leading-6 text-white/38">
-          Blink is software infrastructure — not investment advice. Metrics from{" "}
+          Blink is the last crypto terminal you'll ever use. Metrics from{" "}
           <a
             href={metrics.defillamaUrl}
             target="_blank"
             rel="noreferrer"
             className="text-[#8fb9ff] hover:underline"
           >
-            DeFiLlama · Blink Perps
+            DeFiLlama · Blink
           </a>
-          . Blink is not available to U.S. persons.{" "}
+              .{" "}
           <Link href="/" className="text-[#8fb9ff] hover:underline">
-            blink.lat
+            blinkperps.xyz
           </Link>
         </footer>
       </div>

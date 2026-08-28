@@ -6,18 +6,18 @@ import { ProprFundedCta } from "~/components/blink/propr-funded-cta";
 export const metadata: Metadata = {
   title: "Deposit · Blink",
   description:
-    "Fund your Blink account to start trading perpetuals on Hyperliquid. Fast, secure, self-custody.",
+    "Fund your Blink account to start trading perpetuals. Fast, secure, self-custody.",
   openGraph: {
     title: "Deposit · Blink",
     description:
-      "Fund your account and start trading perps on Hyperliquid with zero maker fees.",
+      "Fund your account and start trading perps with zero maker fees.",
     url: "https://blink.lat/deposit",
   },
   twitter: {
     card: "summary_large_image",
     title: "Deposit · Blink",
     description:
-      "Fund your account and start trading perps on Hyperliquid with zero maker fees.",
+      "Fund your account and start trading perps with zero maker fees.",
   },
 };
 

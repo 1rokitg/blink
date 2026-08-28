@@ -19,28 +19,28 @@ import {
 import { ContextProviders } from "~/lib/providers";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://blink.lat"),
-  title: "Blink — Hyperliquid Terminal",
+  metadataBase: new URL("https://blinkperps.xyz"),
+  title: "Blink",
   description:
-    "All-in-one Hyperliquid terminal for serious traders. Live order book, real execution, routed through Blink.",
+    "The last crypto terminal you'll ever use.",
   icons: {
     apple: APPLE_ICON_IMAGE_URL,
     icon: ICON_IMAGE_URL,
   },
   openGraph: {
     type: "website",
-    title: "Blink — Hyperliquid Terminal",
-    description: "All-in-one Hyperliquid terminal for serious traders.",
-    url: "https://blink.lat",
+    title: "Blink",
+    description: "The last crypto terminal you'll ever use.",
+    url: "https://blinkperps.xyz",
     siteName: "Blink",
     images: [SOCIAL_CARD_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
-    site: "@rokitdotgg",
-    creator: "@rokitdotgg",
-    title: "Blink — Hyperliquid Terminal",
-    description: "All-in-one Hyperliquid terminal for serious traders.",
+    site: "@blinkperps",
+    creator: "@1rokitg",
+    title: "Blink",
+    description: "The last crypto terminal you'll ever use.",
     images: [SOCIAL_CARD_IMAGE_URL],
   },
 };

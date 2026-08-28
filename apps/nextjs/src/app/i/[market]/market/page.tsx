@@ -14,7 +14,7 @@ export async function generateMetadata(props: {
   const path = intentMarketPath(coin);
   return {
     title: `Long ${coin} · Blink`,
-    description: `One-tap market order on ${coin}. Trade perps on Hyperliquid with Blink.`,
+    description: `One-tap market order on ${coin}. Trade perps with Blink.`,
     openGraph: {
       title: `Long ${coin} on Blink`,
       description: `Open a ${coin} position in one tap. Zero friction onboarding.`,

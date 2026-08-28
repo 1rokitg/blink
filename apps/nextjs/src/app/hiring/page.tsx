@@ -12,7 +12,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Hiring | Blink",
   description:
-    "Blink is hiring for a founding engineer and a community moderator to help build the fastest Hyperliquid frontend and community in crypto.",
+    "Blink is hiring for a founding engineer and a community moderator to help build the fastest terminal and community in crypto.",
 };
 
 type RoleCard = {
@@ -81,7 +81,7 @@ export default function HiringPage() {
           </div>
 
           <h1 className="mt-6 max-w-4xl text-4xl font-semibold tracking-[-0.05em] text-white sm:text-5xl">
-            Join Blink early and help build the fastest Hyperliquid frontend in
+            Join Blink early and help build the fastest terminal in
             crypto.
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-white/68 sm:text-lg">

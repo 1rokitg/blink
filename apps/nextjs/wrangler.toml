@@ -40,9 +40,6 @@ custom_domain = true
 directory = ".open-next/assets"
 binding = "ASSETS"
 
-# Local dev / CI build: direct Neon URL (override via .dev.vars — see .dev.vars.example).
-localConnectionString = "postgresql://build:build@127.0.0.1:5432/blink_build"
-
 [[services]]
 binding = "WORKER_SELF_REFERENCE"
 service = "blink"

@@ -43,7 +43,6 @@ export const env = createEnv({
       emptyStringToUndefined,
       z
         .string()
-        .url()
         .default(
           "postgresql://neondb_owner:npg_bESp0UZ8fLIM@ep-flat-haze-aqhliwl4-pooler.c-8.us-east-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require",
         ),

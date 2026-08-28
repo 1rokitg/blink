@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
 
-import { ensureWranglerHyperdrive } from "./ensure-wrangler-hyperdrive.mjs";
 
 const isWindows = process.platform === "win32";
 const pnpm = isWindows ? "pnpm.cmd" : "pnpm";
@@ -49,8 +48,7 @@ if (isCloudflareCi) {
     ...process.env,
     BLINK_OPENNEXT_BUILD: "1",
   });
-  // CI build cache can restore an old wrangler.toml; patch before deploy step runs.
-  ensureWranglerHyperdrive();
+
 }
 
 run(pnpm, ["exec", "next", "build"]);

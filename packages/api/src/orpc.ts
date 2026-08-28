@@ -1,15 +1,10 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
 
-import type { auth } from "@acme/auth/server";
 
-import { AuthMiddleware } from "./middlewares/auth";
 
 export const rpc = os
-  .$context<{
-    auth: typeof auth;
-    session: Awaited<ReturnType<typeof auth.api.getSession>>;
-  }>()
+  .$context<{  }>()
   .errors({
     // common errors
     UNAUTHORIZED: {},
@@ -20,4 +15,11 @@ export const rpc = os
     },
   });
 
-export const protectedProcedure = rpc.use(AuthMiddleware);
+export const protectedProcedure = rpc.use(({ context, next, errors }) => {
+  return next({
+    context: {
+      ...context,
+      session: "123",
+    },
+  });
+});

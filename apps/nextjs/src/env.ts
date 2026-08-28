@@ -3,7 +3,6 @@ import { vercel } from "@t3-oss/env-nextjs/presets-zod";
 import { getAddress } from "viem";
 import { z } from "zod";
 
-import { env as authEnv } from "@acme/auth/env";
 
 import {
   BLINK_PRIVY_APP_ID_DEFAULT,
@@ -28,7 +27,7 @@ const optionalWebhookUrl = (fallback = "") =>
   );
 
 export const env = createEnv({
-  extends: [authEnv, vercel()],
+  extends: [vercel()],
   shared: {
     NODE_ENV: z
       .enum(["development", "production", "test"])

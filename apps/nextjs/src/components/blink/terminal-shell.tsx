@@ -409,8 +409,6 @@ function ConnectGate() {
         </div>
       </motion.div>
 
-      <ProprFundedCta variant="card" source="connect-gate" className="relative z-10 mt-5 w-full max-w-lg" />
-
       <Link
         href="/"
         className="relative z-10 mt-8 inline-flex items-center gap-1 text-sm text-white/40 transition hover:text-white/70"

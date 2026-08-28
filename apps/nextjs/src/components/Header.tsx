@@ -4,10 +4,10 @@ import { useEffect, useState } from "react";
 import { Menu, X, TrendingUp } from "lucide-react";
 
 const links = [
-  { label: "Inside", href: "#inside" },
-  { label: "Mentor", href: "#mentor" },
-  { label: "What You Get", href: "#included" },
-  { label: "Apply", href: "#apply" },
+  { label: "Features", href: "#inside" },
+  { label: "Tracker", href: "#mentor" },
+  { label: "Feed", href: "#included" },
+  { label: "Explore", href: "#apply" },
 ];
 
 export default function Header() {
@@ -35,7 +35,7 @@ export default function Header() {
             <TrendingUp className="h-5 w-5 text-ink-950" strokeWidth={2.5} />
           </span>
           <span className="font-display text-lg font-700 tracking-tight text-white">
-            Social<span className="text-accent-400"> Capital</span>
+            <span className="text-accent-400"> Blink</span>
           </span>
         </a>
 

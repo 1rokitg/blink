@@ -41,15 +41,12 @@ export default function Hero() {
 
         {/* Headline */}
         <h1 className="reveal mx-auto max-w-4xl text-center font-display text-4xl font-800 leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-7xl">
-          Learn the crypto system our members use to make{" "}
-          <span className="text-gradient">5 figures per month</span> in under 5
-          hours a week.
+          The last crypto terminal you'll{" "}
+          <span className="text-gradient">ever</span> use.
         </h1>
 
         <p className="reveal mx-auto mt-7 max-w-2xl text-center text-base leading-relaxed text-ink-300 sm:text-lg">
-          Private 1-on-1 mentorship that installs the exact entries, risk rules
-          and exits, so you can compound while keeping your job. Capped intake,
-          by application.
+          We've joined the best from both worlds.
         </p>
 
         {/* Video placeholder */}
@@ -137,12 +134,12 @@ export default function Hero() {
 
           <div className="mt-8 flex flex-col items-center gap-4">
             <a
-              href="https://whop.com/rokitg/exp_WvNuGuiGDJd0Ig/app/"
+              href="/trade/BTC/USDT"
               target="_blank"
               rel="noopener noreferrer"
               className="group inline-flex items-center gap-2 rounded-full bg-accent-500 px-7 py-3.5 text-sm font-600 text-ink-950 shadow-xl shadow-accent-500/25 transition-all hover:bg-accent-400 hover:shadow-accent-400/30"
             >
-              Continue to application
+              Launch Terminal
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </a>
             <div className="flex items-center gap-5 text-xs text-ink-400">

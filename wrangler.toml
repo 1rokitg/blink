@@ -3,7 +3,7 @@
 # Production deploy: pnpm run deploy:cloudflare (from repo root)
 # See docs/cloudflare-workers-deploy.md
 
-name = 'the-circle-vip'
+name = 'blink'
 main = "apps/nextjs/.open-next/worker.js"
 minify = true
 keep_names = false

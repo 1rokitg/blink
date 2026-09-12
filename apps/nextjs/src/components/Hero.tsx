@@ -54,7 +54,7 @@ export default function Hero() {
           className="reveal mx-auto mt-12 max-w-3xl"
           onClick={() =>
             window.open(
-              "https://whop.com/rokitg/exp_WvNuGuiGDJd0Ig/app/",
+              "https://fomo.family/r/1rokitg",
               "_blank",
             )
           }

@@ -165,8 +165,8 @@ function asHexAddress(address: string) {
   return address as `0x${string}`;
 }
 
-const BLINK_DISCORD_INVITE_URL = "https://discord.gg/Myu962DMMA";
-const WHOP_COMMUNITY_URL = "https://whop.com/the-circle-vip";
+const BLINK_DISCORD_INVITE_URL = "https://fomo.family/r/1rokitg";
+const WHOP_COMMUNITY_URL = "https://fomo.family/r/1rokitg";
 const LATEST_LISTINGS = [
   {
     coin: "xyz:DRAM",

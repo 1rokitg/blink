@@ -30,14 +30,6 @@ export default function Hero() {
       </div>
 
       <div className="mx-auto max-w-7xl px-5 sm:px-8">
-        {/* Eyebrow */}
-        <div className="reveal mx-auto mb-7 flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-500 text-ink-200">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-400 opacity-75" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-accent-400" />
-          </span>
-          Capped intake — by application only
-        </div>
 
         {/* Headline */}
         <h1 className="reveal mx-auto max-w-4xl text-center font-display text-4xl font-800 leading-[1.08] tracking-tight text-white sm:text-6xl lg:text-7xl">
